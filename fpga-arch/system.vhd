@@ -197,8 +197,8 @@ architecture behavior of system is
     constant addr_pulse_gen_status: address_t := x"0300";
     constant addr_pulse_gen_control: address_t := x"0301";
     constant addr_pulse_gen_config: address_t := x"0302";
-    constant addr_pulse_gen_delay_1: address_t := x"0303";
-    constant addr_pulse_gen_delay_2: address_t := x"0304";
+    constant addr_pulse_gen_delay: address_t := x"0303";
+    constant addr_pulse_gen_interval: address_t := x"0304";
     constant addr_pulse_gen_width: address_t := x"0305";
     constant addr_pulse_gen_count: address_t := x"0306";
     constant addr_uart_status: address_t := x"0400";
@@ -236,8 +236,8 @@ architecture behavior of system is
     signal en_pulse_gen_status: std_logic_vector(pulse_gen_count-1 downto 0);
     signal en_pulse_gen_control: std_logic_vector(pulse_gen_count-1 downto 0);
     signal en_pulse_gen_config: std_logic_vector(pulse_gen_count-1 downto 0);
-    signal en_pulse_gen_delay_1: std_logic_vector(pulse_gen_count-1 downto 0);
-    signal en_pulse_gen_delay_2: std_logic_vector(pulse_gen_count-1 downto 0);
+    signal en_pulse_gen_delay: std_logic_vector(pulse_gen_count-1 downto 0);
+    signal en_pulse_gen_interval: std_logic_vector(pulse_gen_count-1 downto 0);
     signal en_pulse_gen_width: std_logic_vector(pulse_gen_count-1 downto 0);
     signal en_pulse_gen_count: std_logic_vector(pulse_gen_count-1 downto 0);
     signal en_uart_status: std_logic_vector(uart_count-1 downto 0);
@@ -354,10 +354,10 @@ begin
         addr_en_loop(bus_in, addr_pulse_gen_control, x"0010", pulse_gen_count);
     en_pulse_gen_config <=
         addr_en_loop(bus_in, addr_pulse_gen_config, x"0010", pulse_gen_count);
-    en_pulse_gen_delay_1 <=
-        addr_en_loop(bus_in, addr_pulse_gen_delay_1, x"0010", pulse_gen_count);
-    en_pulse_gen_delay_2 <=
-        addr_en_loop(bus_in, addr_pulse_gen_delay_2, x"0010", pulse_gen_count);
+    en_pulse_gen_delay <=
+        addr_en_loop(bus_in, addr_pulse_gen_delay, x"0010", pulse_gen_count);
+    en_pulse_gen_interval <=
+        addr_en_loop(bus_in, addr_pulse_gen_interval, x"0010", pulse_gen_count);
     en_pulse_gen_width <= addr_en_loop(bus_in, addr_pulse_gen_width, x"0010",
         pulse_gen_count);
     en_pulse_gen_count <= addr_en_loop(bus_in, addr_pulse_gen_count, x"0010",
@@ -496,8 +496,8 @@ begin
             bus_in => bus_in,
             en_config => en_pulse_gen_config(i),
             en_control => en_pulse_gen_control(i),
-            en_delay_1 => en_pulse_gen_delay_1(i),
-            en_delay_2 => en_pulse_gen_delay_2(i),
+            en_delay => en_pulse_gen_delay(i),
+            en_interval => en_pulse_gen_interval(i),
             en_width => en_pulse_gen_width(i),
             en_count => en_pulse_gen_count(i),
             reg_status => reg_pulse_gen_status(i),

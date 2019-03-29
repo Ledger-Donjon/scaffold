@@ -2,8 +2,8 @@ Pulse generator modules
 =======================
 
 Each pulse generator allows generating one or multiple pulse when an input
-signal is asserted. Delay, width and number of pulses are all programmable
-using the registers of the module.
+signal is asserted. Delay, width, interval and number of pulses are all
+programmable using the registers of the module.
 
 Below is an example of two generated pulses, to show what delays can be
 configured. Delays are a multiple of the system clock period.
@@ -15,7 +15,7 @@ configured. Delays are a multiple of the system clock period.
       {"name": "out", "wave": "0.....1.0..1.0."},
       {"node": "..a...b.c..d"}
       ],
-      "edge": ["a<->b D1+1", "b<->c W+1", "c<->d D2+1"]
+      "edge": ["a<->b D+1", "b<->c W+1", "c<->d I+1"]
     }
 
 
@@ -27,7 +27,7 @@ Python API example
     pgen = scaffold.pgen0
     pgen.width = 100e-9  # 100 ns
     pgen.count = 1
-    pgen.delay_1 = 10e-6  # 10 µs
+    pgen.delay = 10e-6  # 10 µs
     pgen.start << scaffold.d0
     pgen.out >> scaffold.d1
 
@@ -53,9 +53,9 @@ Internal registers
 +---------------+-----------+-----+
 | base + 0x0002 | config    | W   |
 +---------------+-----------+-----+
-| base + 0x0003 | delay_1   | W   |
+| base + 0x0003 | delay     | W   |
 +---------------+-----------+-----+
-| base + 0x0004 | delay_2   | W   |
+| base + 0x0004 | interval  | W   |
 +---------------+-----------+-----+
 | base + 0x0005 | width     | W   |
 +---------------+-----------+-----+
@@ -101,19 +101,19 @@ polarity
   Pulse polarity. When 1, pulse is negative.
 
 
-delay_1 register
-^^^^^^^^^^^^^^^^
+delay register
+^^^^^^^^^^^^^^
 
 24 bits register storing the delay before the pulse. If the value of this
-register is :math:`D1`, the delay is :math:`1/F_{sys} * (D+1)`. Write 3 times
+register is :math:`D`, the delay is :math:`1/F_{sys} * (D+1)`. Write 3 times
 this register to load the 24 bits word, MSB first.
 
-delay_2 register
-^^^^^^^^^^^^^^^^
+interval register
+^^^^^^^^^^^^^^^^^
 
 24 bits register storing the delay after the pulse and before the next one
-(when using multiple pulses). If the value of this register is :math:`D`, the
-delay is :math:`1/F_{sys} * (D+1)`. Write 3 times this register to load the
+(when using multiple pulses). If the value of this register is :math:`I`, the
+interval is :math:`1/F_{sys} * (I+1)`. Write 3 times this register to load the
 24 bits word, MSB first.
 
 width register

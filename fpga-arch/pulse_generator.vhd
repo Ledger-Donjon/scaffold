@@ -32,9 +32,9 @@ port (
     -- System reset, active low.
     reset_n: in std_logic;
     -- Delay value before pulse.
-    delay_1: in std_logic_vector(23 downto 0);
+    delay: in std_logic_vector(23 downto 0);
     -- Delay value after pulse, before next one.
-    delay_2: in std_logic_vector(23 downto 0);
+    interval: in std_logic_vector(23 downto 0);
     -- Pulse width.
     width: in std_logic_vector(23 downto 0);
     -- Number of pulses.
@@ -52,13 +52,13 @@ end;
 
 architecture behavior of pulse_generator is
     -- FSM states
-    type state_t is (st_idle, st_delay_1, st_pulse, st_delay_2);
+    type state_t is (st_idle, st_delay, st_pulse, st_interval);
     -- Previous value of start bit, for pulse detection.
     signal start_z: std_logic;
     -- High during one clock cycle when a rising edge has been detected.
     signal start_rising_edge: std_logic;
     -- Value of the delay, fetched when start is asserted.
-    signal delay_2_fetch: std_logic_vector(23 downto 0);
+    signal interval_fetch: std_logic_vector(23 downto 0);
     -- Value of pulse width, fetched when start is asserted.
     signal width_fetch: std_logic_vector(23 downto 0);
     -- Polarity, fetched when start is asserted.
@@ -96,17 +96,17 @@ begin
                 -- Waiting for start.
                 when st_idle =>
                     if start_rising_edge = '1' then
-                        state <= st_delay_1;
+                        state <= st_delay;
                     else
                         state <= st_idle;
                     end if;
 
                 -- Delay before pulse.
-                when st_delay_1 =>
+                when st_delay =>
                     if delay_counter_zero = '1' then
                         state <= st_pulse;
                     else
-                        state <= st_delay_1;
+                        state <= st_delay;
                     end if;
 
                 -- Pulse generation.
@@ -115,36 +115,36 @@ begin
                         if pulse_counter = 0 then
                             state <= st_idle;
                         else
-                            state <= st_delay_2;
+                            state <= st_interval;
                         end if;
                     else
                         state <= st_pulse;
                     end if;
 
                 -- Second delay before next pulse.
-                when st_delay_2 =>
+                when st_interval =>
                     if delay_counter_zero = '1' then
                         state <= st_pulse;
                     else
-                        state <= st_delay_2;
+                        state <= st_interval;
                     end if;
             end case;
         end if;
     end process;
 
-    -- Fetch delay_2 value when start is asserted.
+    -- Fetch interval value when start is asserted.
     p_fetch: process (clock, reset_n)
     begin
         if reset_n = '0' then
-            delay_2_fetch <= (others => '0');
+            interval_fetch <= (others => '0');
         elsif rising_edge(clock) then
             case state is
                 when st_idle =>
-                    delay_2_fetch <= delay_2;
+                    interval_fetch <= interval;
                     width_fetch <= width;
                     polarity_fetch <= polarity;
                 when others =>
-                    delay_2_fetch <= delay_2_fetch;
+                    interval_fetch <= interval_fetch;
                     width_fetch <= width_fetch;
                     polarity_fetch <= polarity_fetch;
             end case;
@@ -164,23 +164,23 @@ begin
     delay_counter_en <= '1';
     delay_counter_zero <= '1' when unsigned(delay_counter) = 0 else '0';
 
-    p_delay_counter: process (state, delay_1, width_fetch, delay_counter_zero,
-        delay_2_fetch)
+    p_delay_counter: process (state, delay, width_fetch, delay_counter_zero,
+        interval_fetch)
     begin
         case state is
             when st_idle =>
-                delay_counter_data <= delay_1;
+                delay_counter_data <= delay;
                 delay_counter_load <= '1';
 
-            when st_delay_1 =>
+            when st_delay =>
                 delay_counter_data <= width_fetch;
                 delay_counter_load <= delay_counter_zero;
 
             when st_pulse =>
-                delay_counter_data <= delay_2_fetch;
+                delay_counter_data <= interval_fetch;
                 delay_counter_load <= delay_counter_zero;
 
-            when st_delay_2 =>
+            when st_interval =>
                 delay_counter_data <= width_fetch;
                 delay_counter_load <= delay_counter_zero;
         end case;
@@ -195,7 +195,7 @@ begin
                 when st_idle =>
                     pulse_counter <= unsigned(count);
 
-                when st_delay_1 =>
+                when st_delay =>
                     pulse_counter <= pulse_counter;
 
                 when st_pulse =>
@@ -205,7 +205,7 @@ begin
                         pulse_counter <= pulse_counter;
                     end if;
 
-                when st_delay_2 =>
+                when st_interval =>
                     pulse_counter <= pulse_counter;
             end case;
         end if;

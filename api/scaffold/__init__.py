@@ -620,8 +620,8 @@ class PulseGenerator(Module):
         self.add_register('status', 'rv', base)
         self.add_register('control', 'wv', base + 1)
         self.add_register('config', 'w', base + 2)
-        self.add_register('delay_1', 'w', base + 3, wideness=3)
-        self.add_register('delay_2', 'w', base + 4, wideness=3)
+        self.add_register('delay', 'w', base + 3, wideness=3)
+        self.add_register('interval', 'w', base + 4, wideness=3)
         self.add_register('width', 'w', base + 5, wideness=3)
         self.add_register('count', 'w', base + 6, wideness=2)
 
@@ -647,24 +647,24 @@ class PulseGenerator(Module):
         return cc / self.parent.SYS_FREQ
 
     @property
-    def delay_1(self):
+    def delay(self):
         """ Delay before pulse, in seconds. float. """
-        return self.__clock_cycles_to_duration(self.reg_delay_1.get()+1)
+        return self.__clock_cycles_to_duration(self.reg_delay.get()+1)
 
-    @delay_1.setter
-    def delay_1(self, value):
+    @delay.setter
+    def delay(self, value):
         n = self.__duration_to_clock_cycles(value)-1
-        self.reg_delay_1.set(n)
+        self.reg_delay.set(n)
 
     @property
-    def delay_2(self):
+    def interval(self):
         """ Delay between pulses, in seconds. float. """
-        return self.__clock_cycles_to_duration(self.reg_delay_2.get()+1)
+        return self.__clock_cycles_to_duration(self.reg_interval.get()+1)
 
-    @delay_2.setter
-    def delay_2(self, value):
+    @interval.setter
+    def interval(self, value):
         n = self.__duration_to_clock_cycles(value)-1
-        self.reg_delay_2.set(n)
+        self.reg_interval.set(n)
 
     @property
     def width(self):

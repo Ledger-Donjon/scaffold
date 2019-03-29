@@ -38,8 +38,8 @@ port (
     -- Registers selection signals, from address decoder.
     en_config: in std_logic;
     en_control: in std_logic;
-    en_delay_1: in std_logic;
-    en_delay_2: in std_logic;
+    en_delay: in std_logic;
+    en_interval: in std_logic;
     en_width: in std_logic;
     en_count: in std_logic;
 
@@ -60,9 +60,9 @@ architecture behavior of pulse_generator_module is
     signal config: byte_t;
     signal polarity: std_logic;
     -- Delay before pulse
-    signal delay_1: std_logic_vector(23 downto 0);
+    signal delay: std_logic_vector(23 downto 0);
     -- Delay after pulse
-    signal delay_2: std_logic_vector(23 downto 0);
+    signal interval: std_logic_vector(23 downto 0);
     -- Number of pulses to be generated.
     signal count: std_logic_vector(15 downto 0);
     -- Width of the pulses.
@@ -95,23 +95,23 @@ begin
         en => en_config,
         value => config );
 
-    e_delay_1: entity work.module_wide_reg
+    e_delay: entity work.module_wide_reg
     generic map (wideness => 3, reset => x"000000")
     port map (
         clock => clock,
         reset_n => reset_n,
         bus_in => bus_in,
-        en => en_delay_1,
-        value => delay_1 );
+        en => en_delay,
+        value => delay );
 
-    e_delay_2: entity work.module_wide_reg
+    e_interval: entity work.module_wide_reg
     generic map (wideness => 3, reset => x"000000")
     port map (
         clock => clock,
         reset_n => reset_n,
         bus_in => bus_in,
-        en => en_delay_2,
-        value => delay_2 );
+        en => en_interval,
+        value => interval );
 
     e_width: entity work.module_wide_reg
     generic map (wideness => 3, reset => x"000000")
@@ -138,8 +138,8 @@ begin
     port map (
         clock => clock,
         reset_n => reset_n,
-        delay_1 => delay_1,
-        delay_2 => delay_2,
+        delay => delay,
+        interval => interval,
         width => width,
         count => count,
         start => start_b,
