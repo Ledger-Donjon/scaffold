@@ -87,20 +87,20 @@ Scaffold board.
 
     # Connect to the board.
     # This will open the serial device and check for hardware version
-    scaff = Scaffold('/dev/ttyUSB0')
+    scaffold = Scaffold('/dev/ttyUSB0')
 
     # Configure UART0 for operation
-    uart = scaff.uart[0]
+    uart = scaff.uart0
     uart.baudrate = 115200
 
     # Connect UART0 signals to board pins
     # << operator connects signals. Left operand is the destination, right operand
     # is the source (the order is important)
-    # In this example, io[0] and io[1] are configured as outputs, io[2] is
-    # configured as an input.
-    scaff.io[0] << uart.tx
-    scaff.io[1] << uart.trigger
-    uart.rx << scaff.io[2]
+    # In this example, D0 and D1 are configured as outputs, D2 is configured as an
+    # input.
+    scaffold.d0 << uart.tx
+    scaffold.d1 << uart.trigger
+    uart.rx << scaffold.d2
 
     # UART is now ready to use
     uart.send('Hello world !')
