@@ -1,0 +1,4 @@
+sphinxcontrib-wavedrom
+sphinxcontrib-spelling
+matplotlib
+pyserial

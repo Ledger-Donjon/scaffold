@@ -9,12 +9,13 @@ Below is an example of two generated pulses, to show what delays can be
 configured. Delays are a multiple of the system clock period.
 
 .. wavedrom::
-    {signal: [
-      {name: 'start', wave: '010............'},
-      {name: 'out', wave: '0.....1.0..1.0.'},
-      {node: '..a...b.c..d'},
+
+    {"signal": [
+      {"name": "start", "wave": "010............"},
+      {"name": "out", "wave": "0.....1.0..1.0."},
+      {"node": "..a...b.c..d"}
       ],
-      edge: ['a<->b D1+1', 'b<->c W+1', 'c<->d D2+1']
+      "edge": ["a<->b D1+1", "b<->c W+1", "c<->d D2+1"]
     }
 
 

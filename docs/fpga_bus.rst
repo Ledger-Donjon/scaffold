@@ -29,15 +29,15 @@ Register read cycle
 
 .. wavedrom::
 
-    { signal: [
-        {name: 'clock', wave: 'P....'},
-        {name: 'bus_address', wave: 'x=x..', data: ['address']},
-        {name: 'bus_read', wave: '010..'},
-        {name: 'bus_read_data', wave: 'x.=x.', data: ['data']},
-        {name: 'bus_write', wave: '0....'},
-        {name: 'bus_write_data', wave: 'x....'},
+    { "signal": [
+        {"name": "clock", "wave": "P...."},
+        {"name": "bus_address", "wave": "x=x..", "data": ["address"]},
+        {"name": "bus_read", "wave": "010.."},
+        {"name": "bus_read_data", "wave": "x.=x.", "data": ["data"]},
+        {"name": "bus_write", "wave": "0...."},
+        {"name": "bus_write_data", "wave": "x...."}
         ],
-      config: { hscale: 1.5, vscale: 1.5 }
+      "config": { "hscale": 1.5, "vscale": 1.5 }
     }
 
 |
@@ -47,14 +47,14 @@ Register write cycle
     
 .. wavedrom::    
     
-    { signal: [
-        {name: 'clock', wave: 'P....'},
-        {name: 'bus_address', wave: 'x=x..', data: ['address']},
-        {name: 'bus_read', wave: '0....'},
-        {name: 'bus_read_data', wave: 'x....'},
-        {name: 'bus_write', wave: '010..'},
-        {name: 'bus_write_data', wave: 'x=x..', data: ['data']},
+    { "signal": [
+        {"name": "clock", "wave": "P...."},
+        {"name": "bus_address", "wave": "x=x..", "data": ["address"]},
+        {"name": "bus_read", "wave": "0...."},
+        {"name": "bus_read_data", "wave": "x...."},
+        {"name": "bus_write", "wave": "010.."},
+        {"name": "bus_write_data", "wave": "x=x..", "data": ["data"]}
         ],
-      config: { hscale: 1.5, vscale: 1.5 }
+      "config": { "hscale": 1.5, "vscale": 1.5 }
     }
 
