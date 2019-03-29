@@ -32,6 +32,9 @@ board and thus can be fast.
 .. autoclass:: I2C
     :members:
 
+.. autoclass:: PulseGenerator
+    :members:
+
 .. autoclass:: LEDs
     :members:
 

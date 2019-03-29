@@ -1477,10 +1477,20 @@ class Scaffold:
     This class connects to a Scaffold board and provides access to all the
     device parameters and peripherals.
 
-    :ivar uart: An array of :class:`scaffold.UART` instance.
-    :ivar io: An array of :class:`scaffold.Signal` instances. Each element
-        represents an I/O of the hardware board which can be connected to any
-        Scaffold internal signal.
+    :ivar uarts: list of :class:`scaffold.UART` instance managing UART
+        peripherals.
+    :ivar i2cs: list of :class:`scaffold.I2C` instance managing I2C peripherals.
+    :ivar iso7816: :class:`scaffold.ISO7816` instance managing the ISO7816
+        peripheral.
+    :ivar pgens: list of four :class:`scaffold.PulseGenerator` instance managing
+        the FPGA pulse generators.
+    :ivar power: :class:`scaffold.Power` instance, enabling control of the power
+        supplies of DUT and platform sockets.
+    :ivar leds: :class:`scaffold.LEDs` instance, managing LEDs brightness and
+        lighting mode.
+    :ivar [a0,a1,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
+        instances for connecting and controlling the corresponding I/Os of the
+        board.
     """
 
     # FPGA frequency: 100 MHz

@@ -51,7 +51,7 @@ port (
     -- Maximum ETU value is 2048 (for 20 MHz clk).
     etu: in std_logic_vector(10 downto 0);
     -- Parity mode:
-    -- - 0b00: event parity (standard and default)
+    -- - 0b00: even parity (standard and default)
     -- - 0b01: odd parity
     -- - 0b10: parity bit always 0
     -- - 0b11: parity bit always 1
