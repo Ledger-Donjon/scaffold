@@ -1,9 +1,7 @@
 Smartcard kit
 =============
 
-This kit allows communicating with the embedded ST bootloader of STM32F2
-devices. It is possible to write the Flash memory to load code, and then
-execute it after reset.
+This kit allows communicating with any smartcard using 7816 protocol.
 
 The class :class:`scaffold.iso7816.Smartcard` of the Python API provides
 methods to communicate with an ISO7816 Smartcard and setup tests very quickly.
