@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+#
+# This file is part of Scaffold
+#
+# Scaffold is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#
+# Copyright 2019 Ledger SAS, written by Olivier Hériveaux
+
+
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name DEVICE EP4CE22E22C8
+set_global_assignment -name TOP_LEVEL_ENTITY scaffold
+
+# Use VHDL-2008 for all files by default, otherwise some files may not compile.
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+
+# Convert automatically programming file after compilation
+set_global_assignment -name POST_FLOW_SCRIPT_FILE "quartus_sh:convert_programming_file.tcl"
+
+set_location_assignment PIN_23 -to clock
+set_location_assignment PIN_87 -to reset_n
+set_location_assignment PIN_143 -to tx
+set_location_assignment PIN_144 -to rx
+set_location_assignment PIN_44 -to leds_lat
+set_location_assignment PIN_46 -to leds_sclk
+set_location_assignment PIN_49 -to leds_sin
+set_location_assignment PIN_51 -to leds_blank
+set_location_assignment PIN_30 -to io[0]
+set_location_assignment PIN_31 -to io[1]
+set_location_assignment PIN_33 -to io[2]
+set_location_assignment PIN_39 -to io[3]
+set_location_assignment PIN_42 -to io[4]
+set_location_assignment PIN_43 -to io[5]
+set_location_assignment PIN_59 -to io[6]
+set_location_assignment PIN_64 -to io[7]
+set_location_assignment PIN_66 -to io[8]
+set_location_assignment PIN_68 -to io[9]
+set_location_assignment PIN_76 -to io[10]
+set_location_assignment PIN_80 -to io[11]
+set_location_assignment PIN_85 -to io[12]
+set_location_assignment PIN_98 -to io[13]
+set_location_assignment PIN_100 -to io[14]
+set_location_assignment PIN_103 -to io[15]
+set_location_assignment PIN_105 -to io[16]
+set_location_assignment PIN_110 -to io[17]
+set_location_assignment PIN_112 -to io[18]
+set_location_assignment PIN_114 -to io[19]
+set_location_assignment PIN_119 -to io[20]
+set_location_assignment PIN_121 -to io[21]
+set_location_assignment PIN_11 -to io_dir[0]
+set_location_assignment PIN_10 -to io_dir[1]
+set_location_assignment PIN_7 -to io_dir[2]
+set_location_assignment PIN_132 -to power_platform
+set_location_assignment PIN_133 -to power_dut
+set_location_assignment PIN_28 -to teardown
+
+set_global_assignment -name VHDL_FILE address_decoder.vhd
+set_global_assignment -name VHDL_FILE bus_bridge.vhd
+set_global_assignment -name VHDL_FILE common.vhd
+set_global_assignment -name VHDL_FILE fifo512.vhd
+set_global_assignment -name VHDL_FILE i2c.vhd
+set_global_assignment -name VHDL_FILE i2c_module.vhd
+set_global_assignment -name VHDL_FILE input_group_module.vhd
+set_global_assignment -name VHDL_FILE iso7816.vhd
+set_global_assignment -name VHDL_FILE iso7816_module.vhd
+set_global_assignment -name VHDL_FILE led_blink.vhd
+set_global_assignment -name VHDL_FILE leds_module.vhd
+set_global_assignment -name VHDL_FILE left_matrix_module.vhd
+set_global_assignment -name VHDL_FILE light_uart.vhd
+set_global_assignment -name VHDL_FILE light_uart_rx.vhd
+set_global_assignment -name VHDL_FILE light_uart_tx.vhd
+set_global_assignment -name VHDL_FILE lpm_down_counter_24.vhd
+set_global_assignment -name VHDL_FILE lpm_down_counter_27.vhd
+set_global_assignment -name VHDL_FILE lpm_down_counter_32.vhd
+set_global_assignment -name VHDL_FILE module_reg.vhd
+set_global_assignment -name VHDL_FILE module_wide_reg.vhd
+set_global_assignment -name VHDL_FILE mux.vhd
+set_global_assignment -name VHDL_FILE pll.vhd
+set_global_assignment -name VHDL_FILE power_module.vhd
+set_global_assignment -name VHDL_FILE pulse_generator.vhd
+set_global_assignment -name VHDL_FILE pulse_generator_module.vhd
+set_global_assignment -name VHDL_FILE right_matrix_module.vhd
+set_global_assignment -name VHDL_FILE scaffold.vhd
+set_global_assignment -name VHDL_FILE system.vhd
+set_global_assignment -name VHDL_FILE tlc5927_driver.vhd
+set_global_assignment -name VHDL_FILE tlc5952_driver.vhd
+set_global_assignment -name VHDL_FILE uart.vhd
+set_global_assignment -name VHDL_FILE uart_module.vhd
+set_global_assignment -name VHDL_FILE uart_rx.vhd
+set_global_assignment -name VHDL_FILE uart_tx.vhd
+set_global_assignment -name VHDL_FILE version_module.vhd
