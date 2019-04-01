@@ -15,6 +15,7 @@ Welcome to scaffold's documentation!
    Scaffold peripherals <peripherals.rst>
    Python API reference <api.rst>
    Architecture <architecture.rst>
+   Building and flashing the FPGA bitstream <building_bitstream.rst>
 
 
 Indices and tables
