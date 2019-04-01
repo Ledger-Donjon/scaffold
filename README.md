@@ -1,6 +1,4 @@
-.. image:: https://readthedocs.org/projects/donjonscaffold/badge/?version=latest
-    :target: https://donjonscaffold.readthedocs.io/en/latest/?badge=latest
-    :alt: Documentation Status
+[![Documentation Status](https://readthedocs.org/projects/donjonscaffold/badge/?version=latest)](https://donjonscaffold.readthedocs.io/en/latest/?badge=latest)
 
 # Scaffold
 
