@@ -1,3 +1,7 @@
+.. image:: https://readthedocs.org/projects/donjonscaffold/badge/?version=latest
+    :target: https://donjonscaffold.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 # Scaffold
 
 Scaffold is an electronic motherboard designed for security evaluation of
