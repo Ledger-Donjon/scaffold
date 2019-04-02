@@ -6,6 +6,9 @@
 Welcome to scaffold's documentation!
 ====================================
 
+.. figure:: pictures/board-anim.gif
+    :align: center
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
