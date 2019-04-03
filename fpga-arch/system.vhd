@@ -134,11 +134,6 @@ architecture behavior of system is
     constant input_group_module_count: positive := req_n(io_count, 8);
     -- Registered input signals
     signal in_reg: std_logic_vector(io_count-1 downto 0);
-    -- Groups the input signals by 8.
-    signal in_groups: std_logic_vector_array_t
-        (input_group_module_count-1 downto 0)(7 downto 0);
-    signal in_reg_groups: std_logic_vector_array_t
-        (input_group_module_count-1 downto 0)(7 downto 0);
 
     -- Left matrix inputs.
     -- '0', '1' and board I/Os.
@@ -220,8 +215,7 @@ architecture behavior of system is
     constant addr_i2c_data: address_t := x"0704";
     constant addr_i2c_size_h: address_t := x"0705";
     constant addr_i2c_size_l: address_t := x"0706";
-    constant addr_inputs_value_base: address_t := x"e000";
-    constant addr_inputs_event_base: address_t := x"e001";
+    constant addr_io_value_base: address_t := x"e000";
     constant addr_mtxl_base: address_t := x"f000";
     constant addr_mtxr_base: address_t := x"f100";
 
@@ -259,8 +253,7 @@ architecture behavior of system is
     signal en_i2c_data: std_logic;
     signal en_i2c_size_h: std_logic;
     signal en_i2c_size_l: std_logic;
-    signal en_inputs_value: std_logic_vector(input_group_module_count-1 downto 0);
-    signal en_inputs_event: std_logic_vector(input_group_module_count-1 downto 0);
+    signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
     signal en_mtxr_sel: std_logic_vector(mtxr_out_count-1 downto 0);
 
@@ -268,11 +261,16 @@ architecture behavior of system is
     -- These are the registers which are mapped to addresses and can be read by
     -- the host
     -- TODO add ISO7816 registers
-    constant read_register_count: positive := 1 + (2 * uart_count)
-        + pulse_gen_count + (2 * input_group_module_count)
+    constant read_register_count: positive :=
+        io_count -- I/Os
+        + 1 -- Version
+        + (2 * uart_count) -- UART
+        + pulse_gen_count -- Pulse generators
         + 1 -- Power control
         + 2 -- ISO7816 status and data
         + 4; -- I2C
+    signal reg_io_value: std_logic_vector_array_t(io_count-1 downto 0)
+        (7 downto 0);
     signal reg_version_data: byte_t;
     signal reg_uart_data, reg_uart_status:
         std_logic_vector_array_t(uart_count-1 downto 0)(7 downto 0);
@@ -281,8 +279,6 @@ architecture behavior of system is
     signal reg_iso7816_status, reg_iso7816_data: byte_t;
     signal reg_power_control: byte_t;
     signal reg_i2c_status, reg_i2c_data, reg_i2c_size_h, reg_i2c_size_l: byte_t;
-    signal reg_inputs_value, reg_inputs_event:
-        std_logic_vector_array_t(input_group_module_count-1 downto 0)(7 downto 0);
 
     -- State of the LEDs (when override is disabled in LEDs module).
     signal leds: std_logic_vector(23 downto 0);
@@ -307,9 +303,6 @@ architecture behavior of system is
     signal led_d4: std_logic;
     signal led_d5: std_logic;
     signal leds_debug: std_logic_vector(5 downto 0);
-
-    -- UART signals
-    signal uart_rx: std_logic_vector(uart_count-1 downto 0); -- TODO remove
 
     -- Power signals
     signal power_async, power_sync: std_logic_vector(1 downto 0);
@@ -376,10 +369,7 @@ begin
     en_i2c_data <= addr_en(bus_in, addr_i2c_data);
     en_i2c_size_h <= addr_en(bus_in, addr_i2c_size_h);
     en_i2c_size_l <= addr_en(bus_in, addr_i2c_size_l);
-    en_inputs_value <= addr_en_loop(bus_in, addr_inputs_value_base, x"0010",
-        input_group_module_count);
-    en_inputs_event <= addr_en_loop(bus_in, addr_inputs_event_base, x"0010",
-        input_group_module_count);
+    en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_mtxl_sel <= addr_en_loop(bus_in, addr_mtxl_base, x"0001", mtxl_out_count);
     en_mtxr_sel <= addr_en_loop(bus_in, addr_mtxr_base, x"0001", mtxr_out_count);
 
@@ -389,8 +379,7 @@ begin
     generic map (n => read_register_count)
     port map (
         values =>
-            reg_inputs_event &
-            reg_inputs_value &
+            reg_io_value &
             reg_pulse_gen_status &
             reg_uart_data &
             reg_uart_status &
@@ -403,8 +392,7 @@ begin
             reg_iso7816_status &
             reg_iso7816_data,
         enables =>
-            en_inputs_event &
-            en_inputs_value &
+            en_io_value &
             en_pulse_gen_status &
             en_uart_data &
             en_uart_status &
@@ -418,9 +406,24 @@ begin
             en_iso7816_data,
         value => bus_out.read_data );
 
+    -- I/O modules
+    g_io_module: for i in 0 to io_count-1 generate
+        e_io_module: entity work.io_module
+        port map (
+            clock => clock,
+            reset_n => reset_n,
+            bus_in => bus_in,
+            en_value => en_io_value(i),
+            reg_value => reg_io_value(i),
+            pin => io(i),
+            pin_out_en => mtxr_out(i)(1),
+            pin_out => mtxr_out(i)(0),
+            pin_in_reg => in_reg(i) );
+    end generate;
+
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.2")
+    generic map (version => "scaffold-0.3")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -544,48 +547,6 @@ begin
         scl_out => mtxr_in_i2c_scl,
         scl_out_en => mtxr_in_i2c_scl_en,
         trigger => mtxr_in_i2c_trigger );
-
-    -- IO registration in input mode
-    p_in_reg: process (clock, reset_n)
-    begin
-        if reset_n = '0' then
-            in_reg <= (others => '0');
-        elsif rising_edge(clock) then
-            in_reg <= io;
-        end if;
-    end process;
-
-    -- Input signals modules.
-    -- - Registers input signal to have them cleaned and synchronized.
-    -- - Allows reading board inputs with the system bus.
-    p_in_groups_in_reg: process (io, in_reg_groups)
-    begin
-        for i in 0 to input_group_module_count-1 loop
-            for j in 0 to 7 loop
-                if (i*8 + j) >= io_count then
-                    in_groups(i)(j) <= '0';
-                    in_reg_groups(i)(j) <= '0';
-                else
-                    in_groups(i)(j) <= io(i*8 + j);
-                    in_reg_groups(i)(j) <= in_reg(i*8 + j);
-                end if;
-            end loop;
-        end loop;
-    end process;
-
-    g_input_group_module: for i in 0 to input_group_module_count-1 generate
-        e_input_group_module: entity work.input_group_module
-        port map (
-            clock => clock,
-            reset_n => reset_n,
-            bus_in => bus_in,
-            en_value => en_inputs_value(i),
-            en_event => en_inputs_event(i),
-            reg_value => reg_inputs_value(i),
-            reg_event => reg_inputs_event(i),
-            pin_in => in_groups(i),
-            pin_reg => in_reg_groups(i) );
-    end generate;
 
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module

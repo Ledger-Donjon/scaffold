@@ -66,13 +66,13 @@ set_location_assignment PIN_132 -to power_platform
 set_location_assignment PIN_133 -to power_dut
 set_location_assignment PIN_28 -to teardown
 
+set_global_assignment -name VHDL_FILE io_module.vhd
 set_global_assignment -name VHDL_FILE address_decoder.vhd
 set_global_assignment -name VHDL_FILE bus_bridge.vhd
 set_global_assignment -name VHDL_FILE common.vhd
 set_global_assignment -name VHDL_FILE fifo512.vhd
 set_global_assignment -name VHDL_FILE i2c.vhd
 set_global_assignment -name VHDL_FILE i2c_module.vhd
-set_global_assignment -name VHDL_FILE input_group_module.vhd
 set_global_assignment -name VHDL_FILE iso7816.vhd
 set_global_assignment -name VHDL_FILE iso7816_module.vhd
 set_global_assignment -name VHDL_FILE led_blink.vhd

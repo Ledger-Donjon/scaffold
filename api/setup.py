@@ -23,6 +23,6 @@ from setuptools import setup, find_packages
 
 setup(
     name='scaffold',
-    version='0.2',
+    version='0.3',
     install_requires=['pyserial'],
     packages=find_packages())

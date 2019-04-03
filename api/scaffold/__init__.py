@@ -118,6 +118,7 @@ class Module:
         """
         self.__parent = parent
         self.__path = path
+        self.__registers = []
 
     def add_signal(self, name):
         """
@@ -150,7 +151,10 @@ class Module:
         :param kwargs: Keyword arguments passed to Register.__init__.
         """
         attr_name = 'reg_' + name
-        self.__dict__[attr_name] = Register(self.__parent, *args, **kwargs)
+        reg = Register(self.__parent, *args, **kwargs)
+        self.__dict__[attr_name] = reg
+        # Keep track of the register for reset_registers method
+        self.__registers.append(reg)
 
     def __setattr__(self, key, value):
         if key in self.__dict__:
@@ -160,7 +164,15 @@ class Module:
                 return
             else:
                 super().__setattr__(key, value)
+                return
         super().__setattr__(key, value)
+
+    def reset_registers(self):
+        """
+        Call :meth:`Register.reset` on each defined register.
+        """
+        for reg in self.__registers:
+            reg.reset()
 
     @property
     def parent(self):
@@ -175,7 +187,7 @@ class Register:
     """
     def __init__(
             self, parent, mode, address, wideness=1, min_value=None,
-            max_value=None):
+            max_value=None, reset=None):
         """
         :param parent: The Scaffold instance owning the register.
         :param address: 16-bits address of the register.
@@ -189,6 +201,8 @@ class Register:
             0 by default.
         :param max_value: Maximum allowed value. If None, maximum value will be
             2^(wideness*8)-1 by default.
+        :param reset: Value to be set to the register when :meth:`reset` is
+            called. If None, :meth:`reset` has no effect.
         """
         self.__parent = parent
 
@@ -229,14 +243,16 @@ class Register:
                 'Register minimum value must be lower or equal to maximum '
                 'value')
 
+        self.__reset = reset
         self.__cache = None
 
     def set(self, value, poll=None, poll_mask=0xff, poll_value=0x00):
         """
         Set a new value to the register. This method will check bounds against
         the minimum and maximum allowed values of the register. If polling is
-        enabled and the register is wide, polling is applied for each byte of the
-        register.
+        enabled and the register is wide, polling is applied for each byte of
+        the register.
+
         :param value: New value.
         :param poll: Register instance or address. None if polling is not
             required.
@@ -350,6 +366,14 @@ class Register:
             raise RuntimeError('Register cannot be read')
         return self.__parent.bus.read(
             self.__address, size, poll, poll_mask, poll_value)
+
+    def reset(self):
+        """
+        Set the register value to its default value. If no default value has
+        been defined, this method has no effect.
+        """
+        if self.__reset is not None:
+            self.set(self.__reset)
 
     @property
     def address(self):
@@ -1176,7 +1200,7 @@ class I2C(Module):
         self.__cache_frequency = real
 
 
-class IO(Signal):
+class IO(Signal, Module):
     """
     Board I/O.
     """
@@ -1186,13 +1210,23 @@ class IO(Signal):
         :param path: Signal path string.
         :param index: I/O index.
         """
-        super().__init__(parent, path)
+        Signal.__init__(self, parent, path)
+        Module.__init__(self, parent)
         self.index = index
-        self.__group = index // 8
-        self.__group_index = index % 8
-        base = 0xe000 + 0x10 * self.__group
-        self.reg_value = Register(parent, 'rv', base + 0x00)
-        self.reg_event = Register(parent, 'rwv', base + 0x01)
+        if parent.version == '0.2':
+            # 0.2 only
+            # Since I/O will have more options, it is not very convenient to
+            # group them anymore.
+            self.__group = index // 8
+            self.__group_index = index % 8
+            base = 0xe000 + 0x10 * self.__group
+            self.add_register('value', 'rv', base + 0x00)
+            self.add_register('event', 'rwv', base + 0x01, reset=0)
+        else:
+            # 0.3
+            base = 0xe000 + 0x10 * self.index
+            self.add_register('value', 'rwv', base + 0x00, reset=0)
+            # No more event register in 0.3. Events are in the value register
 
     @property
     def value(self):
@@ -1204,7 +1238,11 @@ class IO(Signal):
             will disconnect the I/O from any already connected internal
             peripheral. Same effect can be achieved using << operator.
         """
-        return (self.reg_value.get() >> self.__group_index) & 1
+        if self.parent.version == '0.2':
+            return (self.reg_value.get() >> self.__group_index) & 1
+        else:
+            # 0.3
+            return self.reg_value.get_bit(0)
 
     @property
     def event(self):
@@ -1215,8 +1253,11 @@ class IO(Signal):
             otherwise.
         :setter: Writing 0 to clears the event flag. Writing 1 has no effect.
         """
-        result = (self.reg_event.get() >> self.__group_index) & 1
-        return result
+        if self.parent.version == '0.2':
+            return (self.reg_event.get() >> self.__group_index) & 1
+        else:
+            # 0.3
+            return self.reg_value.get_bit(1)
 
     def clear_event(self):
         """
@@ -1225,7 +1266,11 @@ class IO(Signal):
         :warning: If an event is received during this call, it may be cleared
             without being took into account.
         """
-        self.reg_event.set(0xff ^ (1 << self.__group_index))
+        if self.parent.version == '0.2':
+            self.reg_event.set(0xff ^ (1 << self.__group_index))
+        else:
+            # 0.3
+            self.reg_value.set(0)
 
 
 class GroupIO(IO):
@@ -1493,6 +1538,9 @@ class Scaffold:
         board.
     """
 
+    # Supported versions
+    SUPPORTED_VERSIONS = ('0.2', '0.3')
+
     # FPGA frequency: 100 MHz
     SYS_FREQ = 100e6
 
@@ -1524,6 +1572,8 @@ class Scaffold:
         self.__version_module = Version(self)
         # Cache the version string once read
         self.__version_string = None
+        self.__version = None
+        self.__board_name = None
 
         # Power module
         self.power = Power(self)
@@ -1568,6 +1618,7 @@ class Scaffold:
         # Set as an attribute to avoid having all low level routines visible in
         # the higher API Scaffold class.
         self.bus = ScaffoldBus()
+
         if dev is not None:
             self.connect(dev)
 
@@ -1633,28 +1684,47 @@ class Scaffold:
         self.bus.connect(dev)
         # Check hardware responds and has the correct version.
         self.__version_string = self.__version_module.get_string()
-        if self.__version_string != 'scaffold-0.2':
-            raise RuntimeError(
-                'Invalid hardware version \'' + self.__version_string + '\'')
+        # Split board name and version string
+        tokens = self.__version_string.split('-')
+        if len(tokens) != 2:
+            raise RuntimeError('Failed to parse board version string \''
+                + self.__version_string + '\'')
+        self.__board_name = tokens[0]
+        self.__version = tokens[1]
+        if self.__board_name != 'scaffold':
+            raise RuntimeError('Invalid board name during version check')
+        if self.__version not in ('0.2', '0.3'):
+            raise RuntimeError('Hardware version ' + self.__version
+                + ' not supported')
         # Reset to a default configuration
-        self.timeout = 0
-        for uart in self.uarts:
-            uart.reset()
-        self.leds.reset()
-        self.iso7816.reset_config()
-        for i2c in self.i2cs:
-            i2c.reset_config()
+        # This will perform many writes to registers, so we start a lazy section
+        # for maximum speed! (about 7 times faster)
+        with self.lazy_section():
+            self.timeout = 0
+            self.a0.reset_registers()
+            self.a1.reset_registers()
+            self.b0.reset_registers()
+            self.b1.reset_registers()
+            self.c0.reset_registers()
+            self.c1.reset_registers()
+            for i in range(self.__IO_D_COUNT):
+                self.__getattribute__(f'd{i}').reset_registers()
+            for uart in self.uarts:
+                uart.reset()
+            self.leds.reset()
+            self.iso7816.reset_config()
+            for i2c in self.i2cs:
+                i2c.reset_config()
 
     @property
     def version(self):
         """
         :return: Hardware version string. This string is queried and checked
             when connecting to the board. It is then cached and can be accessed
-            using this property.
+            using this property. If the instance is not connected to a board,
+            None is returned.
         """
-        if self.__version_string is None:
-            raise RuntimeError('Not connected to board')
-        return self.__version_string
+        return self.__version
 
     def __signal_to_path(self, signal):
         """
