@@ -5,6 +5,8 @@
 Scaffold is an electronic motherboard designed for security evaluation of
 integrated circuits and embedded platforms.
 
+![Scaffold board pictures](docs/pictures/board-anim.gif)
+
 ## Documentation
 
 API documentation is available on [Read the Docs](https://donjonscaffold.readthedocs.io).
