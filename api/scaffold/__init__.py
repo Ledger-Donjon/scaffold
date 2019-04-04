@@ -1200,6 +1200,12 @@ class I2C(Module):
         self.__cache_frequency = real
 
 
+class IOMode(Enum):
+    AUTO = 0
+    OPEN_DRAIN = 1
+    PUSH_ONLY = 2
+
+
 class IO(Signal, Module):
     """
     Board I/O.
@@ -1226,6 +1232,7 @@ class IO(Signal, Module):
             # 0.3
             base = 0xe000 + 0x10 * self.index
             self.add_register('value', 'rwv', base + 0x00, reset=0)
+            self.add_register('config', 'rw', base + 0x01, reset=0)
             # No more event register in 0.3. Events are in the value register
 
     @property
@@ -1271,6 +1278,24 @@ class IO(Signal, Module):
         else:
             # 0.3
             self.reg_value.set(0)
+
+    @property
+    def mode(self):
+        """
+        I/O mode. Default is AUTO, but this can be overriden for special
+        applications.
+
+        :type: IOMode
+        """
+        assert self.parent.version == '0.3'
+        return IOMode(self.reg_config.get() & 0b11)
+
+    @mode.setter
+    def mode(self, value):
+        assert self.parent.version == '0.3'
+        if not isinstance(value, IOMode):
+            raise ValueError('mode must be an instance of IOMode enumeration')
+        self.reg_config.set_mask(value.value, 0b11)
 
 
 class GroupIO(IO):

@@ -2,3 +2,6 @@ incremental_db
 db
 greybox_tmp
 confware.map
+scaffold.done
+*.rpt
+*.summary

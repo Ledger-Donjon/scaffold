@@ -108,7 +108,7 @@ This register allows customizing the output mode of an I/O.
 |      |                                                                      |
 |      | The pin is driven by the routed peripheral.                          |
 +------+----------------------------------------------------------------------+
-| 1    | **Open-collector**                                                   |
+| 1    | **Open-drain**                                                       |
 |      |                                                                      |
 |      | The pin is driven by the routed peripheral, but always acts as an    |
 |      | open-collector.                                                      |
