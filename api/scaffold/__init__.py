@@ -24,13 +24,15 @@ from binascii import hexlify
 
 class TimeoutError(Exception):
     """ Thrown when a polling read or write command timed out. """
-    def __init__(self, data=None, size=None):
+    def __init__(self, data=None, size=None, expected=None):
         """
         :param data: The received data until timeout. None if timeout occured
         during a write operation.
         :param size: The number of successfully proceeded bytes.
+        :param expected: The expected number of bytes to be proceeded.
         """
         self.data = data
+        self.expected = expected
         if self.data is not None:
             assert size is None
             self.size = len(data)
@@ -48,7 +50,8 @@ class TimeoutError(Exception):
             else:
                 return 'Read timeout: no data received.'
         else:
-            return f'Write timeout. Only {self.size} bytes written.'
+            return (f'Write timeout. Only {self.size}/{self.expected} bytes '
+                'written.')
 
 
 class Signal:
@@ -1432,7 +1435,8 @@ class ScaffoldBus:
                 if ack != chunk_size:
                     assert poll is not None
                     # Timeout error !
-                    raise TimeoutError(size=offset+ack)
+                    raise TimeoutError(size=offset+ack,
+                        expected=offset+chunk_size)
             else:
                 # Lazy-update section. The write result will be checked later,
                 # when all lazy-sections are closed.
@@ -1460,6 +1464,7 @@ class ScaffoldBus:
                 'section.')
         result = bytearray()
         remaining = size
+        offset = 0
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
             datagram = self.prepare_datagram(
@@ -1470,9 +1475,10 @@ class ScaffoldBus:
             if ack != chunk_size:
                 assert poll is not None
                 result += res[:ack]
-                raise TimeoutError(data=result)
+                raise TimeoutError(data=result, expected=chunk_size+offset)
             result += res[:-1]
             remaining -= chunk_size
+            offset += chunk_size
         return result
 
     def set_timeout(self, value):
@@ -1521,7 +1527,7 @@ class ScaffoldBus:
                 ack = self.ser.read(1)[0]
                 if ack != expected_size:
                     # Timeout error !
-                    last_error = TimeoutError(size=ack)
+                    last_error = TimeoutError(size=ack, expected=expected_size)
             self.__lazy_writes.clear()
             if last_error is not None:
                 raise last_error
