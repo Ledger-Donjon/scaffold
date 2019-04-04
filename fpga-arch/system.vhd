@@ -216,6 +216,7 @@ architecture behavior of system is
     constant addr_i2c_size_h: address_t := x"0705";
     constant addr_i2c_size_l: address_t := x"0706";
     constant addr_io_value_base: address_t := x"e000";
+    constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
     constant addr_mtxr_base: address_t := x"f100";
 
@@ -254,6 +255,7 @@ architecture behavior of system is
     signal en_i2c_size_h: std_logic;
     signal en_i2c_size_l: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
+    signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
     signal en_mtxr_sel: std_logic_vector(mtxr_out_count-1 downto 0);
 
@@ -370,8 +372,12 @@ begin
     en_i2c_size_h <= addr_en(bus_in, addr_i2c_size_h);
     en_i2c_size_l <= addr_en(bus_in, addr_i2c_size_l);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
-    en_mtxl_sel <= addr_en_loop(bus_in, addr_mtxl_base, x"0001", mtxl_out_count);
-    en_mtxr_sel <= addr_en_loop(bus_in, addr_mtxr_base, x"0001", mtxr_out_count);
+    en_io_config <=
+        addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
+    en_mtxl_sel <=
+        addr_en_loop(bus_in, addr_mtxl_base, x"0001", mtxl_out_count);
+    en_mtxr_sel <=
+        addr_en_loop(bus_in, addr_mtxr_base, x"0001", mtxr_out_count);
 
     -- Put on bus_out.read_data the correct register value depending on address
     -- selection signals. This is basically a big one-hot multiplexer.
@@ -414,6 +420,7 @@ begin
             reset_n => reset_n,
             bus_in => bus_in,
             en_value => en_io_value(i),
+            en_config => en_io_config(i),
             reg_value => reg_io_value(i),
             pin => io(i),
             pin_out_en => mtxr_out(i)(1),

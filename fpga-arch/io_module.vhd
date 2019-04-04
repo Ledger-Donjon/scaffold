@@ -37,6 +37,7 @@ port (
 
     -- Registers selection signals, from address decoder.
     en_value: in std_logic;
+    en_config: in std_logic;
 
     -- Output registers
     reg_value: out byte_t;
@@ -58,7 +59,25 @@ architecture behavior of io_module is
     signal pin_in_z: std_logic;
     -- High when event clearing is requested.
     signal event_clear_rq: std_logic;
+    -- Configuration register
+    -- Bit 0 and 1 selects the I/O mode:
+    -- - 0: auto
+    -- - 1: open-collector
+    -- - 2: push only
+    -- - 3: reserved
+    signal config: byte_t;
+    signal mode: std_logic_vector(1 downto 0);
 begin
+    e_config: entity work.module_reg
+    generic map (reset => x"00")
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        en => en_config,
+        bus_in => bus_in,
+        value => config );
+    mode <= config(1 downto 0);
+
     -- Register inputs to have clean signals.
     p_pin_in_reg: process(clock, reset_n)
     begin
@@ -89,12 +108,33 @@ begin
     end process;
 
     -- Tristate output management
-    p_pin: process (pin_out_en, pin_out)
+    p_pin: process (pin_out_en, pin_out, mode)
     begin
-        if pin_out_en = '0' then
-            pin <= 'Z';
-        else
-            pin <= pin_out;
-        end if;
+        case mode is
+            when "00" =>
+                -- Auto
+                if pin_out_en = '0' then
+                    pin <= 'Z';
+                else
+                    pin <= pin_out;
+                end if;
+            when "01" =>
+                -- Open-collector
+                if pin_out = '0' then
+                    pin <= '0';
+                else
+                    pin <= 'Z';
+                end if;
+            when "10" =>
+                -- Push only
+                if pin_out = '1' then
+                    pin <= '1';
+                else
+                    pin <= 'Z';
+                end if;
+            when "11" =>
+                -- RFU
+                pin <= 'Z';
+        end case;
     end process;
 end;
