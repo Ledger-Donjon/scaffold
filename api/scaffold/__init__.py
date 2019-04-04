@@ -1522,9 +1522,9 @@ class ScaffoldBus:
                 if ack != expected_size:
                     # Timeout error !
                     last_error = TimeoutError(size=ack)
-        self.__lazy_writes.clear()
-        if last_error is not None:
-            raise last_error
+            self.__lazy_writes.clear()
+            if last_error is not None:
+                raise last_error
 
     def lazy_section(self):
         """
