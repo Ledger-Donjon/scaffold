@@ -50,7 +50,8 @@ class TimeoutError(Exception):
             else:
                 return 'Read timeout: no data received.'
         else:
-            return (f'Write timeout. Only {self.size}/{self.expected} bytes '
+            return (
+                f'Write timeout. Only {self.size}/{self.expected} bytes '
                 'written.')
 
 
@@ -270,8 +271,8 @@ class Register:
             raise RuntimeError('Register cannot be written')
         # Handle wideness
         value_bytes = value.to_bytes(self.__wideness, 'big', signed=False)
-        self.__parent.bus.write(self.__address, value_bytes, poll, poll_mask,
-            poll_value)
+        self.__parent.bus.write(
+            self.__address, value_bytes, poll, poll_mask, poll_value)
         # Save as int
         self.__cache = value
 
@@ -304,7 +305,8 @@ class Register:
         """
         self.set(self.get() | value)
 
-    def set_bit(self, index, value, poll=None, poll_mask=0xff, poll_value=0x00):
+    def set_bit(
+            self, index, value, poll=None, poll_mask=0xff, poll_value=0x00):
         """
         Sets the value of a single bit of the register.
         :param index: Bit index, in [0, 7].
@@ -325,7 +327,8 @@ class Register:
         """
         return (self.get() >> index) & 1
 
-    def set_mask(self, value, mask, poll=None, poll_mask=0xff, poll_value=0x00):
+    def set_mask(
+            self, value, mask, poll=None, poll_mask=0xff, poll_value=0x00):
         """
         Set selected bits value.
         :param value: Bits value.
@@ -337,8 +340,8 @@ class Register:
         """
         # TODO: raise an exception is the register is declared as volatile ?
         current = self.get()
-        self.set((current & (~mask)) | (value & mask), poll, poll_mask,
-            poll_value)
+        self.set(
+            (current & (~mask)) | (value & mask), poll, poll_mask, poll_value)
 
     def write(self, data, poll=None, poll_mask=0xff, poll_value=0x00):
         """
@@ -464,8 +467,9 @@ class LEDs(Module):
         self.add_register('leds_1', 'w', 0x0203)
         self.add_register('leds_2', 'w', 0x0204)
         self.add_register('mode', 'w', 0x0205, wideness=3)
-        leds = ['a0', 'b1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3',
-            'd4', 'd5']
+        leds = [
+            'a0', 'b1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3', 'd4',
+            'd5']
         for i, name in enumerate(leds):
             self.__setattr__(name, LED(self, i+6))
 
@@ -979,9 +983,12 @@ class ISO7816(Module):
     def trigger_long(self, value):
         # We want until transmission is ready to avoid triggering on a pending
         # one.
-        self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_LONG, value,
-            poll=self.reg_status, poll_mask=1<<self.__REG_STATUS_BIT_READY,
-            poll_value=1<<self.__REG_STATUS_BIT_READY)
+        self.reg_config.set_bit(
+            self.__REG_CONFIG_TRIGGER_LONG,
+            value,
+            poll=self.reg_status,
+            poll_mask=1 << self.__REG_STATUS_BIT_READY,
+            poll_value=1 << self.__REG_STATUS_BIT_READY)
 
 
 class I2CNackError(Exception):
@@ -1047,7 +1054,7 @@ class I2C(Module):
         self.reg_size_l = 0
         self.reg_config = (
             (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING) |
-            (1 << self.__REG_CONFIG_BIT_TRIGGER_START) )
+            (1 << self.__REG_CONFIG_BIT_TRIGGER_START))
 
     def flush(self):
         """ Discards all bytes in the transmission/reception FIFO. """
@@ -1055,14 +1062,14 @@ class I2C(Module):
 
     def raw_transaction(self, data, read_size, trigger=None):
         """
-        Executes an I2C transaction. This is a low-level function which does not
-        manage I2C addressing nor read/write mode (those shall already be
+        Executes an I2C transaction. This is a low-level function which does
+        not manage I2C addressing nor read/write mode (those shall already be
         defined in data parameter).
 
-        :param data: Transmitted bytes. First byte is usually the address of the
-            slave and the R/W bit. If the R/W bit is 0 (write), this parameter
-            shall then contain the bytes to be transmitted, and read_size shall
-            be zero.
+        :param data: Transmitted bytes. First byte is usually the address of
+            the slave and the R/W bit. If the R/W bit is 0 (write), this
+            parameter shall then contain the bytes to be transmitted, and
+            read_size shall be zero.
         :type data: bytes
         :param read_size: Number of bytes to be expected from the slave. 0 in
             case of a write transaction.
@@ -1087,9 +1094,9 @@ class I2C(Module):
         else:
             if trigger is not None:
                 raise ValueError('Invalid trigger parameter')
-        # We are going to update many registers. We start a lazy section to make
-        # the update faster: all the acknoledgements of bus write operations are
-        # checked at the end.
+        # We are going to update many registers. We start a lazy section to
+        # make the update faster: all the acknoledgements of bus write
+        # operations are checked at the end.
         with self.parent.lazy_section():
             self.flush()
             self.reg_size_h = read_size >> 8
@@ -1107,7 +1114,7 @@ class I2C(Module):
             self.reg_config.set_mask(
                 config_value,
                 (1 << self.__REG_CONFIG_BIT_TRIGGER_START) |
-                (1 << self.__REG_CONFIG_BIT_TRIGGER_END) )
+                (1 << self.__REG_CONFIG_BIT_TRIGGER_END))
             # Start the transaction
             self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
             # End of lazy section. Leaving the scope will automatically check
@@ -1120,12 +1127,14 @@ class I2C(Module):
         nacked = (st & (1 << self.__REG_STATUS_BIT_NACK)) != 0
         # Fetch all the bytes which are stored in the FIFO.
         fifo = bytearray()
-        while (self.reg_status.get() & (1 << self.__REG_STATUS_BIT_DATA_AVAIL)):
+        while (
+                self.reg_status.get() &
+                (1 << self.__REG_STATUS_BIT_DATA_AVAIL)):
             fifo.append(self.reg_data.read()[0])
         if nacked:
             # Get the number of bytes remaining.
-            remaining = ((self.reg_size_h.get() << 8)
-                + self.reg_size_l.get())
+            remaining = (
+                (self.reg_size_h.get() << 8) + self.reg_size_l.get())
             raise I2CNackError(len(data) - remaining - 1)
         return bytes(fifo)
 
@@ -1469,8 +1478,8 @@ class ScaffoldBus:
                 if ack != chunk_size:
                     assert poll is not None
                     # Timeout error !
-                    raise TimeoutError(size=offset+ack,
-                        expected=offset+chunk_size)
+                    raise TimeoutError(
+                        size=offset+ack, expected=offset+chunk_size)
             else:
                 # Lazy-update section. The write result will be checked later,
                 # when all lazy-sections are closed.
@@ -1494,8 +1503,8 @@ class ScaffoldBus:
             raise RuntimeError('Not connected to board')
         # Read operation not permitted during lazy-update sections
         if self.__lazy_stack > 0:
-            raise RuntimeError('Read operations not allowed during lazy-update '
-                'section.')
+            raise RuntimeError(
+                'Read operations not allowed during lazy-update section.')
         result = bytearray()
         remaining = size
         offset = 0
@@ -1589,13 +1598,14 @@ class Scaffold:
 
     :ivar uarts: list of :class:`scaffold.UART` instance managing UART
         peripherals.
-    :ivar i2cs: list of :class:`scaffold.I2C` instance managing I2C peripherals.
+    :ivar i2cs: list of :class:`scaffold.I2C` instance managing I2C
+        peripherals.
     :ivar iso7816: :class:`scaffold.ISO7816` instance managing the ISO7816
         peripheral.
-    :ivar pgens: list of four :class:`scaffold.PulseGenerator` instance managing
-        the FPGA pulse generators.
-    :ivar power: :class:`scaffold.Power` instance, enabling control of the power
-        supplies of DUT and platform sockets.
+    :ivar pgens: list of four :class:`scaffold.PulseGenerator` instance
+        managing the FPGA pulse generators.
+    :ivar power: :class:`scaffold.Power` instance, enabling control of the
+        power supplies of DUT and platform sockets.
     :ivar leds: :class:`scaffold.LEDs` instance, managing LEDs brightness and
         lighting mode.
     :ivar [a0,a1,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
@@ -1740,7 +1750,6 @@ class Scaffold:
         if dev is not None:
             self.connect(dev)
 
-
     def connect(self, dev):
         """
         Connect to Scaffold board using the given serial port.
@@ -1753,18 +1762,19 @@ class Scaffold:
         # Split board name and version string
         tokens = self.__version_string.split('-')
         if len(tokens) != 2:
-            raise RuntimeError('Failed to parse board version string \''
+            raise RuntimeError(
+                'Failed to parse board version string \''
                 + self.__version_string + '\'')
         self.__board_name = tokens[0]
         self.__version = tokens[1]
         if self.__board_name != 'scaffold':
             raise RuntimeError('Invalid board name during version check')
         if self.__version not in ('0.2', '0.3'):
-            raise RuntimeError('Hardware version ' + self.__version
-                + ' not supported')
+            raise RuntimeError(
+                'Hardware version ' + self.__version + ' not supported')
         # Reset to a default configuration
-        # This will perform many writes to registers, so we start a lazy section
-        # for maximum speed! (about 7 times faster)
+        # This will perform many writes to registers, so we start a lazy
+        # section for maximum speed! (about 7 times faster)
         with self.lazy_section():
             self.timeout = 0
             self.sig_disconnect_all()
