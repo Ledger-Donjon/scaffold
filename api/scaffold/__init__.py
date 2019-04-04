@@ -636,7 +636,7 @@ class PulseGenerator(Module):
     """
     def __init__(self, parent, index):
         """
-        :param parent: The Scaffold instance owning the UART module.
+        :param parent: The :class:`Scaffold` instance owning the UART module.
         :param index: UART module index.
         """
         super().__init__(parent, '/pgen{0}'.format(index))
@@ -646,11 +646,11 @@ class PulseGenerator(Module):
         self.__addr_base = base = 0x0300 + 0x0010 * index
         self.add_register('status', 'rv', base)
         self.add_register('control', 'wv', base + 1)
-        self.add_register('config', 'w', base + 2)
-        self.add_register('delay', 'w', base + 3, wideness=3)
-        self.add_register('interval', 'w', base + 4, wideness=3)
-        self.add_register('width', 'w', base + 5, wideness=3)
-        self.add_register('count', 'w', base + 6, wideness=2)
+        self.add_register('config', 'w', base + 2, reset=0)
+        self.add_register('delay', 'w', base + 3, wideness=3, reset=0)
+        self.add_register('interval', 'w', base + 4, wideness=3, reset=0)
+        self.add_register('width', 'w', base + 5, wideness=3, reset=0)
+        self.add_register('count', 'w', base + 6, wideness=2, reset=0)
 
     def fire(self):
         """ Manually trigger the pulse generation. """
@@ -659,7 +659,9 @@ class PulseGenerator(Module):
     def __duration_to_clock_cycles(self, t):
         """
         Calculate the number of clock cycles corresponding to a given time.
-        :param t: Time in seconds. float.
+
+        :param t: Time in seconds.
+        :type t: float.
         """
         if t < 0:
             raise ValueError('Duration cannot be negative')
@@ -669,13 +671,19 @@ class PulseGenerator(Module):
     def __clock_cycles_to_duration(self, cc):
         """
         Calculate the time elapsed during a given number of clock cycles.
+
         :param cc: Number of clock cycles.
+        :type cc: int
         """
         return cc / self.parent.SYS_FREQ
 
     @property
     def delay(self):
-        """ Delay before pulse, in seconds. float. """
+        """
+        Delay before pulse, in seconds.
+
+        :type: float
+        """
         return self.__clock_cycles_to_duration(self.reg_delay.get()+1)
 
     @delay.setter
@@ -685,7 +693,11 @@ class PulseGenerator(Module):
 
     @property
     def interval(self):
-        """ Delay between pulses, in seconds. float. """
+        """
+        Delay between pulses, in seconds.
+
+        :type: float
+        """
         return self.__clock_cycles_to_duration(self.reg_interval.get()+1)
 
     @interval.setter
@@ -695,7 +707,11 @@ class PulseGenerator(Module):
 
     @property
     def width(self):
-        """ Pulse width, in seconds. float. """
+        """
+        Pulse width, in seconds.
+
+        :type: float
+        """
         return self.__clock_cycles_to_duration(self.reg_width.get()+1)
 
     @width.setter
@@ -708,6 +724,8 @@ class PulseGenerator(Module):
         """
         Number of pulses to be generated. Minimum value is 1. Maximum value is
         2^16.
+
+        :type: int
         """
         return self.reg_count.get()+1
 
@@ -716,6 +734,22 @@ class PulseGenerator(Module):
         if value not in range(1, 2**16+1):
             raise ValueError('Invalid pulse count')
         self.reg_count.set(value-1)
+
+    @property
+    def polarity(self):
+        """
+        Pulse polarity. If 0, output is low when idle, and high during pulses.
+        When 1, output is high when idle, and low during pulses.
+
+        :type: int
+        """
+        return self.reg_config.get() & 1
+
+    @polarity.setter
+    def polarity(self, value):
+        if value not in range(2):
+            raise ValueError('Invalid polarity value: must be 0 or 1')
+        self.reg_config.set_bit(0, value)
 
 
 class Power(Module):
@@ -1650,9 +1684,6 @@ class Scaffold:
         # the higher API Scaffold class.
         self.bus = ScaffoldBus()
 
-        if dev is not None:
-            self.connect(dev)
-
         # Timeout value. This value can't be read from the board, so we cache
         # it there once set.
         self.__cache_timeout = None
@@ -1706,6 +1737,10 @@ class Scaffold:
             '/io/c1']
         self.mtxr_out += list(f'/io/d{i}' for i in range(self.__IO_D_COUNT))
 
+        if dev is not None:
+            self.connect(dev)
+
+
     def connect(self, dev):
         """
         Connect to Scaffold board using the given serial port.
@@ -1732,6 +1767,7 @@ class Scaffold:
         # for maximum speed! (about 7 times faster)
         with self.lazy_section():
             self.timeout = 0
+            self.sig_disconnect_all()
             self.a0.reset_registers()
             self.a1.reset_registers()
             self.b0.reset_registers()
@@ -1742,6 +1778,8 @@ class Scaffold:
                 self.__getattribute__(f'd{i}').reset_registers()
             for uart in self.uarts:
                 uart.reset()
+            for pgen in self.pgens:
+                pgen.reset_registers()
             self.leds.reset()
             self.iso7816.reset_config()
             for i2c in self.i2cs:
@@ -1798,6 +1836,17 @@ class Scaffold:
         else:
             # Shall never happen unless there is a bug
             raise RuntimeError(f'Invalid destination path \'{dest_path}\'')
+
+    def sig_disconnect_all(self):
+        """
+        Disconnects all input and output signals. This is called during
+        initialization to reset the board in a known state.
+        """
+        with self.lazy_section():
+            for i in range(len(self.mtxl_out)):
+                self.bus.write(self.__ADDR_MTXL_BASE + i, 0)
+            for i in range(len(self.mtxr_out)):
+                self.bus.write(self.__ADDR_MTXR_BASE + i, 0)
 
     @property
     def timeout(self):
