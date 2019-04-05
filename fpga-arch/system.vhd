@@ -173,8 +173,7 @@ architecture behavior of system is
 
     -- Output signals of the output matrix
     constant mtxr_out_count: positive := io_count;
-    signal mtxr_out, mtxr_out_reg:
-        tristate_array_t(mtxr_out_count-1 downto 0);
+    signal mtxr_out: tristate_array_t(mtxr_out_count-1 downto 0);
 
     -- Bus signals
     signal bus_in: bus_in_t;
@@ -648,31 +647,6 @@ begin
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;
-    end process;
-
-    -- Registers the output signals to avoid glitches when multiplexers switch
-    -- source.
-    p_mtxr_out_reg: process (clock, reset_n)
-    begin
-        for i in 0 to io_count-1 loop
-            if reset_n = '0' then
-                mtxr_out_reg(i) <= "00"; -- High impedance state
-            elsif rising_edge(clock) then
-                mtxr_out_reg(i) <= mtxr_out(i);
-            end if;
-        end loop;
-    end process;
-
-    -- Tristate output of signals
-    p_io: process (mtxr_out_reg)
-    begin
-        for i in 0 to io_count-1 loop
-            if mtxr_out_reg(i)(1) = '0' then
-                io(i) <= 'Z';
-            else
-                io(i) <= mtxr_out_reg(i)(0);
-            end if;
-        end loop;
     end process;
 
     debug <= "000" & clock;
