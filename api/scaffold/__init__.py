@@ -605,20 +605,21 @@ class UART(Module):
         else:
             buf = data
         # Polling on status.ready bit before sending each character.
-        self.reg_data.write(
-            buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
-        if trigger:
-            config = self.reg_config.get()
-            # Enable trigger as soon as previous transmission ends
-            self.reg_config.write(
-                config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
-                poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
-            # Send the last byte. No need for polling here, because it has
-            # already been done when enabling trigger.
-            self.reg_data.write(data[-1])
-            # Disable trigger
-            self.reg_config.write(
-                config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+        with self.parent.lazy_section():
+            self.reg_data.write(
+                buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+            if trigger:
+                config = self.reg_config.get()
+                # Enable trigger as soon as previous transmission ends
+                self.reg_config.write(
+                    config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
+                    poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+                # Send the last byte. No need for polling here, because it has
+                # already been done when enabling trigger.
+                self.reg_data.write(data[-1])
+                # Disable trigger
+                self.reg_config.write(
+                    config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
 
     def receive(self, n=1):
         """
