@@ -1393,16 +1393,47 @@ class ScaffoldBusLazySection:
         self.bus.lazy_end()
 
 
+class ScaffoldBusTimeoutSection:
+    """
+    Helper class to be sure a pushed timeout configuration is poped at some
+    time. This is to be used with the python 'with' statement.
+    """
+    def __init__(self, bus, timeout):
+        """
+        :param bus: Scaffold bus manager.
+        :type bus: ScaffoldBus
+        :param timeout: Section timeout value, in seconds.
+        :type timeout: int, float
+        """
+        self.bus = bus
+        self.timeout = timeout
+
+    def __enter__(self):
+        self.bus.push_timeout(self.timeout)
+
+    def __exit__(self, type, value, traceback):
+        self.bus.pop_timeout()
+
+
 class ScaffoldBus:
     """
     Low level methods to drive the Scaffold device.
     """
     MAX_CHUNK = 255
+    # FPGA frequency: 100 MHz
+    __SYS_FREQ = 100e6
+    # How long in seconds one timeout unit is.
+    __TIMEOUT_UNIT = (3.0/__SYS_FREQ)
 
     def __init__(self):
         self.ser = None
         self.__lazy_writes = []
         self.__lazy_stack = 0
+        # Timeout value. This value can't be read from the board, so we cache
+        # it there once set.
+        self.__cache_timeout = None
+        # Timeout stack for push_timeout and pop_timeout methods.
+        self.__timeout_stack = []
 
     def connect(self, dev):
         """
@@ -1532,10 +1563,12 @@ class ScaffoldBus:
             offset += chunk_size
         return result
 
-    def set_timeout(self, value):
+    def __set_timeout_raw(self, value):
         """
         Configure the polling timeout register.
-        :param value: Timeout register value. If 0 the timeout is disabled.
+
+        :param value: Timeout register value. If 0 the timeout is disabled. One
+            unit corresponds to three FPGA system clock cycles.
         """
         if (value < 0) or (value > 0xffffffff):
             raise ValueError('Timeout value out of range')
@@ -1583,12 +1616,55 @@ class ScaffoldBus:
             if last_error is not None:
                 raise last_error
 
+    @property
+    def timeout(self):
+        """
+        Timeout in seconds for read and write commands. If set to 0, timeout is
+        disabled.
+        """
+        if self.__cache_timeout is None:
+            return RuntimeError('Timeout not set yet')
+        return self.__cache_timeout * self.__TIMEOUT_UNIT
+
+    @timeout.setter
+    def timeout(self, value):
+        n = int(value / self.__TIMEOUT_UNIT)
+        self.__set_timeout_raw(n)  # May throw is n out of range.
+        self.__cache_timeout = n  # Must be after set_timeout
+
+    def push_timeout(self, value):
+        """
+        Save previous timeout setting in a stack, and set a new timeout value.
+        Call to `pop_timeout` will restore previous timeout value.
+
+        :param value: New timeout value, in seconds.
+        """
+        self.__timeout_stack.append(self.timeout)
+        self.timeout = value
+
+    def pop_timeout(self):
+        """
+        Restore timeout setting from stack.
+
+        :raises RuntimeError: if timeout stack is already empty.
+        """
+        if len(self.__timeout_stack) == 0:
+            raise RuntimeError('Timeout setting stack is empty')
+        self.timeout = self.__timeout_stack.pop()
+
     def lazy_section(self):
         """
         :return: ScaffoldBusLazySection to be used with the python 'with'
             tatement to start and close a lazy update section.
         """
         return ScaffoldBusLazySection(self)
+
+    def timeout_section(self, timeout):
+        """
+        :return: :class:`ScaffoldBusTimeoutSection` to be used with the python
+            'with' statement to start and close a timeout section.
+        """
+        return ScaffoldBusTimeoutSection(self, timeout)
 
 
 class IODir(Enum):
@@ -1635,9 +1711,6 @@ class Scaffold:
     __PULSE_GENERATOR_COUNT = 4
     # Number of I2C modules
     __I2C_COUNT = 1
-
-    # How long in seconds one timeout unit is.
-    __TIMEOUT_UNIT = (3.0/SYS_FREQ)
 
     __ADDR_MTXR_BASE = 0xf100
     __ADDR_MTXL_BASE = 0xf000
@@ -1701,13 +1774,6 @@ class Scaffold:
         # Set as an attribute to avoid having all low level routines visible in
         # the higher API Scaffold class.
         self.bus = ScaffoldBus()
-
-        # Timeout value. This value can't be read from the board, so we cache
-        # it there once set.
-        self.__cache_timeout = None
-
-        # Timeout stack for push_timeout and pop_timeout methods.
-        self.__timeout_stack = []
 
         # FPGA left matrix input signals
         self.mtxl_in = [
@@ -1872,15 +1938,11 @@ class Scaffold:
         Timeout in seconds for read and write commands. If set to 0, timeout is
         disabled.
         """
-        if self.__cache_timeout is None:
-            return RuntimeError('Timeout not set yet')
-        return self.__cache_timeout * self.__TIMEOUT_UNIT
+        return self.bus.timeout
 
     @timeout.setter
     def timeout(self, value):
-        n = int(value / self.__TIMEOUT_UNIT)
-        self.bus.set_timeout(n)  # May throw is n out of range.
-        self.__cache_timeout = n  # Must be after set_timeout
+        self.bus.timeout = value
 
     def push_timeout(self, value):
         """
@@ -1889,8 +1951,7 @@ class Scaffold:
 
         :param value: New timeout value, in seconds.
         """
-        self.__timeout_stack.append(self.timeout)
-        self.timeout = value
+        self.bus.push_timeout(value)
 
     def pop_timeout(self):
         """
@@ -1898,13 +1959,19 @@ class Scaffold:
 
         :raises RuntimeError: if timeout stack is already empty.
         """
-        if len(self.__timeout_stack) == 0:
-            raise RuntimeError('Timeout setting stack is empty')
-        self.timeout = self.__timeout_stack.pop()
+        self.bus.pop_timeout()
 
     def lazy_section(self):
         """
         :return: ScaffoldBusLazySection to be used with the python 'with'
-            tatement to start and close a lazy update section.
+            statement to start and close a lazy update section.
         """
         return self.bus.lazy_section()
+
+    def timeout_section(self):
+        """
+        :return: :class:`ScaffoldBusTimeoutSection` instance to be used with the
+            python 'with' statement to push and pop timeout configuration.
+        """
+        return self.bus.timeout_section()
+
