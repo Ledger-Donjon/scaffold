@@ -165,7 +165,7 @@ class Smartcard:
         Send an APDU to the smartcard and retrieve the response.
 
         :param the_apdu: APDU to be sent. str hexadecimal strings are allowed,
-            but use should consider using the :meth:`apdu_str` method instead.
+            but user should consider using the :meth:`apdu_str` method instead.
         :type the_apdu: bytes or str
         :param trigger: If 'a' is in this string, trigger is raised after
             ISO-7816 header is sent, and cleared when the following response
