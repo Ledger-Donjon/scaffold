@@ -1126,17 +1126,24 @@ class I2C(Module):
             poll_value=(1 << self.__REG_STATUS_BIT_READY))[0]
         nacked = (st & (1 << self.__REG_STATUS_BIT_NACK)) != 0
         # Fetch all the bytes which are stored in the FIFO.
-        fifo = bytearray()
-        while (
-                self.reg_status.get() &
-                (1 << self.__REG_STATUS_BIT_DATA_AVAIL)):
-            fifo.append(self.reg_data.read()[0])
         if nacked:
             # Get the number of bytes remaining.
             remaining = (
                 (self.reg_size_h.get() << 8) + self.reg_size_l.get())
             raise I2CNackError(len(data) - remaining - 1)
-        return bytes(fifo)
+        else:
+            fifo = self.reg_data.read(
+                read_size,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
+                poll_value=(1 << self.__REG_STATUS_BIT_DATA_AVAIL))
+            # FIFO emptyness verification can be enabled below for debug
+            # purpose. This shall always be the case, unless there is an
+            # implementation bug. This check is not enabled by default because
+            # it will slow down I2C communication.
+            #if self.reg_status.get_bit(self.__REG_STATUS_BIT_DATA_AVAIL) == 1:
+            #    raise RuntimeError('FIFO should be empty')
+            return fifo
 
     def __make_header(self, address, rw):
         """
