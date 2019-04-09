@@ -67,6 +67,8 @@ architecture behavior of io_module is
     -- - 3: reserved
     signal config: byte_t;
     signal mode: std_logic_vector(1 downto 0);
+    -- Output enable after mode application
+    signal pin_out_en_mode: std_logic;
 begin
     e_config: entity work.module_reg
     generic map (reset => x"00")
@@ -107,34 +109,37 @@ begin
         end if;
     end process;
 
-    -- Tristate output management
-    p_pin: process (pin_out_en, pin_out, mode)
+    -- Tristate depends on selected IO mode.
+    p_pin_out_en_mode: process (pin_out_en, pin_out, mode)
     begin
         case mode is
             when "00" =>
                 -- Auto
-                if pin_out_en = '0' then
-                    pin <= 'Z';
-                else
-                    pin <= pin_out;
-                end if;
+                pin_out_en_mode <= pin_out_en;
             when "01" =>
                 -- Open-collector
-                if pin_out = '0' then
-                    pin <= '0';
-                else
-                    pin <= 'Z';
-                end if;
+                pin_out_en_mode <= not pin_out;
             when "10" =>
                 -- Push only
-                if pin_out = '1' then
-                    pin <= '1';
-                else
-                    pin <= 'Z';
-                end if;
+                pin_out_en_mode <= pin_out;
             when "11" =>
                 -- RFU
-                pin <= 'Z';
+                pin_out_en_mode <= pin_out_en;
         end case;
+    end process;
+
+    -- Output pin control with tristate.
+    -- Signals are registered here to prevent glitches.
+    p_pin: process (clock, reset_n)
+    begin
+        if reset_n = '0' then
+            pin <= 'Z';
+        elsif rising_edge(clock) then
+            if pin_out_en_mode = '1' then
+                pin <= pin_out;
+            else
+                pin <= 'Z';
+            end if;
+        end if;
     end process;
 end;
