@@ -1715,13 +1715,18 @@ class Scaffold:
     __ADDR_MTXR_BASE = 0xf100
     __ADDR_MTXL_BASE = 0xf000
 
-    def __init__(self, dev="/dev/scaffold"):
+    def __init__(self, dev="/dev/scaffold", init_ios=False):
         """
         Create Scaffold API instance.
 
         :param dev: If specified, connect to the hardware Scaffold board using
             the given serial device. If None, call connect method later to
             establish the communication.
+        :param init_ios: True to enable I/Os peripherals initialization. Doing
+            so will set all I/Os to a default state, but it may generate pulses
+            on the I/Os. When set to False, I/Os connections are unchanged
+            during initialization and keep the configuration set by previous
+            sessions.
         """
         # Hardware version module
         # There is no need to expose it.
@@ -1822,13 +1827,18 @@ class Scaffold:
         self.mtxr_out += list(f'/io/d{i}' for i in range(self.__IO_D_COUNT))
 
         if dev is not None:
-            self.connect(dev)
+            self.connect(dev, init_ios=init_ios)
 
-    def connect(self, dev):
+    def connect(self, dev, init_ios=False):
         """
         Connect to Scaffold board using the given serial port.
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
             linux, 'COM0' on Windows.
+        :param init_ios: True to enable I/Os peripherals initialization. Doing
+            so will set all I/Os to a default state, but it may generate pulses
+            on the I/Os. When set to False, I/Os connections are unchanged
+            during initialization and keep the configuration set by previous
+            sessions.
         """
         self.bus.connect(dev)
         # Check hardware responds and has the correct version.
@@ -1851,15 +1861,19 @@ class Scaffold:
         # section for maximum speed! (about 7 times faster)
         with self.lazy_section():
             self.timeout = 0
-            self.sig_disconnect_all()
-            self.a0.reset_registers()
-            self.a1.reset_registers()
-            self.b0.reset_registers()
-            self.b1.reset_registers()
-            self.c0.reset_registers()
-            self.c1.reset_registers()
-            for i in range(self.__IO_D_COUNT):
-                self.__getattribute__(f'd{i}').reset_registers()
+            # Sometime we don't want the I/Os to be changed, since it may
+            # generate pulses and triggering stuff... Reseting the I/Os is an
+            # option.
+            if init_ios:
+                self.sig_disconnect_all()
+                self.a0.reset_registers()
+                self.a1.reset_registers()
+                self.b0.reset_registers()
+                self.b1.reset_registers()
+                self.c0.reset_registers()
+                self.c1.reset_registers()
+                for i in range(self.__IO_D_COUNT):
+                    self.__getattribute__(f'd{i}').reset_registers()
             for uart in self.uarts:
                 uart.reset()
             for pgen in self.pgens:
