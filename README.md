@@ -1,5 +1,24 @@
 [![Documentation Status](https://readthedocs.org/projects/donjonscaffold/badge/?version=latest)](https://donjonscaffold.readthedocs.io/en/latest/?badge=latest)
 
+# Board status
+
+Scaffold v1 board is currently a prototype and have a few issues we are
+currently fixing. We are planning to release the v1.1 board very soon to fix
+those and have a stable version:
+
+- Adjustable voltage regulators rework (critical): current voltage regulators
+  are not routed correctly and requires patching in order to work. The feedback
+  resistors must be swaped, and the ceramic output capacitors must be replaced
+  by tantalum ones to fix stability problems.
+- Daughter-boards sockets connectors will be replaced with standard HE10
+  connectors. Current connectors tends to break, are expensive and hard to
+  "hack".
+- Glitching protection resistors value change from 10 kOhm to 1 kOhm.
+- SMA connectors mechanical change for better test points accessibility.
+- C0 and C1 outputs removal to reduce board size.
+- On-board programmable pull-up or pull-down resistors for D0, D1 and D2.
+- And other minor improvements...
+
 # Scaffold
 
 Scaffold is an electronic motherboard designed for security evaluation of
