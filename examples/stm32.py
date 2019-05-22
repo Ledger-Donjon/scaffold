@@ -33,10 +33,12 @@ default_com = {'win32': 'COM0'}.get(sys.platform, '/dev/ttyUSB0')
 parser.add_argument('-d', '--dev', help='Scaffold serial device path. '
     f'If not specified, {default_com} is used on Linux by default.',
     default=default_com)
-parser.add_argument('-l', '--load', help='Load binary into device Flash '
-    'memory.')
+parser.add_argument('-l', '--load', help='Load binary into device.')
+parser.add_argument('--ram', help='Load binary into RAM memory.')
 parser.add_argument('-r', '--run', help='Reset and run device from Flash '
     'memory.', action='store_true')
+parser.add_argument('-j', '--jump', help='Jump to RAM memory.')
+parser.add_argument('--erase', help='Erase Flash memory.', action='store_true')
 args = parser.parse_args()
 
 # Connect to Scaffold board
@@ -83,21 +85,37 @@ if stm.device is not None:
     except NACKError as e:
         print('Failed to read protection bytes, device probably in RDP1.')
 
+if args.erase or ((args.load is not None) and (args.ram is None)):
+    # Erase Flash memory before writing it. This may be very long.
+    print('Erasing Flash memory...')
+    stm.extended_erase()    
+
 # Load binary file into Flash memory
-if args.load is not None:
+if (args.load is not None) and (args.ram is None):
     data = bytearray(open(args.load, 'rb').read())
     # Pad the data (multiple of 4 bytes is required)
     while len(data) % 4:
         data.append(0xff)
-    # Erase Flash memory before writing it. This may be very long.
-    print('Erasing Flash memory...')
-    stm.extended_erase()
     print('Programming...')
     stm.write_memory(0x08000000, data)
     print('Verifying...')
     assert data == stm.read_memory(0x08000000, len(data))
     print('Flash memory written successfully!')
 
+if (args.load is not None) and (args.ram is not None):
+    ram_addr = int(args.ram, 0)
+    data = bytearray(open(args.load, 'rb').read())
+    # Pad the data (multiple of 4 bytes is required)
+    while len(data) % 4:
+        data.append(0xff)
+    print('Loading code in RAM...')
+    stm.write_memory(ram_addr, data)
+
 if args.run:
     print('Rebooting from Flash memory...')
     stm.startup_flash()
+
+if args.jump is not None:
+    ram_addr = int(args.jump, 0)
+    print(f'Jumping to 0x{ram_addr:08x}...')
+    stm.go(ram_addr)
