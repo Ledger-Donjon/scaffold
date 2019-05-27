@@ -575,14 +575,14 @@ class UART(Module):
         RuntimeError is thrown.
         :param value: New target baudrate.
         """
-        d = round((self.parent.SYS_FREQ / value) - 1)
+        d = round((self.parent.sys_freq / value) - 1)
         # Check that the divisor can be stored on 16 bits.
         if d > 0xffff:
             raise ValueError('Target baudrate is too low.')
         if d < 1:
             raise ValueError('Target baudrate is too high.')
         # Calculate error between target and effective baudrates
-        real = self.parent.SYS_FREQ / (d + 1)
+        real = self.parent.sys_freq / (d + 1)
         err = abs(real - value) / value
         max_err = self.max_err
         if err > max_err:
@@ -670,7 +670,7 @@ class PulseGenerator(Module):
         """
         if t < 0:
             raise ValueError('Duration cannot be negative')
-        cc = round(t * self.parent.SYS_FREQ)
+        cc = round(t * self.parent.sys_freq)
         return cc
 
     def __clock_cycles_to_duration(self, cc):
@@ -680,7 +680,7 @@ class PulseGenerator(Module):
         :param cc: Number of clock cycles.
         :type cc: int
         """
-        return cc / self.parent.SYS_FREQ
+        return cc / self.parent.sys_freq
 
     @property
     def delay(self):
@@ -865,14 +865,14 @@ class ISO7816(Module):
 
     @clock_frequency.setter
     def clock_frequency(self, value):
-        d = round((0.5 * self.parent.SYS_FREQ / value) - 1)
+        d = round((0.5 * self.parent.sys_freq / value) - 1)
         # Check that the divisor fits one unsigned byte.
         if d > 0xff:
             raise ValueError('Target clock frequency is too low.')
         if d < 0:
             raise ValueError('Target clock frequency is too high.')
         # Calculate error between target and effective clock frequency
-        real = self.parent.SYS_FREQ / ((d + 1) * 2)
+        real = self.parent.sys_freq / ((d + 1) * 2)
         err = abs(real - value) / value
         max_err = self.max_err = 0.01
         if err > max_err:
@@ -1243,13 +1243,13 @@ class I2C(Module):
 
     @frequency.setter
     def frequency(self, value):
-        d = round((self.parent.SYS_FREQ / (4 * value)) - 1)
+        d = round((self.parent.sys_freq / (4 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
         if d > 0xffff:
             raise ValueError('Target frequency is too low.')
         if d < 1:
             raise ValueError('Target frequency is too high.')
-        real = self.parent.SYS_FREQ / (d + 1)
+        real = self.parent.sys_freq / (d + 1)
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
@@ -1420,12 +1420,11 @@ class ScaffoldBus:
     Low level methods to drive the Scaffold device.
     """
     MAX_CHUNK = 255
-    # FPGA frequency: 100 MHz
-    __SYS_FREQ = 100e6
-    # How long in seconds one timeout unit is.
-    __TIMEOUT_UNIT = (3.0/__SYS_FREQ)
 
-    def __init__(self):
+    def __init__(self, sys_freq):
+        self.sys_freq = sys_freq
+        # How long in seconds one timeout unit is.
+        self.timeout_unit = (3.0/self.sys_freq)
         self.ser = None
         self.__lazy_writes = []
         self.__lazy_stack = 0
@@ -1624,11 +1623,11 @@ class ScaffoldBus:
         """
         if self.__cache_timeout is None:
             return RuntimeError('Timeout not set yet')
-        return self.__cache_timeout * self.__TIMEOUT_UNIT
+        return self.__cache_timeout * self.timeout_unit
 
     @timeout.setter
     def timeout(self, value):
-        n = int(value / self.__TIMEOUT_UNIT)
+        n = int(value / self.timeout_unit)
         self.__set_timeout_raw(n)  # May throw is n out of range.
         self.__cache_timeout = n  # Must be after set_timeout
 
@@ -1675,170 +1674,103 @@ class IODir(Enum):
     OUTPUT = 1
 
 
-class Scaffold:
+class ArchBase:
     """
-    This class connects to a Scaffold board and provides access to all the
-    device parameters and peripherals.
-
-    :ivar uarts: list of :class:`scaffold.UART` instance managing UART
-        peripherals.
-    :ivar i2cs: list of :class:`scaffold.I2C` instance managing I2C
-        peripherals.
-    :ivar iso7816: :class:`scaffold.ISO7816` instance managing the ISO7816
-        peripheral.
-    :ivar pgens: list of four :class:`scaffold.PulseGenerator` instance
-        managing the FPGA pulse generators.
-    :ivar power: :class:`scaffold.Power` instance, enabling control of the
-        power supplies of DUT and platform sockets.
-    :ivar leds: :class:`scaffold.LEDs` instance, managing LEDs brightness and
-        lighting mode.
-    :ivar [a0,a1,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
-        instances for connecting and controlling the corresponding I/Os of the
-        board.
+    Base class for Scaffold API.
+    The :class:`Scaffold` class inherits from this class and defines which
+    modules and signals are defined on the board. This class can be inherited to
+    create other boards than Scaffold sharing the same architecture principle.
     """
-
-    # Supported versions
-    SUPPORTED_VERSIONS = ('0.2', '0.3')
-
-    # FPGA frequency: 100 MHz
-    SYS_FREQ = 100e6
-
-    # Number of D outputs
-    __IO_D_COUNT = 16
-    # Number of UART peripherals
-    __UART_COUNT = 2
-    # Number of pulse generator peripherals
-    __PULSE_GENERATOR_COUNT = 4
-    # Number of I2C modules
-    __I2C_COUNT = 1
-
     __ADDR_MTXR_BASE = 0xf100
     __ADDR_MTXL_BASE = 0xf000
 
-    def __init__(self, dev="/dev/scaffold", init_ios=False):
+    def __init__(self, sys_freq, board_name, supported_versions):
         """
-        Create Scaffold API instance.
+        Defines basic parameters of the board.
 
-        :param dev: If specified, connect to the hardware Scaffold board using
-            the given serial device. If None, call connect method later to
-            establish the communication.
-        :param init_ios: True to enable I/Os peripherals initialization. Doing
-            so will set all I/Os to a default state, but it may generate pulses
-            on the I/Os. When set to False, I/Os connections are unchanged
-            during initialization and keep the configuration set by previous
-            sessions.
+        :param sys_freq: Architecture system frequency, in Hertz.
+        :type sys_freq: int
+        :param board_name: Expected board name during version string readout.
+        :type board_name: str
+        :param supported_versions: A list of supported version strings. For
+            instance `[1.0, 2.0]`.
+        :type supported_versions: list or tuple of string.
         """
-        # Hardware version module
-        # There is no need to expose it.
+        self.sys_freq = sys_freq
+        self.__expected_board_name = board_name
+        self.__supported_versions = supported_versions
+
+        # Hardware version module. Defined here because it is an architecture
+        # requirement. There is no need to expose this module.
         self.__version_module = Version(self)
+
         # Cache the version string once read
         self.__version_string = None
         self.__version = None
         self.__board_name = None
 
-        # Power module
-        self.power = Power(self)
-        # Leds module
-        self.leds = LEDs(self)
-
-        # Create the IO signals
-        self.a0 = IO(self, '/io/a0', 0)
-        self.a1 = IO(self, '/io/a1', 1)
-        self.b0 = IO(self, '/io/b0', 2)
-        self.b1 = IO(self, '/io/b1', 3)
-        self.c0 = IO(self, '/io/c0', 4)
-        self.c1 = IO(self, '/io/c1', 5)
-        for i in range(self.__IO_D_COUNT):
-            self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', 6+i))
-
-        # Create the UART modules
-        self.uarts = []
-        for i in range(self.__UART_COUNT):
-            uart = UART(self, i)
-            self.uarts.append(uart)
-            self.__setattr__(f'uart{i}', uart)
-
-        # Create the pulse generator modules
-        self.pgens = []
-        for i in range(self.__PULSE_GENERATOR_COUNT):
-            pgen = PulseGenerator(self, i)
-            self.pgens.append(pgen)
-            self.__setattr__(f'pgen{i}', pgen)
-
-        # Declare the I2C peripherals
-        self.i2cs = []
-        for i in range(self.__I2C_COUNT):
-            i2c = I2C(self, i)
-            self.i2cs.append(i2c)
-            self.__setattr__(f'i2c{i}', i2c)
-
-        # Create the ISO7816 module
-        self.iso7816 = ISO7816(self)
-
         # Low-level management
         # Set as an attribute to avoid having all low level routines visible in
         # the higher API Scaffold class.
-        self.bus = ScaffoldBus()
+        self.bus = ScaffoldBus(self.sys_freq)
 
-        # FPGA left matrix input signals
-        self.mtxl_in = [
-            '0', '1', '/io/a0', '/io/a1', '/io/b0', '/io/b1', '/io/c0',
-            '/io/c1']
-        self.mtxl_in += list(f'/io/d{i}' for i in range(self.__IO_D_COUNT))
-
-        # FPGA left matrix output signals
+        # Mux matrices signals
+        self.mtxl_in = []
         self.mtxl_out = []
-        for i in range(self.__UART_COUNT):
-            self.mtxl_out.append(f'/uart{i}/rx')
-        self.mtxl_out.append('/iso7816/io_in')
-        for i in range(self.__PULSE_GENERATOR_COUNT):
-            self.mtxl_out.append(f'/pgen{i}/start')
-        for i in range(self.__I2C_COUNT):
-            self.mtxl_out.append(f'/i2c{i}/sda_in')
-            self.mtxl_out.append(f'/i2c{i}/scl_in')
+        self.mtxr_in = []
+        self.mtxr_out = []
 
-        # FPGA right matrix input signals
-        self.mtxr_in = [
-            'z', '0', '1', '/power/dut_trigger', '/power/platform_trigger']
-        for i in range(self.__UART_COUNT):
-            self.mtxr_in += [
-                f'/uart{i}/tx',
-                f'/uart{i}/trigger']
-        self.mtxr_in += [
-            '/iso7816/io_out',
-            '/iso7816/clk',
-            '/iso7816/trigger']
-        self.mtxr_in += list(
-            f'/pgen{i}/out' for i in range(self.__PULSE_GENERATOR_COUNT))
-        for i in range(self.__I2C_COUNT):
-            self.mtxr_in += [
-                f'/i2c{i}/sda_out',
-                f'/i2c{i}/scl_out',
-                f'/i2c{i}/trigger']
+    def add_mtxl_in(self, name):
+        """
+        Declares an input for the left interconnect matrix.
 
-        # FPGA right matrix output signals
-        self.mtxr_out = [
-            '/io/a0',
-            '/io/a1',
-            '/io/b0',
-            '/io/b1',
-            '/io/c0',
-            '/io/c1']
-        self.mtxr_out += list(f'/io/d{i}' for i in range(self.__IO_D_COUNT))
+        :param name: Input signal name.
+        :type name: str.
+        """
+        self.mtxl_in.append(name)
 
-        if dev is not None:
-            self.connect(dev, init_ios=init_ios)
+    def add_mtxl_out(self, name):
+        """
+        Declares an output of the left interconnect matrix.
 
-    def connect(self, dev, init_ios=False):
+        :param name: Output signal name.
+        :type name: str.
+        """
+        self.mtxl_out.append(name)
+
+    def add_mtxr_in(self, name):
+        """
+        Declares an input for the right interconnect matrix.
+
+        :param name: Input signal name.
+        :type name: str.
+        """
+        self.mtxr_in.append(name)
+
+    def add_mtxr_out(self, name):
+        """
+        Declares an output of the right interconnect matrix.
+
+        :param name: Input signal name.
+        :type name: str.
+        """
+        self.mtxr_out.append(name)
+
+    @property
+    def version(self):
+        """
+        :return: Hardware version string. This string is queried and checked
+            when connecting to the board. It is then cached and can be accessed
+            using this property. If the instance is not connected to a board,
+            None is returned.
+        """
+        return self.__version
+
+    def connect(self, dev):
         """
         Connect to Scaffold board using the given serial port.
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
             linux, 'COM0' on Windows.
-        :param init_ios: True to enable I/Os peripherals initialization. Doing
-            so will set all I/Os to a default state, but it may generate pulses
-            on the I/Os. When set to False, I/Os connections are unchanged
-            during initialization and keep the configuration set by previous
-            sessions.
         """
         self.bus.connect(dev)
         # Check hardware responds and has the correct version.
@@ -1851,47 +1783,11 @@ class Scaffold:
                 + self.__version_string + '\'')
         self.__board_name = tokens[0]
         self.__version = tokens[1]
-        if self.__board_name != 'scaffold':
+        if self.__board_name != self.__expected_board_name:
             raise RuntimeError('Invalid board name during version check')
-        if self.__version not in ('0.2', '0.3'):
+        if self.__version not in self.__supported_versions:
             raise RuntimeError(
                 'Hardware version ' + self.__version + ' not supported')
-        # Reset to a default configuration
-        # This will perform many writes to registers, so we start a lazy
-        # section for maximum speed! (about 7 times faster)
-        with self.lazy_section():
-            self.timeout = 0
-            # Sometime we don't want the I/Os to be changed, since it may
-            # generate pulses and triggering stuff... Reseting the I/Os is an
-            # option.
-            if init_ios:
-                self.sig_disconnect_all()
-                self.a0.reset_registers()
-                self.a1.reset_registers()
-                self.b0.reset_registers()
-                self.b1.reset_registers()
-                self.c0.reset_registers()
-                self.c1.reset_registers()
-                for i in range(self.__IO_D_COUNT):
-                    self.__getattribute__(f'd{i}').reset_registers()
-            for uart in self.uarts:
-                uart.reset()
-            for pgen in self.pgens:
-                pgen.reset_registers()
-            self.leds.reset()
-            self.iso7816.reset_config()
-            for i2c in self.i2cs:
-                i2c.reset_config()
-
-    @property
-    def version(self):
-        """
-        :return: Hardware version string. This string is queried and checked
-            when connecting to the board. It is then cached and can be accessed
-            using this property. If the instance is not connected to a board,
-            None is returned.
-        """
-        return self.__version
 
     def __signal_to_path(self, signal):
         """
@@ -1988,4 +1884,183 @@ class Scaffold:
             python 'with' statement to push and pop timeout configuration.
         """
         return self.bus.timeout_section()
+
+
+class Scaffold(ArchBase):
+    """
+    This class connects to a Scaffold board and provides access to all the
+    device parameters and peripherals.
+
+    :ivar uarts: list of :class:`scaffold.UART` instance managing UART
+        peripherals.
+    :ivar i2cs: list of :class:`scaffold.I2C` instance managing I2C
+        peripherals.
+    :ivar iso7816: :class:`scaffold.ISO7816` instance managing the ISO7816
+        peripheral.
+    :ivar pgens: list of four :class:`scaffold.PulseGenerator` instance
+        managing the FPGA pulse generators.
+    :ivar power: :class:`scaffold.Power` instance, enabling control of the
+        power supplies of DUT and platform sockets.
+    :ivar leds: :class:`scaffold.LEDs` instance, managing LEDs brightness and
+        lighting mode.
+    :ivar [a0,a1,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
+        instances for connecting and controlling the corresponding I/Os of the
+        board.
+    """
+    # Number of D outputs
+    __IO_D_COUNT = 16
+    # Number of UART peripherals
+    __UART_COUNT = 2
+    # Number of pulse generator peripherals
+    __PULSE_GENERATOR_COUNT = 4
+    # Number of I2C modules
+    __I2C_COUNT = 1
+
+    def __init__(self, dev="/dev/scaffold", init_ios=False):
+        """
+        Create Scaffold API instance.
+
+        :param dev: If specified, connect to the hardware Scaffold board using
+            the given serial device. If None, call connect method later to
+            establish the communication.
+        :param init_ios: True to enable I/Os peripherals initialization. Doing
+            so will set all I/Os to a default state, but it may generate pulses
+            on the I/Os. When set to False, I/Os connections are unchanged
+            during initialization and keep the configuration set by previous
+            sessions.
+        """
+        super().__init__(
+            100e6,  # System frequency: 100 MHz
+            'scaffold',  # board name
+            ('0.2', '0.3'))  # Supported versions
+
+        # Power module
+        self.power = Power(self)
+        # Leds module
+        self.leds = LEDs(self)
+
+        # Create the IO signals
+        self.a0 = IO(self, '/io/a0', 0)
+        self.a1 = IO(self, '/io/a1', 1)
+        self.b0 = IO(self, '/io/b0', 2)
+        self.b1 = IO(self, '/io/b1', 3)
+        self.c0 = IO(self, '/io/c0', 4)
+        self.c1 = IO(self, '/io/c1', 5)
+        for i in range(self.__IO_D_COUNT):
+            self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', 6+i))
+
+        # Create the UART modules
+        self.uarts = []
+        for i in range(self.__UART_COUNT):
+            uart = UART(self, i)
+            self.uarts.append(uart)
+            self.__setattr__(f'uart{i}', uart)
+
+        # Create the pulse generator modules
+        self.pgens = []
+        for i in range(self.__PULSE_GENERATOR_COUNT):
+            pgen = PulseGenerator(self, i)
+            self.pgens.append(pgen)
+            self.__setattr__(f'pgen{i}', pgen)
+
+        # Declare the I2C peripherals
+        self.i2cs = []
+        for i in range(self.__I2C_COUNT):
+            i2c = I2C(self, i)
+            self.i2cs.append(i2c)
+            self.__setattr__(f'i2c{i}', i2c)
+
+        # Create the ISO7816 module
+        self.iso7816 = ISO7816(self)
+
+        # FPGA left matrix input signals
+        self.add_mtxl_in('0')
+        self.add_mtxl_in('1')
+        self.add_mtxl_in('/io/a0')
+        self.add_mtxl_in('/io/a1')
+        self.add_mtxl_in('/io/b0')
+        self.add_mtxl_in('/io/b1')
+        self.add_mtxl_in('/io/c0')
+        self.add_mtxl_in('/io/c1')
+        for i in range(self.__IO_D_COUNT):
+            self.add_mtxl_in(f'/io/d{i}')
+
+        # FPGA left matrix output signals
+        for i in range(self.__UART_COUNT):
+            self.add_mtxl_out(f'/uart{i}/rx')
+        self.add_mtxl_out('/iso7816/io_in')
+        for i in range(self.__PULSE_GENERATOR_COUNT):
+            self.add_mtxl_out(f'/pgen{i}/start')
+        for i in range(self.__I2C_COUNT):
+            self.add_mtxl_out(f'/i2c{i}/sda_in')
+            self.add_mtxl_out(f'/i2c{i}/scl_in')
+
+        # FPGA right matrix input signals
+        self.add_mtxr_in('z')
+        self.add_mtxr_in('0')
+        self.add_mtxr_in('1')
+        self.add_mtxr_in('/power/dut_trigger')
+        self.add_mtxr_in('/power/platform_trigger')
+        for i in range(self.__UART_COUNT):
+            self.add_mtxr_in(f'/uart{i}/tx')
+            self.add_mtxr_in(f'/uart{i}/trigger')
+        self.add_mtxr_in('/iso7816/io_out')
+        self.add_mtxr_in('/iso7816/clk')
+        self.add_mtxr_in('/iso7816/trigger')
+        for i in range(self.__PULSE_GENERATOR_COUNT):
+            self.add_mtxr_in(f'/pgen{i}/out')
+        for i in range(self.__I2C_COUNT):
+            self.add_mtxr_in(f'/i2c{i}/sda_out')
+            self.add_mtxr_in(f'/i2c{i}/scl_out')
+            self.add_mtxr_in(f'/i2c{i}/trigger')
+
+        # FPGA right matrix output signals
+        self.add_mtxr_out('/io/a0')
+        self.add_mtxr_out('/io/a1')
+        self.add_mtxr_out('/io/b0')
+        self.add_mtxr_out('/io/b1')
+        self.add_mtxr_out('/io/c0')
+        self.add_mtxr_out('/io/c1')
+        for i in range(self.__IO_D_COUNT):
+            self.add_mtxr_out(f'/io/d{i}')
+
+        if dev is not None:
+            self.connect(dev)
+            self.reset_config(init_ios=init_ios)
+
+    def reset_config(self, init_ios=False):
+        """
+        Reset the board to a default state.
+        :param init_ios: True to enable I/Os peripherals initialization. Doing
+            so will set all I/Os to a default state, but it may generate pulses
+            on the I/Os. When set to False, I/Os connections are unchanged
+            during initialization and keep the configuration set by previous
+            sessions.
+        """
+        # Reset to a default configuration
+        # This will perform many writes to registers, so we start a lazy
+        # section for maximum speed! (about 7 times faster)
+        with self.lazy_section():
+            self.timeout = 0
+            # Sometime we don't want the I/Os to be changed, since it may
+            # generate pulses and triggering stuff... Reseting the I/Os is an
+            # option.
+            if init_ios:
+                self.sig_disconnect_all()
+                self.a0.reset_registers()
+                self.a1.reset_registers()
+                self.b0.reset_registers()
+                self.b1.reset_registers()
+                self.c0.reset_registers()
+                self.c1.reset_registers()
+                for i in range(self.__IO_D_COUNT):
+                    self.__getattribute__(f'd{i}').reset_registers()
+            for uart in self.uarts:
+                uart.reset()
+            for pgen in self.pgens:
+                pgen.reset_registers()
+            self.leds.reset()
+            self.iso7816.reset_config()
+            for i2c in self.i2cs:
+                i2c.reset_config()
 
