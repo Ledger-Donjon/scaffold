@@ -1812,24 +1812,53 @@ class ArchBase:
             raise ValueError('Invalid signal type')
 
     def sig_connect(self, a, b):
+        """
+        Configure interconnect matrices to feed the signal a with the signal b.
+
+        :param a: Destination signal.
+        :type a: Signal
+        :param b: Source signal.
+        :type b: Signal
+        """
         # Check both signals belongs to the current board instance
         # Convert signals to path names
         dest_path = self.__signal_to_path(a)
         src_path = self.__signal_to_path(b)
 
-        if dest_path in self.mtxr_out:
+        dest_in_mtxr_out = (dest_path in self.mtxr_out)
+        dest_in_mtxl_out = (dest_path in self.mtxl_out)
+        if not (dest_in_mtxr_out or dest_in_mtxl_out):
+            # Shall never happen unless there is a bug
+            raise RuntimeError(f'Invalid destination path \'{dest_path}\'')
+        src_in_mtxl_in = (src_path in self.mtxl_in)
+        src_in_mtxr_in = (src_path in self.mtxr_in)
+        # Beware: we can have a dest signal with the same name in mtxr and
+        # mtxl.
+        if dest_in_mtxr_out and src_in_mtxr_in:
+            if dest_in_mtxl_out and src_in_mtxl_in:
+                # Shall never happen unless a module output has the same name
+                # as one of its input.
+                raise RuntimeError(f'Connection ambiguity \'{dest_path}\' << '
+                    + f'\'{src_path}\'.');
             # Connect a module output to an IO output
             src_index = self.mtxr_in.index(src_path)
             dst_index = self.mtxr_out.index(dest_path)
             self.bus.write(self.__ADDR_MTXR_BASE + dst_index, src_index)
-        elif dest_path in self.mtxl_out:
+            print('OUT', src_path, dest_path, src_index, dst_index)
+        elif dest_in_mtxl_out and src_in_mtxl_in:
             # Connect a module input to an IO input (or 0 or 1).
             src_index = self.mtxl_in.index(src_path)
             dst_index = self.mtxl_out.index(dest_path)
             self.bus.write(self.__ADDR_MTXL_BASE + dst_index, src_index)
         else:
             # Shall never happen unless there is a bug
-            raise RuntimeError(f'Invalid destination path \'{dest_path}\'')
+            print(dest_in_mtxl_out)
+            print(dest_in_mtxr_out)
+            print(src_in_mtxl_in)
+            print(src_in_mtxr_in)
+            print(self.mtxr_out)
+            raise RuntimeError(f'Failed to connect \'{dest_path}\' << '
+                    + f'\'{src_path}\'.');
 
     def sig_disconnect_all(self):
         """
