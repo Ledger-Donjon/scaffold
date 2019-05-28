@@ -1844,7 +1844,6 @@ class ArchBase:
             src_index = self.mtxr_in.index(src_path)
             dst_index = self.mtxr_out.index(dest_path)
             self.bus.write(self.__ADDR_MTXR_BASE + dst_index, src_index)
-            print('OUT', src_path, dest_path, src_index, dst_index)
         elif dest_in_mtxl_out and src_in_mtxl_in:
             # Connect a module input to an IO input (or 0 or 1).
             src_index = self.mtxl_in.index(src_path)
@@ -1852,11 +1851,6 @@ class ArchBase:
             self.bus.write(self.__ADDR_MTXL_BASE + dst_index, src_index)
         else:
             # Shall never happen unless there is a bug
-            print(dest_in_mtxl_out)
-            print(dest_in_mtxr_out)
-            print(src_in_mtxl_in)
-            print(src_in_mtxr_in)
-            print(self.mtxr_out)
             raise RuntimeError(f'Failed to connect \'{dest_path}\' << '
                     + f'\'{src_path}\'.');
 
