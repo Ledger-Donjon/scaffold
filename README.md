@@ -3,21 +3,26 @@
 # Board status
 
 Scaffold v1 board is currently a prototype and have a few issues we are
-currently fixing. We are planning to release the v1.1 board very soon to fix
-those and have a stable version:
+currently fixing. The new v1.1 version has been released and will soon be
+tested.
 
-- Adjustable voltage regulators rework (critical): current voltage regulators
-  are not routed correctly and requires patching in order to work. The feedback
-  resistors must be swaped, and the ceramic output capacitors must be replaced
-  by tantalum ones to fix stability problems.
-- Daughter-boards sockets connectors will be replaced with standard HE10
-  connectors. Current connectors tends to break, are expensive and hard to
-  "hack".
-- Glitching protection resistors value change from 10 kOhm to 1 kOhm.
-- SMA connectors mechanical change for better test points accessibility.
-- C0 and C1 outputs removal to reduce board size.
-- On-board programmable pull-up or pull-down resistors for D0, D1 and D2.
-- And other minor improvements...
+- Reworked the adjustable regulators to fix stability issues and bad
+  potentiometer routing.
+- Replaced daughter-boards connectors with standard HE10 connectors and updated
+  the pinout.
+- Fixed glitching protection resistors value from 10 kOhm to 1 kOhm.
+- Changed SMA connectors for better test points accessibility.
+- Removed C0 and C1 outputs and renamed A0, A1, B0, and B1 to A0, A1, A2 and A3.
+  Each Ax output has now its own voltage level translator.
+- Removed CLOCK SMA connector.
+- Added programmable pull-up or pull-down resistors for D0, D1 and D2.
+- Added jumper to short the current measurement resistor.
+- Added 50 Ohm resistor to the analog amplifier output.
+- Improved tearing reactivity.
+- Reworked power and error LEDs.
+- Improved schematics readability and translated comments to English.
+- Improved silkscreen.
+- Board size has been slightly reduced.
 
 # Scaffold
 
