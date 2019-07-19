@@ -14,6 +14,7 @@ Welcome to scaffold's documentation!
    :caption: Contents:
 
    Getting started <getting_started.rst>
+   Platform and DUT sockets <sockets.rst>
    Kits <kits.rst>
    Scaffold peripherals <peripherals.rst>
    Python API reference <api.rst>
