@@ -467,11 +467,19 @@ class LEDs(Module):
         self.add_register('leds_1', 'w', 0x0203)
         self.add_register('leds_2', 'w', 0x0204)
         self.add_register('mode', 'w', 0x0205, wideness=3)
-        leds = [
-            'a0', 'b1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3', 'd4',
-            'd5']
+        if float(self.parent.version) <= 0.3:
+            # Scaffold hardware v1 only
+            leds = [
+                'a0', 'a1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3',
+                'd4', 'd5']
+            offset = 6
+        else:
+            # Scaffold hardware v1.1
+            leds = [
+                'a0', 'a1', 'a2', 'a3', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']
+            offset = 8
         for i, name in enumerate(leds):
-            self.__setattr__(name, LED(self, i+6))
+            self.__setattr__(name, LED(self, i + offset))
 
     def reset(self):
         """ Set module registers to default values. """
@@ -1926,7 +1934,7 @@ class Scaffold(ArchBase):
         power supplies of DUT and platform sockets.
     :ivar leds: :class:`scaffold.LEDs` instance, managing LEDs brightness and
         lighting mode.
-    :ivar [a0,a1,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
+    :ivar [a0,a1,a2,a3,b0,b1,c0,c1,d0,d1,d2,d3,d4,d5]: :class:`scaffold.Signal`
         instances for connecting and controlling the corresponding I/Os of the
         board.
     """
@@ -1955,7 +1963,23 @@ class Scaffold(ArchBase):
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
-            ('0.2', '0.3'))  # Supported versions
+            ('0.2', '0.3', '0.4'))  # Supported versions
+        if dev is not None:
+            self.connect(dev, init_ios)
+
+    def connect(self, dev, init_ios=False):
+        """
+        Connect to Scaffold board using the given serial port.
+
+        :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
+            linux, 'COM0' on Windows.
+        :param init_ios: True to enable I/Os peripherals initialization. Doing
+            so will set all I/Os to a default state, but it may generate pulses
+            on the I/Os. When set to False, I/Os connections are unchanged
+            during initialization and keep the configuration set by previous
+            sessions.
+        """
+        super().connect(dev)
 
         # Power module
         self.power = Power(self)
@@ -1963,14 +1987,23 @@ class Scaffold(ArchBase):
         self.leds = LEDs(self)
 
         # Create the IO signals
+        # Scaffold hardware v1 has FPGA arch version <= 0.3
+        # Scaffold hardware v1.1 has FPGA arch version >= 0.4
+        # The I/Os have changed between both versions.
         self.a0 = IO(self, '/io/a0', 0)
         self.a1 = IO(self, '/io/a1', 1)
-        self.b0 = IO(self, '/io/b0', 2)
-        self.b1 = IO(self, '/io/b1', 3)
-        self.c0 = IO(self, '/io/c0', 4)
-        self.c1 = IO(self, '/io/c1', 5)
+        if float(self.version) <= 0.3:
+            self.b0 = IO(self, '/io/b0', 2)
+            self.b1 = IO(self, '/io/b1', 3)
+            self.c0 = IO(self, '/io/c0', 4)
+            self.c1 = IO(self, '/io/c1', 5)
+            io_index = 6
+        else:
+            self.a2 = IO(self, '/io/a2', 1)
+            self.a3 = IO(self, '/io/a3', 1)
+            io_index = 4
         for i in range(self.__IO_D_COUNT):
-            self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', 6+i))
+            self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', io_index + i))
 
         # Create the UART modules
         self.uarts = []
@@ -2001,10 +2034,16 @@ class Scaffold(ArchBase):
         self.add_mtxl_in('1')
         self.add_mtxl_in('/io/a0')
         self.add_mtxl_in('/io/a1')
-        self.add_mtxl_in('/io/b0')
-        self.add_mtxl_in('/io/b1')
-        self.add_mtxl_in('/io/c0')
-        self.add_mtxl_in('/io/c1')
+        if float(self.version) <= 0.3:
+            # Scaffold hardware v1 only
+            self.add_mtxl_in('/io/b0')
+            self.add_mtxl_in('/io/b1')
+            self.add_mtxl_in('/io/c0')
+            self.add_mtxl_in('/io/c1')
+        else:
+            # Scaffold hardware v1.1
+            self.add_mtxl_in('/io/a2')
+            self.add_mtxl_in('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxl_in(f'/io/d{i}')
 
@@ -2040,16 +2079,20 @@ class Scaffold(ArchBase):
         # FPGA right matrix output signals
         self.add_mtxr_out('/io/a0')
         self.add_mtxr_out('/io/a1')
-        self.add_mtxr_out('/io/b0')
-        self.add_mtxr_out('/io/b1')
-        self.add_mtxr_out('/io/c0')
-        self.add_mtxr_out('/io/c1')
+        if float(self.version) <= 0.3:
+            # Scaffold hardware v1 only
+            self.add_mtxr_out('/io/b0')
+            self.add_mtxr_out('/io/b1')
+            self.add_mtxr_out('/io/c0')
+            self.add_mtxr_out('/io/c1')
+        else:
+            # Scaffold hardware v1.1
+            self.add_mtxr_out('/io/a2')
+            self.add_mtxr_out('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxr_out(f'/io/d{i}')
 
-        if dev is not None:
-            self.connect(dev)
-            self.reset_config(init_ios=init_ios)
+        self.reset_config(init_ios=init_ios)
 
     def reset_config(self, init_ios=False):
         """
@@ -2072,10 +2115,16 @@ class Scaffold(ArchBase):
                 self.sig_disconnect_all()
                 self.a0.reset_registers()
                 self.a1.reset_registers()
-                self.b0.reset_registers()
-                self.b1.reset_registers()
-                self.c0.reset_registers()
-                self.c1.reset_registers()
+                if float(self.version) <= 0.3:
+                    # Scaffold hardware v1 only
+                    self.b0.reset_registers()
+                    self.b1.reset_registers()
+                    self.c0.reset_registers()
+                    self.c1.reset_registers()
+                else:
+                    # Scaffold hardware v1.1
+                    self.a2.reset_registers()
+                    self.a3.reset_registers()
                 for i in range(self.__IO_D_COUNT):
                     self.__getattribute__(f'd{i}').reset_registers()
             for uart in self.uarts:

@@ -293,17 +293,15 @@ architecture behavior of system is
     signal led_tearing: std_logic;
     signal led_a0: std_logic;
     signal led_a1: std_logic;
-    signal led_b0: std_logic;
-    signal led_b1: std_logic;
-    signal led_c0: std_logic;
-    signal led_c1: std_logic;
+    signal led_a2: std_logic;
+    signal led_a3: std_logic;
     signal led_d0: std_logic;
     signal led_d1: std_logic;
     signal led_d2: std_logic;
     signal led_d3: std_logic;
     signal led_d4: std_logic;
     signal led_d5: std_logic;
-    signal leds_debug: std_logic_vector(5 downto 0);
+    signal leds_debug: std_logic_vector(7 downto 0);
 
     -- Power signals
     signal power_async, power_sync: std_logic_vector(1 downto 0);
@@ -429,7 +427,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.3")
+    generic map (version => "scaffold-0.4")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -659,16 +657,14 @@ begin
 
     led_a0 <= in_reg(0);
     led_a1 <= in_reg(1);
-    led_b0 <= in_reg(2);
-    led_b1 <= in_reg(3);
-    led_c0 <= in_reg(4);
-    led_c1 <= in_reg(5);
-    led_d0 <= in_reg(6);
-    led_d1 <= in_reg(7);
-    led_d2 <= in_reg(8);
-    led_d3 <= in_reg(9);
-    led_d4 <= in_reg(10);
-    led_d5 <= in_reg(11);
+    led_a2 <= in_reg(2);
+    led_a3 <= in_reg(3);
+    led_d0 <= in_reg(4);
+    led_d1 <= in_reg(5);
+    led_d2 <= in_reg(6);
+    led_d3 <= in_reg(7);
+    led_d4 <= in_reg(8);
+    led_d5 <= in_reg(9);
 
     leds <=
         led_power_platform_red &
@@ -683,10 +679,8 @@ begin
         led_d2 &
         led_d1 &
         led_d0 &
-        led_c1 &
-        led_c0 &
-        led_b1 &
-        led_b0 &
+        led_a3 &
+        led_a2 &
         led_a1 &
         led_a0 &
         leds_debug(0) &
@@ -694,8 +688,10 @@ begin
         leds_debug(2) &
         leds_debug(3) &
         leds_debug(4) &
-        leds_debug(5);
+        leds_debug(5) &
+        leds_debug(6) &
+        leds_debug(7);
 
-    leds_blink_mask <= "000000111111111111000000";
+    leds_blink_mask <= "000000111111111100000000";
 
 end;

@@ -28,8 +28,9 @@ use ieee.numeric_std.all;
 
 entity scaffold is
 generic (
-    -- Number of programmables IOs;
-    io_count: positive := 22 );
+    -- Number of programmables IOs
+    -- A0, A1, A2, A3, D0, D1, D2 ... D15
+    io_count: positive := 20 );
 port (
     -- System clock.
     clock: in std_logic;
@@ -44,8 +45,10 @@ port (
     leds_lat: out std_logic;
     leds_blank: out std_logic;
     io: inout std_logic_vector(io_count-1 downto 0);
-    -- Direction control for A0, A1, B0, B1, C0, C1.
-    io_dir: out std_logic_vector(2 downto 0);
+    -- Direction control for A0, A1, A2, A3
+    io_dir: out std_logic_vector(3 downto 0);
+    -- Pull resistors control
+    rpull: out std_logic_vector(2 downto 0);
     teardown: in std_logic;
     -- Power control outputs
     power_dut: out std_logic;
@@ -84,5 +87,6 @@ begin
         power_dut => power_dut,
         power_platform => power_platform);
 
-    io_dir <= "111";
+    io_dir <= "1111";
+    rpull <= "ZZZ";
 end;
