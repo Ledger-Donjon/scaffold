@@ -44,6 +44,8 @@ port (
 
     -- FPGA I/O pin
     pin: inout std_logic;
+    -- FPGA I/O pin for the pull resistor
+    pull_pin: out std_logic;
 
     -- Output enable signal.
     pin_out_en: in std_logic;
@@ -67,6 +69,14 @@ architecture behavior of io_module is
     -- - 3: reserved
     signal config: byte_t;
     signal mode: std_logic_vector(1 downto 0);
+    -- Bit 2 and 3 selects the pull resistor mode
+    -- - 0: no pull
+    -- - 1: pull-down
+    -- - 2: no pull
+    -- - 3: pull-up
+    -- Bit 2 can be seen as a pull-enable signal.
+    -- Bit 3 can be seen as the pull direction signal.
+    signal pull: std_logic_vector(1 downto 0);
     -- Output enable after mode application
     signal pin_out_en_mode: std_logic;
 begin
@@ -79,6 +89,7 @@ begin
         bus_in => bus_in,
         value => config );
     mode <= config(1 downto 0);
+    pull <= config(3 downto 2);
 
     -- Register inputs to have clean signals.
     p_pin_in_reg: process(clock, reset_n)
@@ -134,12 +145,19 @@ begin
     begin
         if reset_n = '0' then
             pin <= 'Z';
+            pull_pin <= 'Z';
         elsif rising_edge(clock) then
             if pin_out_en_mode = '1' then
                 pin <= pin_out;
             else
                 pin <= 'Z';
             end if;
+            case pull is
+                when "00" => pull_pin <= 'Z';
+                when "01" => pull_pin <= '0'; -- Pull-down
+                when "10" => pull_pin <= 'Z';
+                when "11" => pull_pin <= '1'; -- Pull-up
+            end case;
         end if;
     end process;
 end;

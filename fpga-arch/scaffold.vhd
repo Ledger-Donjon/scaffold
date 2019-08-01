@@ -45,10 +45,12 @@ port (
     leds_lat: out std_logic;
     leds_blank: out std_logic;
     io: inout std_logic_vector(io_count-1 downto 0);
+    -- Pull resistors control
+    pull_d0: out std_logic;
+    pull_d1: out std_logic;
+    pull_d2: out std_logic;
     -- Direction control for A0, A1, A2, A3
     io_dir: out std_logic_vector(3 downto 0);
-    -- Pull resistors control
-    rpull: out std_logic_vector(2 downto 0);
     teardown: in std_logic;
     -- Power control outputs
     power_dut: out std_logic;
@@ -61,12 +63,17 @@ end;
 architecture behavior of scaffold is
     -- Output of the PLL. 100 MHz clock.
     signal system_clock: std_logic;
+    signal pull: std_logic_vector(io_count-1 downto 0);
 begin
     -- Use a PLL to raise input clock frequency up to 100 MHz
     e_pll: entity work.pll port map (
         areset => not reset_n,
         inclk0 => clock,
         c0 => system_clock );
+
+    pull_d0 <= pull(4);
+    pull_d1 <= pull(5);
+    pull_d2 <= pull(6);
 
     -- Instantiate the main architecture with the system clock.
     e_system: entity work.system 
@@ -83,10 +90,10 @@ begin
         leds_lat => leds_lat,
         leds_blank => leds_blank,
         io => io,
+        pull => pull,
         teardown_async => teardown,
         power_dut => power_dut,
         power_platform => power_platform);
 
     io_dir <= "1111";
-    rpull <= "ZZZ";
 end;

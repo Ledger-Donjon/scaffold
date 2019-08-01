@@ -52,6 +52,7 @@ port (
     leds_blank: out std_logic;
     -- Programmable IO signals.
     io: inout std_logic_vector(io_count-1 downto 0);
+    pull: out std_logic_vector(io_count-1 downto 0);
     -- Teardown input.
     -- Power-off the devices when high.
     -- This signal is asynchronous and can be connected directly to an input.
@@ -420,6 +421,7 @@ begin
             en_config => en_io_config(i),
             reg_value => reg_io_value(i),
             pin => io(i),
+            pull_pin => pull(i),
             pin_out_en => mtxr_out(i)(1),
             pin_out => mtxr_out(i)(0),
             pin_in_reg => in_reg(i) );
@@ -427,7 +429,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.4")
+    generic map (version => "scaffold-0.5")
     port map (
         clock => clock,
         reset_n => reset_n,

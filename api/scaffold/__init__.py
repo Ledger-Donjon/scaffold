@@ -1268,19 +1268,27 @@ class IOMode(Enum):
     PUSH_ONLY = 2
 
 
+class Pull(Enum):
+    NONE = 0b00
+    UP = 0b11
+    DOWN = 0b01
+
+
 class IO(Signal, Module):
     """
     Board I/O.
     """
-    def __init__(self, parent, path, index):
+    def __init__(self, parent, path, index, pullable=False):
         """
         :param parent: Scaffold instance which the signal belongs to.
         :param path: Signal path string.
         :param index: I/O index.
+        :param pullable: True if this I/O supports pull resistor.
         """
         Signal.__init__(self, parent, path)
         Module.__init__(self, parent)
         self.index = index
+        self.__pullable = pullable
         if parent.version == '0.2':
             # 0.2 only
             # Since I/O will have more options, it is not very convenient to
@@ -1349,15 +1357,35 @@ class IO(Signal, Module):
 
         :type: IOMode
         """
-        assert self.parent.version == '0.3'
+        assert float(self.parent.version) >= 0.3
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
     def mode(self, value):
-        assert self.parent.version == '0.3'
+        assert float(self.parent.version) >= 0.3
         if not isinstance(value, IOMode):
             raise ValueError('mode must be an instance of IOMode enumeration')
         self.reg_config.set_mask(value.value, 0b11)
+
+    @property
+    def pull(self):
+        """
+        Pull resistor mode. Can only be written if the I/O supports this
+        feature.
+
+        :type: Pull
+        """
+        assert float(self.parent.version) >= 0.3
+        if not self.__pullable:
+            return Pull.NONE
+        return Pull((self.reg_config.get() >> 2) & 0b11)
+
+    @pull.setter
+    def pull(self, value):
+        assert float(self.parent.version) >= 0.3
+        if (not self.__pullable) and (value != Pull.NONE):
+            raise RuntimeError('This I/O does not support pull resistor')
+        self.reg_config.set_mask(value.value << 2, 0b1100)
 
 
 class GroupIO(IO):
@@ -1963,7 +1991,7 @@ class Scaffold(ArchBase):
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
-            ('0.2', '0.3', '0.4'))  # Supported versions
+            ('0.2', '0.3', '0.4', '0.5'))  # Supported versions
         if dev is not None:
             self.connect(dev, init_ios)
 
@@ -1997,13 +2025,16 @@ class Scaffold(ArchBase):
             self.b1 = IO(self, '/io/b1', 3)
             self.c0 = IO(self, '/io/c0', 4)
             self.c1 = IO(self, '/io/c1', 5)
-            io_index = 6
+            for i in range(self.__IO_D_COUNT):
+                self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', i+6))
         else:
             self.a2 = IO(self, '/io/a2', 1)
             self.a3 = IO(self, '/io/a3', 1)
             io_index = 4
-        for i in range(self.__IO_D_COUNT):
-            self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', io_index + i))
+            for i in range(self.__IO_D_COUNT):
+                # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
+                self.__setattr__(
+                    f'd{i}', IO(self, f'/io/d{i}', i+4, pullable=(i<3)))
 
         # Create the UART modules
         self.uarts = []

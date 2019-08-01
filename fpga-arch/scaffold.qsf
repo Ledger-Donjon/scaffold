@@ -101,6 +101,6 @@ set_global_assignment -name VHDL_FILE uart_tx.vhd
 set_global_assignment -name VHDL_FILE version_module.vhd
 
 set_location_assignment PIN_39 -to io_dir[3]
-set_location_assignment PIN_69 -to rpull[0]
-set_location_assignment PIN_71 -to rpull[1]
-set_location_assignment PIN_72 -to rpull[2]
+set_location_assignment PIN_69 -to pull_d0
+set_location_assignment PIN_71 -to pull_d1
+set_location_assignment PIN_72 -to pull_d2

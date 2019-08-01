@@ -3,8 +3,8 @@
 # Board status
 
 Scaffold v1 board is currently a prototype and have a few issues we are
-currently fixing. The new v1.1 version has been released and will soon be
-tested.
+currently fixing. The new v1.1 version has been prototyped and is currently
+being tested!
 
 - Reworked the adjustable regulators to fix stability issues and bad
   potentiometer routing.

@@ -57,13 +57,9 @@ Internal registers
 +----+-------------------+
 | a1 | 0xe010            |
 +----+-------------------+
-| b0 | 0xe020            |
+| a2 | 0xe020            |
 +----+-------------------+
-| b1 | 0xe030            |
-+----+-------------------+
-| c0 | 0xe040            |
-+----+-------------------+
-| c1 | 0xe050            |
+| a3 | 0xe030            |
 +----+-------------------+
 | dn | 0xe060 + 0x10 * n |
 +----+-------------------+
@@ -96,7 +92,7 @@ config register
 +---+---+---+---+---+---+---+---+
 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
 +---+---+---+---+---+---+---+---+
-| *reserved*            | mode  |
+| *reserved*    | pull  | mode  |
 +-----------------------+-------+
 
 This register allows customizing the output mode of an I/O.
@@ -118,3 +114,19 @@ This register allows customizing the output mode of an I/O.
 |      | The pin is driven by the routed peripheral, but is active only when  |
 |      | a one is outputed.                                                   |
 +------+----------------------------------------------------------------------+
+
+If the I/O supports it, the pull resistor configuration can be configured. For
+Scaffold hardware v1, no I/O supports this option. For Scaffold hardware v1.1,
+the D0, D1 and D2 I/Os supports this option.
+
++------+--------------------+
+| pull | Description        |
++------+--------------------+
+| 0    | No pull resistor.  |
++------+--------------------+
+| 1    | Pull-down resistor |
++------+--------------------+
+| 2    | No pull resistor.  |
++------+--------------------+
+| 3    | Pull-up resistor   |
++------+--------------------+
