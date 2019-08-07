@@ -1391,33 +1391,6 @@ class IO(Signal, Module):
         self.reg_config.set_mask(value.value << 2, 0b1100)
 
 
-class GroupIO(IO):
-    """
-    Board I/O in group A, B or C. Those I/Os are special since their operating
-    voltage can be configured to either 3.3 V or 5.0 V by switching an on-board
-    jumper. Voltage configuration applies to groups of I/Os, and as a side
-    effect, all I/Os of a same group are in input only mode, or output only
-    mode. This class allows setting the direction of the I/O and will check for
-    conflicting configurations in a same group of I/Os.
-    """
-    @property
-    def dir(self):
-        """
-        Current I/O direction.
-
-        :getter: Returns :class:`IODir.INPUT` if the I/O is in input mode,
-            :class:`IODir.OUTPUT` if the I/O is in output mode, or None if it
-            is undecided (thus the mode will be the same as the other I/O of
-            the same group).
-        :setter: Changes the direction of the I/O. The API will verify that the
-            new configuration does not conflict with the other I/O of the same
-            group. Accepted values are :class:`IODir.INPUT`,
-            :class:`IODir.OUTPUT` or None.
-        """
-        # TODO
-        pass
-
-
 class ScaffoldBusLazySection:
     """
     Helper class to be sure the opened lazy sections are closed at some time.

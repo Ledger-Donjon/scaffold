@@ -20,8 +20,13 @@ board and thus can be fast.
 .. autoclass:: IO
     :members:
 
-.. autoclass:: GroupIO
+.. autoclass:: IOMode
     :members:
+    :undoc-members:
+
+.. autoclass:: Pull
+    :members:
+    :undoc-members:
 
 .. autoclass:: UART
     :members:
