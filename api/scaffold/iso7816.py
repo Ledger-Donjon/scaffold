@@ -19,6 +19,7 @@
 
 from enum import Enum
 from binascii import hexlify
+from scaffold import Pull
 import os.path
 
 
@@ -70,6 +71,12 @@ class Smartcard:
         self.sig_nrst = scaffold.d1
         self.sig_sense = scaffold.d3
         self.sig_nrst << 1
+        # D0 is connected to a bidirectionnal bus. We enable the pull-up
+        # resistor if hardware version is >= 1.1. For version 1.0, the pull-up
+        # resistor must be soldered on the daughterboard.
+        # 1.0 hardware version boards have <= 0.3 architecture version.
+        if float(scaffold.version) >= 0.3:
+            scaffold.d0.pull = Pull.UP
         scaffold.d0 << scaffold.iso7816.io_out
         scaffold.d0 >> scaffold.iso7816.io_in
         scaffold.d2 << scaffold.iso7816.clk
@@ -294,3 +301,11 @@ class Smartcard:
             without spaces.
         """
         return hexlify(self.apdu(bytes.fromhex(the_apdu))).decode()
+
+    @property
+    def card_inserted(self):
+        """
+        True if a card is inserted, False otherwise. Card insertion is detected
+        with a mecanical switch connected to D3 of Scaffold.
+        """
+        return self.sig_sense.value == 1

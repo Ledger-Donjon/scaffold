@@ -22,10 +22,16 @@
 from scaffold import Scaffold
 from scaffold.iso7816 import Smartcard
 from binascii import hexlify
+import sys
 
 
 scaffold = Scaffold('/dev/ttyUSB0')
 sc = Smartcard(scaffold)
+
+if not sc.card_inserted:
+    print('No card inserted')
+    sys.exit(1)
+
 scaffold.power.dut = 1
 atr = sc.reset()
 print('ATR: ' + hexlify(atr).decode())
