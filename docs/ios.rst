@@ -49,6 +49,24 @@ is detected. This works for short pulses (> 10 ns).
     I/Os internals have been refactored in 0.3. Registers are not the same as in
     0.2. Current API supports both 0.2 and 0.3 versions.
 
+Programmable pull-resistors
+---------------------------
+
+Scaffold hardware version 1.1 comes with programmable pull resistors for D0, D1
+and D2. This can replace pull-up resistors which were necessary for
+bidirectionnal buses like the I/O signal of the ISO7816 interface. The pull
+resistor can be configured using the Python API, as shown in the following
+example:
+
+.. code-block:: python
+
+    scaffold.d0.pull = Pull.UP
+    scaffold.d1.pull = Pull.DOWN
+    scaffold.d2.pull = None  # Pull.NONE also accepted
+
+Pull resistor value is 10 kOhm. When pull resistor is disabled, there is still
+a weak pull-up resistor from the FPGA I/O itself.
+
 Internal registers
 ------------------
 
@@ -93,7 +111,7 @@ config register
 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
 +---+---+---+---+---+---+---+---+
 | *reserved*    | pull  | mode  |
-+-----------------------+-------+
++---------------+-------+-------+
 
 This register allows customizing the output mode of an I/O.
 

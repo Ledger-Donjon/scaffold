@@ -1383,6 +1383,9 @@ class IO(Signal, Module):
     @pull.setter
     def pull(self, value):
         assert float(self.parent.version) >= 0.3
+        # Accept None as value
+        if value is None:
+            value = Pull.NONE
         if (not self.__pullable) and (value != Pull.NONE):
             raise RuntimeError('This I/O does not support pull resistor')
         self.reg_config.set_mask(value.value << 2, 0b1100)
