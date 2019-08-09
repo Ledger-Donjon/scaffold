@@ -1,18 +1,16 @@
 STM32F2 QFP64 kit
 =================
 
-This kit allows communicating with the embedded ST bootloader of STM32F2
-devices. It is possible to write the Flash memory to load code, and then
-execute it after reset.
+STM32 kits allows communicating with the embedded ST bootloader of STM32F205 and
+STM32F427 devices. It is possible to write the Flash memory to load code, and
+then execute it after reset.
 
-.. figure:: pictures/kit-stm32f2.png
+.. figure:: pictures/kit-stm32.png
     :align: center
 
-The socket FLIPPED-QPF64 can be used to mount a STM32F2 device on its backside.
-All pins of the package must be returned before inserting the device in the
-socket. Pin 1 of the target device is as shown in the figure above. Make sure
-the device is correctly inserted and all the needles of the socket touch their
-corresponding PIN.
+Those QFP64 and QFP100 may suit other STM32 devices. Some breadboard space
+allows customizing the daughterboard for special needs, such as clock or voltage
+glitch electronics.
 
 Python API example
 ------------------

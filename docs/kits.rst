@@ -7,5 +7,5 @@ Some kits for specific applications with Scaffold are available.
   :caption: Applications:
 
   kit_breadboard.rst
-  kit_stm32f2.rst
+  kit_stm32.rst
   kit_smartcard.rst
