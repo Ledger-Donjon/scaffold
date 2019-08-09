@@ -1,5 +1,5 @@
-STM32F2 QFP64 kit
-=================
+STM32F2 kits
+============
 
 STM32 kits allows communicating with the embedded ST bootloader of STM32F205 and
 STM32F427 devices. It is possible to write the Flash memory to load code, and
