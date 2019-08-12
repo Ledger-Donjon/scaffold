@@ -53,11 +53,11 @@ Board tour
   FPGA, with high-voltage glitches for instance.
 - **M**: Tearing input. Any positive edge will power-off the DUT immediately and
   shunt all I/Os to ground.
-- **N**: A, B, C I/Os voltage standard selection between 3.3 V or 5 V.
-- **O**: A, B, C I/O groups. Each group can be configured to have 3.3 V or 5 V
-  I/Os. 5 V is suited to drive Alphanov TTL 50 Ohm laser sources (other 3.3 V
-  I/Os can't). All the I/Os of a same group are either in output or input mode.
-- **P**: D I/O group. Maximum voltage is 3.3 V. Those I/Os are connected to the
+- **N**: A0, A1, A2, A3 voltage standard selection between 3.3 V or 5 V. Move
+  the jumper to change the voltage of the corresponding I/O.
+- **O**: I/Os with voltage translators. 5 V is suited to drive Alphanov TTL
+  50 Ohm laser sources (other 3.3 V I/Os can't).
+- **P**: FPGA I/Os. Maximum voltage is 3.3 V. Those I/Os are connected to the
   platform and DUT sockets and are usually used to communicate with the target
   device and generate triggers. SMA connectors are provided for D0 to D6.
 - **Q**: Platform socket and power state LED.
