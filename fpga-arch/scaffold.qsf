@@ -104,3 +104,6 @@ set_location_assignment PIN_39 -to io_dir[3]
 set_location_assignment PIN_69 -to pull_d0
 set_location_assignment PIN_71 -to pull_d1
 set_location_assignment PIN_72 -to pull_d2
+
+# nCEO is Platform P8 signal. We don't want it to be used as a programming pin.
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
