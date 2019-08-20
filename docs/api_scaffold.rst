@@ -28,6 +28,10 @@ board and thus can be fast.
     :members:
     :undoc-members:
 
+.. autoclass:: UARTParity
+    :members:
+    :undoc-members:
+
 .. autoclass:: UART
     :members:
 
