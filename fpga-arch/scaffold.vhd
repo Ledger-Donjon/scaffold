@@ -30,7 +30,7 @@ entity scaffold is
 generic (
     -- Number of programmables IOs
     -- A0, A1, A2, A3, D0, D1, D2 ... D15
-    io_count: positive := 20 );
+    io_count: positive := 36 );
 port (
     -- System clock.
     clock: in std_logic;

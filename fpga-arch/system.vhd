@@ -429,7 +429,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.5")
+    generic map (version => "scaffold-0.6")
     port map (
         clock => clock,
         reset_n => reset_n,

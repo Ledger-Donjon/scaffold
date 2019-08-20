@@ -1942,8 +1942,9 @@ class Scaffold(ArchBase):
         instances for connecting and controlling the corresponding I/Os of the
         board.
     """
-    # Number of D outputs
+    # Number of I/Os
     __IO_D_COUNT = 16
+    __IO_P_COUNT = 16
     # Number of UART peripherals
     __UART_COUNT = 2
     # Number of pulse generator peripherals
@@ -1967,7 +1968,7 @@ class Scaffold(ArchBase):
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
-            ('0.2', '0.3', '0.4', '0.5'))  # Supported versions
+            ('0.2', '0.3', '0.4', '0.5', '0.6'))  # Supported versions
         if dev is not None:
             self.connect(dev, init_ios)
 
@@ -2011,6 +2012,11 @@ class Scaffold(ArchBase):
                 # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
                 self.__setattr__(
                     f'd{i}', IO(self, f'/io/d{i}', i+4, pullable=(i<3)))
+            if float(self.version) >= 0.6:
+                for i in range(self.__IO_P_COUNT):
+                    self.__setattr__(
+                        f'p{i}',
+                        IO(self, f'/io/p{i}', i + 4 + self.__IO_D_COUNT))
 
         # Create the UART modules
         self.uarts = []
@@ -2053,6 +2059,9 @@ class Scaffold(ArchBase):
             self.add_mtxl_in('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxl_in(f'/io/d{i}')
+        if float(self.version) >= 0.6:
+            for i in range(self.__IO_P_COUNT):
+                self.add_mtxl_in(f'/io/p{i}')
 
         # FPGA left matrix output signals
         for i in range(self.__UART_COUNT):
@@ -2098,6 +2107,9 @@ class Scaffold(ArchBase):
             self.add_mtxr_out('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxr_out(f'/io/d{i}')
+        if float(self.version) >= 0.6:
+            for i in range(self.__IO_P_COUNT):
+                self.add_mtxr_out(f'/io/p{i}')
 
         self.reset_config(init_ios=init_ios)
 
@@ -2134,6 +2146,9 @@ class Scaffold(ArchBase):
                     self.a3.reset_registers()
                 for i in range(self.__IO_D_COUNT):
                     self.__getattribute__(f'd{i}').reset_registers()
+                if float(self.version) >= 0.6:
+                    for i in range(self.__IO_P_COUNT):
+                        self.__getattribute__(f'p{i}').reset_registers()
             for uart in self.uarts:
                 uart.reset()
             for pgen in self.pgens:
