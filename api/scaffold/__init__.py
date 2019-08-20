@@ -525,12 +525,20 @@ class LEDs(Module):
         self.reg_control.set_mask(value << 1, 2)
 
 
+class UARTParity(Enum):
+    """ Possible parity modes for UART peripherals. """
+    NONE = 0
+    ODD = 1
+    EVEN = 2
+
+
 class UART(Module):
     """
     UART module of Scaffold.
     """
     __REG_CONTROL_BIT_FLUSH = 0
     __REG_CONFIG_BIT_TRIGGER = 3
+    __REG_CONFIG_BIT_PARITY = 0
 
     def __init__(self, parent, index):
         """
@@ -640,6 +648,23 @@ class UART(Module):
     def flush(self):
         """ Discard all the received bytes in the FIFO. """
         self.reg_control.set_bit(self.__REG_CONTROL_BIT_FLUSH, 1)
+
+    @property
+    def parity(self):
+        """
+        Parity mode. Disabled by default.
+
+        :type: UARTParity
+        """
+        return UARTParity(
+            (self.reg_config.get() >> self.__REG_CONFIG_BIT_PARITY) & 0b11)
+
+    @parity.setter
+    def parity(self, value):
+        self.reg_config.set_mask(
+            (value.value & 0b11) << self.__REG_CONFIG_BIT_PARITY,
+            0b11 << self.__REG_CONFIG_BIT_PARITY)
+
 
 
 class PulseGenerator(Module):
