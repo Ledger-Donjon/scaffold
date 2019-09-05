@@ -144,13 +144,15 @@ architecture behavior of system is
     -- Left matrix outputs. Inputs of modules.
     constant mtxl_out_count: positive := uart_count + pulse_gen_count
         + 1 -- ISO7816 module
-        + 2; -- I2C
+        + 2 -- I2C
+        + 1; -- SPI
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
     signal mtxl_out_iso7816_io_in: std_logic;
     signal mtxl_out_i2c_sda_in: std_logic;
     signal mtxl_out_i2c_scl_in: std_logic;
+    signal mtxl_out_spi_miso: std_logic;
 
     -- Right matrix inputs. Output of modules.
     -- Each output wire has two signals: a value and an output enable.
@@ -158,7 +160,8 @@ architecture behavior of system is
         + (uart_count * 2) + pulse_gen_count
         + 3 -- ISO7816 module
         + 2 -- Power signals
-        + 3; -- I2C module
+        + 3 -- I2C module
+        + 4; -- SPI module
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
     signal mtxr_in_uart_trigger: std_logic_vector(uart_count-1 downto 0);
@@ -171,6 +174,10 @@ architecture behavior of system is
     signal mtxr_in_i2c_scl: std_logic;
     signal mtxr_in_i2c_scl_en: std_logic;
     signal mtxr_in_i2c_trigger: std_logic;
+    signal mtxr_in_spi_sck: std_logic;
+    signal mtxr_in_spi_mosi: std_logic;
+    signal mtxr_in_spi_ss: std_logic;
+    signal mtxr_in_spi_trigger: std_logic;
 
     -- Output signals of the output matrix
     constant mtxr_out_count: positive := io_count;
@@ -215,6 +222,11 @@ architecture behavior of system is
     constant addr_i2c_data: address_t := x"0704";
     constant addr_i2c_size_h: address_t := x"0705";
     constant addr_i2c_size_l: address_t := x"0706";
+    constant addr_spi_status: address_t := x"0800";
+    constant addr_spi_control: address_t := x"0801";
+    constant addr_spi_config: address_t := x"0802";
+    constant addr_spi_divisor: address_t := x"0803";
+    constant addr_spi_data: address_t := x"0804";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -254,6 +266,11 @@ architecture behavior of system is
     signal en_i2c_data: std_logic;
     signal en_i2c_size_h: std_logic;
     signal en_i2c_size_l: std_logic;
+    signal en_spi_status: std_logic;
+    signal en_spi_control: std_logic;
+    signal en_spi_config: std_logic;
+    signal en_spi_divisor: std_logic;
+    signal en_spi_data: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -262,7 +279,6 @@ architecture behavior of system is
     -- Modules output registers
     -- These are the registers which are mapped to addresses and can be read by
     -- the host
-    -- TODO add ISO7816 registers
     constant read_register_count: positive :=
         io_count -- I/Os
         + 1 -- Version
@@ -270,7 +286,8 @@ architecture behavior of system is
         + pulse_gen_count -- Pulse generators
         + 1 -- Power control
         + 2 -- ISO7816 status and data
-        + 4; -- I2C
+        + 4 -- I2C
+        + 2; -- SPI
     signal reg_io_value: std_logic_vector_array_t(io_count-1 downto 0)
         (7 downto 0);
     signal reg_version_data: byte_t;
@@ -281,6 +298,7 @@ architecture behavior of system is
     signal reg_iso7816_status, reg_iso7816_data: byte_t;
     signal reg_power_control: byte_t;
     signal reg_i2c_status, reg_i2c_data, reg_i2c_size_h, reg_i2c_size_l: byte_t;
+    signal reg_spi_status, reg_spi_data: byte_t;
 
     -- State of the LEDs (when override is disabled in LEDs module).
     signal leds: std_logic_vector(23 downto 0);
@@ -369,6 +387,11 @@ begin
     en_i2c_data <= addr_en(bus_in, addr_i2c_data);
     en_i2c_size_h <= addr_en(bus_in, addr_i2c_size_h);
     en_i2c_size_l <= addr_en(bus_in, addr_i2c_size_l);
+    en_spi_status <= addr_en(bus_in, addr_spi_status);
+    en_spi_control <= addr_en(bus_in, addr_spi_control);
+    en_spi_config <= addr_en(bus_in, addr_spi_config);
+    en_spi_divisor <= addr_en(bus_in, addr_spi_divisor);
+    en_spi_data <= addr_en(bus_in, addr_spi_data);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -394,7 +417,9 @@ begin
             reg_i2c_size_h &
             reg_i2c_size_l &
             reg_iso7816_status &
-            reg_iso7816_data,
+            reg_iso7816_data &
+            reg_spi_status &
+            reg_spi_data,
         enables =>
             en_io_value &
             en_pulse_gen_status &
@@ -407,7 +432,9 @@ begin
             en_i2c_size_h &
             en_i2c_size_l &
             en_iso7816_status &
-            en_iso7816_data,
+            en_iso7816_data &
+            en_spi_status &
+            en_spi_data,
         value => bus_out.read_data );
 
     -- I/O modules
@@ -429,7 +456,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.6")
+    generic map (version => "scaffold-0.7")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -494,6 +521,25 @@ begin
         io_oe => mtxr_in_iso7816_io_oe,
         clk => mtxr_in_iso7816_clk,
         trigger => mtxr_in_iso7816_trigger );
+
+    -- SPI module.
+    e_spi_module: entity work.spi_module
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        bus_in => bus_in,
+        en_status => en_spi_status,
+        en_control => en_spi_control,
+        en_config => en_spi_config,
+        en_divisor => en_spi_divisor,
+        en_data => en_spi_data,
+        reg_status => reg_spi_status,
+        reg_data => reg_spi_data,
+        miso => mtxl_out_spi_miso,
+        sck => mtxr_in_spi_sck,
+        mosi => mtxr_in_spi_mosi,
+        ss => mtxr_in_spi_ss,
+        trigger => mtxr_in_spi_trigger );
 
     -- Pulse generators
     g_pulse_gen_module: for i in 0 to pulse_gen_count-1 generate
@@ -581,6 +627,8 @@ begin
         i := i + 1;
         mtxl_out_i2c_scl_in <= mtxl_out(i);
         i := i + 1;
+        mtxl_out_spi_miso <= mtxl_out(i);
+        i := i + 1;
         assert i = mtxl_out_count;
     end process;
 
@@ -613,7 +661,11 @@ begin
         mtxr_in_i2c_sda,
         mtxr_in_i2c_scl_en,
         mtxr_in_i2c_scl,
-        mtxr_in_i2c_trigger )
+        mtxr_in_i2c_trigger,
+        mtxr_in_spi_sck,
+        mtxr_in_spi_mosi,
+        mtxr_in_spi_ss,
+        mtxr_in_spi_trigger )
         variable i: integer;
     begin
         mtxr_in(0) <= "00"; -- Z
@@ -644,6 +696,12 @@ begin
         mtxr_in(i+1) <= mtxr_in_i2c_scl_en & mtxr_in_i2c_scl;
         mtxr_in(i+2) <= '1' & mtxr_in_i2c_trigger;
         i := i + 3;
+        -- SPI module
+        mtxr_in(i) <= "1" & mtxr_in_spi_sck;
+        mtxr_in(i+1) <= "1" & mtxr_in_spi_mosi;
+        mtxr_in(i+2) <= "1" & mtxr_in_spi_ss;
+        mtxr_in(i+3) <= "1" & mtxr_in_spi_trigger;
+        i := i + 4;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;
