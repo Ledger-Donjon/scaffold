@@ -1426,6 +1426,30 @@ class SPI(Module):
             return None
 
 
+class Chain(Module):
+    """ Chain trigger module. """
+    __ADDR_CONTROL = 0x0900
+
+    def __init__(self, parent, index, size):
+        """
+        :param parent: Scaffold instance owning the chain module.
+        :type parent: Scaffold
+        :param index: Module index.
+        :type index: int
+        :param size: Number of events in the chain.
+        :type size: int
+        """
+        super().__init__(parent, f'/chain{index}')
+        self.add_register('control', 'wv', self.__ADDR_CONTROL + index * 0x10)
+        for i in range(size):
+            self.add_signal(f'event{i}')
+        self.add_signal('trigger')
+
+    def rearm(self):
+        """ Reset the chain trigger to initial state. """
+        self.reg_control.set(1)
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2211,6 +2235,14 @@ class Scaffold(ArchBase):
                 self.spis.append(spi)
                 self.__setattr__(f'spi{i}', spi)
 
+        # Declare the trigger chain modules
+        self.chains = []
+        if float(self.version) >= 0.7:
+            for i in range(2):
+                chain = Chain(self, i)
+                self.chains.append(chain)
+                self.__setattr__(f'chain{i}', chain)
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2247,6 +2279,9 @@ class Scaffold(ArchBase):
             self.add_mtxl_out(f'/i2c{i}/scl_in')
         for i in range(len(self.spis)):
             self.add_mtxl_out(f'/spi{i}/miso')
+        for i in range(len(self.chains)):
+            for j in range(3):  # 3 is the number of chain events
+                self.add_mtxl_out(f'/chain{i}/event{j}')
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2272,6 +2307,8 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f'/spi{i}/mosi')
             self.add_mtxr_in(f'/spi{i}/ss')
             self.add_mtxr_in(f'/spi{i}/trigger')
+        for i in range(len(self.chains)):
+            self.add_mtxr_in(f'/chain{i}/trigger')
 
         # FPGA right matrix output signals
         self.add_mtxr_out('/io/a0')

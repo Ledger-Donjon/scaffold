@@ -36,7 +36,11 @@ generic (
     -- Number of UART modules.
     uart_count: positive := 2;
     -- Number of pulse generators.
-    pulse_gen_count: positive := 4 );
+    pulse_gen_count: positive := 4;
+    -- Number of chain trigger module
+    chain_count: positive := 2;
+    -- Size of the chain trigger modules (number of event inputs)
+    chain_size: positive := 3 );
 port (
     -- System clock.
     clock: in std_logic;
@@ -143,6 +147,7 @@ architecture behavior of system is
 
     -- Left matrix outputs. Inputs of modules.
     constant mtxl_out_count: positive := uart_count + pulse_gen_count
+        + (chain_count * chain_size) -- Chain modules
         + 1 -- ISO7816 module
         + 2 -- I2C
         + 1; -- SPI
@@ -153,11 +158,13 @@ architecture behavior of system is
     signal mtxl_out_i2c_sda_in: std_logic;
     signal mtxl_out_i2c_scl_in: std_logic;
     signal mtxl_out_spi_miso: std_logic;
+    signal mtxl_out_chain_events:
+        std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
 
     -- Right matrix inputs. Output of modules.
     -- Each output wire has two signals: a value and an output enable.
     constant mtxr_in_count: positive := 3 -- +3 for Z, 0 and 1 signals
-        + (uart_count * 2) + pulse_gen_count
+        + (uart_count * 2) + pulse_gen_count + chain_count
         + 3 -- ISO7816 module
         + 2 -- Power signals
         + 3 -- I2C module
@@ -178,6 +185,7 @@ architecture behavior of system is
     signal mtxr_in_spi_mosi: std_logic;
     signal mtxr_in_spi_ss: std_logic;
     signal mtxr_in_spi_trigger: std_logic;
+    signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
 
     -- Output signals of the output matrix
     constant mtxr_out_count: positive := io_count;
@@ -227,6 +235,7 @@ architecture behavior of system is
     constant addr_spi_config: address_t := x"0802";
     constant addr_spi_divisor: address_t := x"0803";
     constant addr_spi_data: address_t := x"0804";
+    constant addr_chain_base: address_t := x"0900";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -271,6 +280,7 @@ architecture behavior of system is
     signal en_spi_config: std_logic;
     signal en_spi_divisor: std_logic;
     signal en_spi_data: std_logic;
+    signal en_chain_control: std_logic_vector(chain_count-1 downto 0);
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -392,6 +402,8 @@ begin
     en_spi_config <= addr_en(bus_in, addr_spi_config);
     en_spi_divisor <= addr_en(bus_in, addr_spi_divisor);
     en_spi_data <= addr_en(bus_in, addr_spi_data);
+    en_chain_control <=
+        addr_en_loop(bus_in, addr_chain_base, x"0010", chain_count);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -600,6 +612,20 @@ begin
         scl_out_en => mtxr_in_i2c_scl_en,
         trigger => mtxr_in_i2c_trigger );
 
+    -- Chain trigger modules
+    g_chain_module: for i in 0 to chain_count-1 generate
+    begin
+        e_chain: entity work.chain_module
+        generic map (n => chain_size)
+        port map (
+            clock => clock,
+            reset_n => reset_n,
+            bus_in => bus_in,
+            en_control => en_chain_control(i),
+            events => mtxl_out_chain_events(i),
+            chain_out => mtxr_in_chain_out(i) );
+    end generate;
+
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module
     generic map (
@@ -629,6 +655,10 @@ begin
         i := i + 1;
         mtxl_out_spi_miso <= mtxl_out(i);
         i := i + 1;
+        for j in 0 to chain_count-1 loop
+            mtxl_out_chain_events(j) <= mtxl_out(i+chain_size-1 downto i);
+            i := i + chain_size;
+        end loop;
         assert i = mtxl_out_count;
     end process;
 
@@ -665,7 +695,8 @@ begin
         mtxr_in_spi_sck,
         mtxr_in_spi_mosi,
         mtxr_in_spi_ss,
-        mtxr_in_spi_trigger )
+        mtxr_in_spi_trigger,
+        mtxr_in_chain_out )
         variable i: integer;
     begin
         mtxr_in(0) <= "00"; -- Z
@@ -702,6 +733,11 @@ begin
         mtxr_in(i+2) <= "1" & mtxr_in_spi_ss;
         mtxr_in(i+3) <= "1" & mtxr_in_spi_trigger;
         i := i + 4;
+        -- Chain triggers
+        for j in 0 to chain_count-1 loop
+            mtxr_in(i) <= "1" & mtxr_in_chain_out(j);
+            i := i + 1;
+        end loop;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;
