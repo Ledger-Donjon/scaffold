@@ -44,6 +44,9 @@ board and thus can be fast.
 .. autoclass:: PulseGenerator
     :members:
 
+.. autoclass:: Chain
+    :members:
+
 .. autoclass:: LEDs
     :members:
 
