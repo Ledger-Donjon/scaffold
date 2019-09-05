@@ -1287,6 +1287,145 @@ class I2C(Module):
         self.__cache_frequency = real
 
 
+class SPI(Module):
+    """
+    SPI peripheral of Scaffold.
+    """
+    __REG_STATUS_BIT_READY = 0
+    __REG_CONTROL_BIT_TRIGGER = 7
+    __REG_CONFIG_BIT_POLARITY = 0
+    __REG_CONFIG_BIT_PHASE = 1
+
+    def __init__(self, parent, index):
+        """
+        :param parent: The Scaffold instance owning the SPI module.
+        :param index: SPI module index.
+        """
+        super().__init__(parent, f'/spi{index}')
+        self.__index = index
+        # Declare the signals
+        self.add_signals('miso', 'sck', 'mosi', 'ss', 'trigger')
+        # Declare the registers
+        self.__addr_base = base = 0x0800 + 0x0010 * index
+        self.add_register('status', 'rv', base)
+        self.add_register('control', 'w', base + 1)
+        self.add_register('config', 'w', base + 2)
+        self.add_register(
+            'divisor', 'w', base + 3, wideness=2, min_value=1, reset=0x1000)
+        self.add_register('data', 'rwv', base + 4, wideness=4)
+        # Current SPI clock frequency
+        self.__cache_frequency = None
+
+    @property
+    def polarity(self):
+        """
+        Clock polarity. 0 or 1.
+        :type: int
+        """
+        return self.reg_config.get_bit(self.__REG_CONFIG_BIT_POLARITY)
+
+    @polarity.setter
+    def polarity(self, value):
+        self.reg_config.set_bit(self.__REG_CONFIG_BIT_POLARITY, value)
+
+    @property
+    def phase(self):
+        """
+        Clock phase. 0 or 1.
+        :type: int
+        """
+        return self.reg_config.get_bit(self.__REG_CONFIG_BIT_PHASE)
+
+    @phase.setter
+    def phase(self, value):
+        self.reg_config.set_bit(self.__REG_CONFIG_BIT_PHASE, value)
+    
+    @property
+    def frequency(self):
+        """
+        Target SPI clock frequency.
+
+        :getter: Returns current frequency.
+        :setter: Set target frequency. Effective frequency may be different if
+            target cannot be reached accurately.
+        :type: float
+        """
+        return self.__cache_frequency
+
+    @frequency.setter
+    def frequency(self, value):
+        d = round((self.parent.sys_freq / (4 * value)) - 1)
+        # Check that the divisor can be stored on 16 bits.
+        if d > 0xffff:
+            raise ValueError('Target frequency is too low.')
+        if d < 1:
+            raise ValueError('Target frequency is too high.')
+        real = self.parent.sys_freq / (d + 1)
+        self.reg_divisor.set(d)
+        self.__cache_frequency = real
+
+    def transmit(self, value, size=8, trigger=False, read=True):
+        """
+        Performs a SPI transaction to transmit a value and receive data. If a
+        transmission is still pending, this methods waits for the SPI peripheral
+        to be ready.
+
+        :param value: Value to be transmitted. Less significant bit is
+            transmitted last.
+        :type value: int
+        :param size: Number of bits to be transmitted. Minimum is 1, maximum is 32.
+        :type size: int
+        :pram trigger: 1 or True to enable trigger upon SPI transmission.
+        :type trigger: bool or int.
+        :param read: Set 0 or False to disable received value readout (the
+            method will return None). Default is True, but disabling it will
+            make this command faster if the returned value can be discarded.
+        :return: Received value.
+        :rtype: int
+        """
+        if size not in range(1, 33):
+            raise ValueError('Invalid size for SPI transaction')
+        if value < 0:
+            raise ValueError('value cannot be negative')
+        if value >= (2**size):
+            raise ValueError('value is too high')
+        # The value to be transmitted must be loaded in the transmission
+        # shift-register, less significant bit first. The buffer will transmit
+        # its size most significant bits.
+        pad = size
+        while pad % 8 != 0:
+            value <<= 1
+            pad += 1
+        remaining = size
+        while remaining > 0:
+            self.reg_data.write(value & 0xff)
+            value >>= 8
+            remaining -= 8
+        # Start transmission
+        if trigger:
+            trigger = 1
+        self.reg_control.write(
+            (trigger << self.__REG_CONTROL_BIT_TRIGGER) + size,
+            poll=self.reg_status,
+            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+            poll_value=(1 << self.__REG_STATUS_BIT_READY) )
+        if read:
+            # The result bits are pushed from the right into the reception
+            # buffer. The reception buffer is read by bytes starting at the
+            # less significant byte.
+            res = self.reg_data.read(
+                (size-1)//8 + 1,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY) )
+            res = int.from_bytes(res, 'little')
+            # Mask to discard garbage bits from previous operations
+            res &= 2**size - 1
+            return res
+        else:
+            return None
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2064,6 +2203,14 @@ class Scaffold(ArchBase):
             self.i2cs.append(i2c)
             self.__setattr__(f'i2c{i}', i2c)
 
+        # Declare the SPI peripherals
+        self.spis = []
+        if float(self.version) >= 0.7:
+            for i in range(1):
+                spi = SPI(self, i)
+                self.spis.append(spi)
+                self.__setattr__(f'spi{i}', spi)
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2089,6 +2236,7 @@ class Scaffold(ArchBase):
                 self.add_mtxl_in(f'/io/p{i}')
 
         # FPGA left matrix output signals
+        # Update this section when adding new modules with inputs
         for i in range(self.__UART_COUNT):
             self.add_mtxl_out(f'/uart{i}/rx')
         self.add_mtxl_out('/iso7816/io_in')
@@ -2097,8 +2245,11 @@ class Scaffold(ArchBase):
         for i in range(self.__I2C_COUNT):
             self.add_mtxl_out(f'/i2c{i}/sda_in')
             self.add_mtxl_out(f'/i2c{i}/scl_in')
+        for i in range(len(self.spis)):
+            self.add_mtxl_out(f'/spi{i}/miso')
 
         # FPGA right matrix input signals
+        # Update this section when adding new modules with outpus
         self.add_mtxr_in('z')
         self.add_mtxr_in('0')
         self.add_mtxr_in('1')
@@ -2116,6 +2267,11 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f'/i2c{i}/sda_out')
             self.add_mtxr_in(f'/i2c{i}/scl_out')
             self.add_mtxr_in(f'/i2c{i}/trigger')
+        for i in range(len(self.spis)):
+            self.add_mtxr_in(f'/spi{i}/sck')
+            self.add_mtxr_in(f'/spi{i}/mosi')
+            self.add_mtxr_in(f'/spi{i}/ss')
+            self.add_mtxr_in(f'/spi{i}/trigger')
 
         # FPGA right matrix output signals
         self.add_mtxr_out('/io/a0')
