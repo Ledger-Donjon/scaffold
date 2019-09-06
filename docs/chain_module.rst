@@ -28,7 +28,7 @@ Signals
 
 .. modbox::
     :inputs: event0, event1, event2
-    :outputs: trigger
+    :outputs: trigger*
 
 
 Internal registers

@@ -32,7 +32,7 @@ Signals
 
 .. modbox::
     :inputs: sda_in, scl_in
-    :outputs: sda_out, scl_out, trigger
+    :outputs: sda_out, scl_out, trigger*
 
 
 Internal registers

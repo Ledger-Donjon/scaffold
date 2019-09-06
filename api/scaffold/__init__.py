@@ -1059,7 +1059,7 @@ class I2C(Module):
 
     def __init__(self, parent, index):
         """
-        :param parent: The Scaffold instance owning the UART module.
+        :param parent: The Scaffold instance owning the I2C module.
         :param index: I2C module index.
         """
         super().__init__(parent, f'/i2c{index}')
@@ -2266,6 +2266,19 @@ class Scaffold(ArchBase):
         if float(self.version) >= 0.6:
             for i in range(self.__IO_P_COUNT):
                 self.add_mtxl_in(f'/io/p{i}')
+        if float(self.version) >= 0.7:
+            # Feeback signals from module outputs (mostly triggers)
+            for i in range(len(self.uarts)):
+                self.add_mtxl_in(f'/uart{i}/trigger')
+            self.add_mtxl_in(f'/iso7816/trigger')
+            for i in range(len(self.i2cs)):
+                self.add_mtxl_in(f'/i2c{i}/trigger')
+            for i in range(len(self.spis)):
+                self.add_mtxl_in(f'/spi{i}/trigger')
+            for i in range(len(self.pgens)):
+                self.add_mtxl_in(f'/pgen{i}/out')
+            for i in range(len(self.chains)):
+                self.add_mtxl_in(f'/chain{i}/trigger')
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs

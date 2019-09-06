@@ -40,7 +40,7 @@ Signals
 
 .. modbox::
     :inputs: io_in
-    :outputs: io_out, clk, trigger
+    :outputs: io_out, clk, trigger*
 
 Internal registers
 ------------------

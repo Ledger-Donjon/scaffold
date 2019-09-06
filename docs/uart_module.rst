@@ -30,7 +30,7 @@ Signals
 
 .. modbox::
     :inputs: rx
-    :outputs: tx, trigger
+    :outputs: tx, trigger*
 
 
 Internal registers

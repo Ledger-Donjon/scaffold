@@ -41,6 +41,9 @@ board and thus can be fast.
 .. autoclass:: I2C
     :members:
 
+.. autoclass:: SPI
+    :members:
+
 .. autoclass:: PulseGenerator
     :members:
 

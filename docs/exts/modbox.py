@@ -38,44 +38,71 @@ from hashlib import sha1
 
 
 def make_fig(path, inputs, outputs):
+    # Outputs with '*' goes back to the left matrix.
+    # Count how many of them we have.
+    feedback_signals = []
+    for i in range(len(outputs)):
+        if outputs[i][-1] == '*':
+            outputs[i] = outputs[i][:-1]  # Remove the '*' marker
+            feedback_signals.append(outputs[i])
+
     line_width = 1
     # Head length and head width for arrows
     hl = 0.25
     hw = hl * 0.75
     box_w = 6
-    left = -box_w//2
-    right = -left
+    box_left = -box_w//2
+    box_right = -box_left
     top = 1
     text_margin = 0.2
     box_h = max(len(inputs), len(outputs)) + 1
-    bottom = -box_h+1
-    arrow_length = 1
-    area_w = box_w + arrow_length * 2 + 2
-    area_h = box_h + 2
+    box_bottom = -box_h+1
+    arrow_length_left = 1
+    arrow_length_right = 1 + len(feedback_signals)
+    area_w = box_w + arrow_length_left + arrow_length_right + 2
+    area_h = box_h + 2 + len(feedback_signals)
 
     # Setup plot size and bounds
     plt.figure(figsize=(area_w * 0.3, area_h * 0.3), dpi=75)
     ax = plt.axes()
-    ax.axis('equal')
-    ax.set_xbound(-area_w/2, area_w/2)
-    ax.set_ybound(bottom-1, top+1)
-    ax.axis('off')
 
-    r = patches.Rectangle((left, bottom), box_w, box_h, fill=False,
+    r = patches.Rectangle((box_left, box_bottom), box_w, box_h, fill=False,
         lw=line_width)
     ax.add_patch(r)
 
     for i, name in enumerate(inputs):
-        ax.arrow(left - arrow_length, -i, arrow_length - hl, 0, fc='k', ec='k',
+        ax.arrow(box_left - arrow_length_left, -i, arrow_length_left - hl, 0, fc='k', ec='k',
             head_length=hl, head_width=hw, lw=line_width)
-        ax.annotate(s=name, xy=(left + text_margin, -i),
+        ax.annotate(s=name, xy=(box_left + text_margin, -i),
             horizontalalignment='left', verticalalignment='center')
 
+    num_feedback = 0
+
     for i, name in enumerate(outputs):
-        ax.arrow(right, -i, arrow_length - hl, 0, fc='k', ec='k',
+        ax.arrow(box_right, -i, arrow_length_right - hl, 0, fc='k', ec='k',
             head_length=hl, head_width=hw, lw=line_width)
-        ax.annotate(s=name, xy=(right - text_margin, -i),
+        ax.annotate(s=name, xy=(box_right - text_margin, -i),
             horizontalalignment='right', verticalalignment='center')
+        if name in feedback_signals:
+            x0 = box_right + num_feedback + 1
+            x1 = box_left - 1
+            y0 = -i
+            y1 = box_bottom - 1 - num_feedback
+            line = lines.Line2D(
+                [x0, x0], [y0, y1], color='black', linewidth=line_width)
+            ax.add_line(line)
+            ax.arrow(x0, y1, x1 - x0, 0, fc='k', ec='k', head_length=hl,
+                head_width=hw, lw=line_width)
+            plt.scatter(x0, y0, s=6, color='black')
+            num_feedback += 1
+
+    # Configure axis after everything has been drawn, otherwise plotting
+    # anything for instance with plt.scatter(...) will change de view.
+    ax.axis('equal')
+    ax.set_xbound(
+        box_left - arrow_length_left - 1, box_right + arrow_length_right + 1)
+    ax.set_ybound(box_bottom - 1 - len(feedback_signals), top+1)
+    ax.axis('off')
 
     # Create the directories before trying to save.
     # It seems sphinx may forget to create them.

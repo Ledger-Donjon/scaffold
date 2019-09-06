@@ -27,7 +27,7 @@ Signals
 
 .. modbox::
     :inputs: miso
-    :outputs: sck, mosi, ss, trigger
+    :outputs: sck, mosi, ss, trigger*
 
 
 Internal registers

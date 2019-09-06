@@ -37,7 +37,7 @@ Signals
 
 .. modbox::
     :inputs: start
-    :outputs: out
+    :outputs: out*
 
 Internal registers
 ------------------

@@ -141,8 +141,14 @@ architecture behavior of system is
     signal in_reg: std_logic_vector(io_count-1 downto 0);
 
     -- Left matrix inputs.
-    -- '0', '1' and board I/Os.
-    constant mtxl_in_count: positive := 2 + io_count;
+    -- '0', '1' board I/Os and module feedback signals (mostly triggers).
+    constant mtxl_in_count: positive := 2 + io_count
+        + uart_count -- UART trigger
+        + 1 -- ISO7816 trigger
+        + 1 -- I2C trigger
+        + 1 -- SPI trigger
+        + pulse_gen_count -- Pulse generator outputs
+        + chain_count; -- Chain trigger
     signal mtxl_in: std_logic_vector(mtxl_in_count-1 downto 0);
 
     -- Left matrix outputs. Inputs of modules.
@@ -662,7 +668,18 @@ begin
         assert i = mtxl_out_count;
     end process;
 
-    mtxl_in <= in_reg & "10";
+    -- Left matrix input signals
+    -- mtxr signals are feedback outputs of modules.
+    -- Warning: signals order is inversed regarding Python API code.
+    mtxl_in <=
+        mtxr_in_chain_out &
+        mtxr_in_pulse_gen_out &
+        mtxr_in_spi_trigger &
+        mtxr_in_i2c_trigger &
+        mtxr_in_iso7816_trigger &
+        mtxr_in_uart_trigger &
+        in_reg & -- I/Os
+        "10";
 
     -- Right matrix module
     e_right_matrix_module: entity work.right_matrix_module
