@@ -77,6 +77,12 @@ def make_fig(path, inputs, outputs):
         ax.annotate(s=name, xy=(right - text_margin, -i),
             horizontalalignment='right', verticalalignment='center')
 
+    # Create the directories before trying to save.
+    # It seems sphinx may forget to create them.
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
     plt.savefig(path, transparent=True)
 
 
