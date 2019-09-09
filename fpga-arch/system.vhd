@@ -156,7 +156,8 @@ architecture behavior of system is
         + (chain_count * chain_size) -- Chain modules
         + 1 -- ISO7816 module
         + 2 -- I2C
-        + 1; -- SPI
+        + 1 -- SPI
+        + 1; -- Clock
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
@@ -164,6 +165,7 @@ architecture behavior of system is
     signal mtxl_out_i2c_sda_in: std_logic;
     signal mtxl_out_i2c_scl_in: std_logic;
     signal mtxl_out_spi_miso: std_logic;
+    signal mtxl_out_clock_glitch_start: std_logic;
     signal mtxl_out_chain_events:
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
 
@@ -174,7 +176,8 @@ architecture behavior of system is
         + 3 -- ISO7816 module
         + 2 -- Power signals
         + 3 -- I2C module
-        + 4; -- SPI module
+        + 4 -- SPI module
+        + 1; -- Clock
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
     signal mtxr_in_uart_trigger: std_logic_vector(uart_count-1 downto 0);
@@ -191,6 +194,7 @@ architecture behavior of system is
     signal mtxr_in_spi_mosi: std_logic;
     signal mtxr_in_spi_ss: std_logic;
     signal mtxr_in_spi_trigger: std_logic;
+    signal mtxr_in_clock_out: std_logic;
     signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
 
     -- Output signals of the output matrix
@@ -242,6 +246,10 @@ architecture behavior of system is
     constant addr_spi_divisor: address_t := x"0803";
     constant addr_spi_data: address_t := x"0804";
     constant addr_chain_base: address_t := x"0900";
+    constant addr_clock_config: address_t := x"0a00";
+    constant addr_clock_divisor_a: address_t := x"0a01";
+    constant addr_clock_divisor_b: address_t := x"0a02";
+    constant addr_clock_count: address_t := x"0a03";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -287,6 +295,10 @@ architecture behavior of system is
     signal en_spi_divisor: std_logic;
     signal en_spi_data: std_logic;
     signal en_chain_control: std_logic_vector(chain_count-1 downto 0);
+    signal en_clock_config: std_logic;
+    signal en_clock_divisor_a: std_logic;
+    signal en_clock_divisor_b: std_logic;
+    signal en_clock_count: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -410,6 +422,10 @@ begin
     en_spi_data <= addr_en(bus_in, addr_spi_data);
     en_chain_control <=
         addr_en_loop(bus_in, addr_chain_base, x"0010", chain_count);
+    en_clock_config <= addr_en(bus_in, addr_clock_config);
+    en_clock_divisor_a <= addr_en(bus_in, addr_clock_divisor_a);
+    en_clock_divisor_b <= addr_en(bus_in, addr_clock_divisor_b);
+    en_clock_count <= addr_en(bus_in, addr_clock_count);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -632,6 +648,19 @@ begin
             chain_out => mtxr_in_chain_out(i) );
     end generate;
 
+    -- Clock module
+    e_clock: entity work.clock_module
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        bus_in => bus_in,
+        en_config => en_clock_config,
+        en_divisor_a => en_clock_divisor_a,
+        en_divisor_b => en_clock_divisor_b,
+        en_count => en_clock_count,
+        output => mtxr_in_clock_out,
+        glitch_start => mtxl_out_clock_glitch_start );
+
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module
     generic map (
@@ -665,6 +694,8 @@ begin
             mtxl_out_chain_events(j) <= mtxl_out(i+chain_size-1 downto i);
             i := i + chain_size;
         end loop;
+        mtxl_out_clock_glitch_start <= mtxl_out(i);
+        i := i + 1;
         assert i = mtxl_out_count;
     end process;
 
@@ -713,7 +744,8 @@ begin
         mtxr_in_spi_mosi,
         mtxr_in_spi_ss,
         mtxr_in_spi_trigger,
-        mtxr_in_chain_out )
+        mtxr_in_chain_out,
+        mtxr_in_clock_out )
         variable i: integer;
     begin
         mtxr_in(0) <= "00"; -- Z
@@ -755,6 +787,9 @@ begin
             mtxr_in(i) <= "1" & mtxr_in_chain_out(j);
             i := i + 1;
         end loop;
+        -- Clock module
+        mtxr_in(i) <= "1" & mtxr_in_clock_out;
+        i := i + 1;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;

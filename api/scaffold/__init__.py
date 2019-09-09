@@ -1450,6 +1450,30 @@ class Chain(Module):
         self.reg_control.set(1)
 
 
+class Clock(Module):
+    """ Clock generator module. """
+    __ADDR_CONFIG = 0x0a00
+    __ADDR_DIVISOR_A = 0x0a01
+    __ADDR_DIVISOR_B = 0x0a02
+    __ADDR_COUNT = 0x0a03
+
+    def __init__(self, parent, index):
+        """
+        :param parent: Scaffold instance owning the clock module.
+        :type parent: Scaffold
+        :param index: Module index.
+        :type index: int
+        """
+        super().__init__(parent, f'/clock{index}')
+        self.add_register('config', 'w', self.__ADDR_CONFIG + index * 0x10)
+        self.add_register(
+            'divisor_a', 'w', self.__ADDR_DIVISOR_A + index * 0x10)
+        self.add_register(
+            'divisor_a', 'w', self.__ADDR_DIVISOR_B + index * 0x10)
+        self.add_register('count', 'w', self.__ADDR_COUNT + index * 0x10)
+        self.add_signals('glitch', 'out')
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2243,6 +2267,14 @@ class Scaffold(ArchBase):
                 self.chains.append(chain)
                 self.__setattr__(f'chain{i}', chain)
 
+        # Declare clock generation module
+        self.clocks = []
+        if float(self.version) >= 0.7:
+            for i in range(1):
+                clock = Clock(self, i)
+                self.clocks.append(clock)
+                self.__setattr__(f'clock{i}', clock)
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2295,6 +2327,8 @@ class Scaffold(ArchBase):
         for i in range(len(self.chains)):
             for j in range(3):  # 3 is the number of chain events
                 self.add_mtxl_out(f'/chain{i}/event{j}')
+        for i in range(len(self.clocks)):
+            self.add_mtxl_out(f'/clock{i}/glitch')
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2322,6 +2356,8 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f'/spi{i}/trigger')
         for i in range(len(self.chains)):
             self.add_mtxr_in(f'/chain{i}/trigger')
+        for i in range(len(self.clocks)):
+            self.add_mtxr_in(f'/clock{i}/out')
 
         # FPGA right matrix output signals
         self.add_mtxr_out('/io/a0')
