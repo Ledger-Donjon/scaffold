@@ -1312,7 +1312,7 @@ class SPI(Module):
         self.add_register('config', 'w', base + 2)
         self.add_register(
             'divisor', 'w', base + 3, wideness=2, min_value=1, reset=0x1000)
-        self.add_register('data', 'rwv', base + 4, wideness=4)
+        self.add_register('data', 'rwv', base + 4)
         # Current SPI clock frequency
         self.__cache_frequency = None
 
@@ -2156,7 +2156,7 @@ class Scaffold(ArchBase):
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
-            ('0.2', '0.3', '0.4', '0.5', '0.6'))  # Supported versions
+            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7'))  # Supported versions
         if dev is not None:
             self.connect(dev, init_ios)
 
@@ -2239,7 +2239,7 @@ class Scaffold(ArchBase):
         self.chains = []
         if float(self.version) >= 0.7:
             for i in range(2):
-                chain = Chain(self, i)
+                chain = Chain(self, i, 3)
                 self.chains.append(chain)
                 self.__setattr__(f'chain{i}', chain)
 
