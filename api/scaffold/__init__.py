@@ -1339,7 +1339,7 @@ class SPI(Module):
     @phase.setter
     def phase(self, value):
         self.reg_config.set_bit(self.__REG_CONFIG_BIT_PHASE, value)
-    
+
     @property
     def frequency(self):
         """
@@ -1469,9 +1469,33 @@ class Clock(Module):
         self.add_register(
             'divisor_a', 'w', self.__ADDR_DIVISOR_A + index * 0x10)
         self.add_register(
-            'divisor_a', 'w', self.__ADDR_DIVISOR_B + index * 0x10)
+            'divisor_b', 'w', self.__ADDR_DIVISOR_B + index * 0x10)
         self.add_register('count', 'w', self.__ADDR_COUNT + index * 0x10)
         self.add_signals('glitch', 'out')
+
+    @property
+    def div_a(self):
+        return self.reg_divisor_a.get()
+
+    @div_a.setter
+    def div_a(self, value):
+        self.reg_divisor_a.set(value)
+
+    @property
+    def div_b(self):
+        return self.reg_divisor_b.get()
+
+    @div_b.setter
+    def div_b(self, value):
+        self.reg_divisor_b.set(value)
+
+    @property
+    def count(self):
+        return self.reg_count.get()
+
+    @count.setter
+    def count(self, value):
+        self.reg_count.set(value)
 
 
 class IOMode(Enum):
