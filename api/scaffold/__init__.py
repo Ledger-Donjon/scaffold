@@ -1371,7 +1371,7 @@ class SPI(Module):
         self.__addr_base = base = 0x0800 + 0x0010 * index
         self.add_register('status', 'rv', base)
         self.add_register('control', 'w', base + 1)
-        self.add_register('config', 'w', base + 2)
+        self.add_register('config', 'w', base + 2, reset=0x00)
         self.add_register(
             'divisor', 'w', base + 3, wideness=2, min_value=1, reset=0x1000)
         self.add_register('data', 'rwv', base + 4)
@@ -2548,4 +2548,6 @@ class Scaffold(ArchBase):
             self.iso7816.reset_config()
             for i2c in self.i2cs:
                 i2c.reset_config()
+            for spi in self.spis:
+                spi.reset_registers()
 
