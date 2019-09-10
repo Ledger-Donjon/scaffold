@@ -7,9 +7,13 @@ ElectroMagnetic Compatibility and Safety Testing for EU market distribution.
 
 # Scaffold
 
-Scaffold is an electronic motherboard designed for security evaluation of
-integrated circuits and embedded platforms. The board can be controlled through
-USB using the Python3 API, enabling easy automation of tests.
+When performing hardware security evaluation of integrated circuits and embedded
+platforms, the first step is to setup the device to be able to automate tests,
+retrieve results and trigger instruments to perform measurements or inject
+faults. Scaffold is an electronic motherboard designed to quickly setup,
+instrument and test cirtcuits. The board can be controlled through USB using a
+Python3 API, enabling easy development of tests. All the project is
+Open-Hardware and Open-Source.
 
 ![Scaffold board pictures](docs/pictures/board-anim.gif)
 
