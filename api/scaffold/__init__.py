@@ -386,6 +386,69 @@ class Register:
         """ :return: Register address. """
         return self.__address
 
+    @property
+    def max(self):
+        """
+        Maximum possible value for the register.
+        :type: int
+        """
+        return self.__max_value
+
+    @property
+    def min(self):
+        """
+        Minimum possible value for the register.
+        :type: int
+        """
+        return self.__min_value
+
+
+class FreqRegisterHelper:
+    """
+    Helper to provide frequency attributes which compute clock divisor registers
+    value based on asked target frequencies.
+    """
+    def __init__(self, sys_freq, reg):
+        """
+        :param sys_freq: System base frequency used to compute clock divisors.
+        :type sys_freq: int
+        :param reg: Register to be configured.
+        :type reg: :class:`scaffold.Register`
+        """
+        self.__sys_freq = sys_freq
+        self.__reg = reg
+        self.__cache = None
+        self.__max_err = 0.01
+
+    def set(self, value):
+        """
+        Configure the register value depending on the target frequency.
+
+        :param value: Target frequency, in Hertz.
+        :type value: float
+        """
+        d = round((0.5 * self.__sys_freq / value) - 1)
+        # Check that the divisor fits in the register
+        if d > self.__reg.max:
+            raise ValueError('Target clock frequency is too low.')
+        if d < self.__reg.min:
+            raise ValueError('Target clock frequency is too high.')
+        # Calculate error between target and effective clock frequency
+        real = self.__sys_freq / ((d + 1) * 2)
+        err = abs(real - value) / value
+        if err > self.__max_err:
+            raise RuntimeError(
+                f'Cannot reach target clock frequency within '
+                f'{self.__max_err*100}% accuracy.')
+        self.__reg.set(d)
+        self.__cache = real
+
+    def get(self):
+        """
+        :return: Actual clock frequency. None if frequency has not been set.
+        """
+        return self.__cache
+
 
 class Version(Module):
     """ Version module of Scaffold. """
@@ -664,7 +727,6 @@ class UART(Module):
         self.reg_config.set_mask(
             (value.value & 0b11) << self.__REG_CONFIG_BIT_PARITY,
             0b11 << self.__REG_CONFIG_BIT_PARITY)
-
 
 
 class PulseGenerator(Module):
@@ -1451,7 +1513,12 @@ class Chain(Module):
 
 
 class Clock(Module):
-    """ Clock generator module. """
+    """
+    Clock generator module. This peripheral allows generating a clock derived
+    from the FPGA system clock using a clock divisor. A second clock can be
+    generated and enabled during a short period of time to override the first
+    clock, generating clock glitches.
+    """
     __ADDR_CONFIG = 0x0a00
     __ADDR_DIVISOR_A = 0x0a01
     __ADDR_DIVISOR_B = 0x0a02
@@ -1472,6 +1539,39 @@ class Clock(Module):
             'divisor_b', 'w', self.__ADDR_DIVISOR_B + index * 0x10)
         self.add_register('count', 'w', self.__ADDR_COUNT + index * 0x10)
         self.add_signals('glitch', 'out')
+
+        self.__freq_helper_a = FreqRegisterHelper(
+            self.parent.sys_freq, self.reg_divisor_a)
+        self.__freq_helper_b = FreqRegisterHelper(
+            self.parent.sys_freq, self.reg_divisor_b)
+
+    @property
+    def freq_a(self):
+        """
+        Base clock frequency, in Hertz. Only divisors of the system frequency
+        can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
+
+        :type: float
+        """
+        return self.__freq_helper_a.get()
+
+    @freq_a.setter
+    def freq_a(self, value):
+        self.__freq_helper_a.set(value)
+
+    @property
+    def freq_b(self):
+        """
+        Glitch clock frequency, in Hertz. Only divisors of the system frequency
+        can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
+
+        :type: float
+        """
+        return self.__freq_helper_b.get()
+
+    @freq_b.setter
+    def freq_b(self, value):
+        self.__freq_helper_b.set(value)
 
     @property
     def div_a(self):
