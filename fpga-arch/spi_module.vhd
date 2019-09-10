@@ -112,7 +112,7 @@ begin
 
     -- Transmission data register
     e_mosi_data: entity work.module_wide_reg
-    generic map (wideness => 4, reset => x"00000000")
+    generic map (wideness => 4, reset => x"00000000", dir => "msb")
     port map (clock => clock, reset_n => reset_n, en => en_data,
         bus_in => bus_in, value => mosi_data);
 

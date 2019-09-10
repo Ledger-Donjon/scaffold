@@ -1467,7 +1467,7 @@ class SPI(Module):
         if trigger:
             trigger = 1
         self.reg_control.write(
-            (trigger << self.__REG_CONTROL_BIT_TRIGGER) + size,
+            (trigger << self.__REG_CONTROL_BIT_TRIGGER) + (size - 1),
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
             poll_value=(1 << self.__REG_STATUS_BIT_READY) )

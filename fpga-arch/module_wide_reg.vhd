@@ -34,7 +34,10 @@ generic (
     -- Number of bytes in the register.
     wideness: positive := 2;
     -- Value on reset.
-    reset: std_logic_vector );
+    reset: std_logic_vector;
+    -- Load direction option.
+    -- "lsb" or "msb".
+    dir: string := "lsb");
 port (
     -- System clock.
     clock: in std_logic;
@@ -55,11 +58,16 @@ architecture behavior of module_wide_reg is
 begin
     p: process (clock, reset_n)
     begin
+        assert (dir = "lsb") or (dir = "msb");
         if reset_n = '0' then
             reg <= reset;
         elsif rising_edge(clock) then
             if (bus_in.write = '1') and (en = '1') then
-                reg <= reg(reg'high-8 downto 0) & bus_in.write_data;
+                if dir = "lsb" then
+                    reg <= reg(reg'high-8 downto 0) & bus_in.write_data;
+                else
+                    reg <= bus_in.write_data & reg(reg'high downto 8);
+                end if;
             else
                 reg <= reg;
             end if;
