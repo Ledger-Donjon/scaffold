@@ -125,7 +125,7 @@ Effective clock frequency is:
 .. math::
     F = \frac{F_{sys}}{(D+1)*2}
 
-Where :math:`F_{sys}` is the system frequency :math:`D` the divisor value.
+Where :math:`F_{sys}` is the system frequency and :math:`D` the divisor value.
 The value of :math:`D` for a target frequency :math:`F` is:
 
 .. math::

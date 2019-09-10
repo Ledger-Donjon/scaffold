@@ -47,6 +47,9 @@ board and thus can be fast.
 .. autoclass:: PulseGenerator
     :members:
 
+.. autoclass:: Clock
+    :members:
+
 .. autoclass:: Chain
     :members:
 
