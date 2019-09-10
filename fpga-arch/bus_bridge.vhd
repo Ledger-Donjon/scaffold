@@ -232,7 +232,8 @@ begin
     -- Next state calculation
     p_next_state: process (current_state, byte_available, valid_rw_command,
         command_has_polling, command_has_size, command_is_write, size,
-        polling_ok, uart_ready, fifo_q)
+        polling_ok, uart_ready, fifo_q, polling_counter_is_zero,
+        polling_timeout_enabled)
     begin
         case current_state is
             -- Waiting for command byte from UART.
@@ -766,7 +767,7 @@ begin
     end process;
 
     -- UART transmission control
-    p_uart_start: process (current_state)
+    p_uart_start: process (current_state, bus_read_data_pipelined, size_done)
     begin
         case current_state is
             when st_read_send =>

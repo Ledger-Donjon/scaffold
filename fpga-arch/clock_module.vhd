@@ -41,9 +41,6 @@ port (
     en_divisor_b: in std_logic;
     en_count: in std_logic;
 
-    -- Output registers.
-    reg_status: out byte_t;
-
     -- Glitch start input.
     glitch_start: in std_logic;
     -- Clock output.

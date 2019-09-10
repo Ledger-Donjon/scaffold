@@ -54,9 +54,7 @@ port (
     teardown: in std_logic;
     -- Power control outputs
     power_dut: out std_logic;
-    power_platform: out std_logic;
-    -- Debug signals
-    debug: out std_logic_vector(3 downto 0) );
+    power_platform: out std_logic );
 end;
 
 
