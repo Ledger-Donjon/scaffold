@@ -2,27 +2,8 @@
 
 # Board status
 
-Scaffold v1 board is currently a prototype and have a few issues we are
-currently fixing. The new v1.1 version has been prototyped and is currently
-being tested!
-
-- Reworked the adjustable regulators to fix stability issues and bad
-  potentiometer routing.
-- Replaced daughter-boards connectors with standard HE10 connectors and updated
-  the pinout.
-- Fixed glitching protection resistors value from 10 kOhm to 1 kOhm.
-- Changed SMA connectors for better test points accessibility.
-- Removed C0 and C1 outputs and renamed A0, A1, B0, and B1 to A0, A1, A2 and A3.
-  Each Ax output has now its own voltage level translator.
-- Removed CLOCK SMA connector.
-- Added programmable pull-up or pull-down resistors for D0, D1 and D2.
-- Added jumper to short the current measurement resistor.
-- Added 50 Ohm resistor to the analog amplifier output.
-- Improved tearing reactivity.
-- Reworked power and error LEDs.
-- Improved schematics readability and translated comments to English.
-- Improved silkscreen.
-- Board size has been slightly reduced.
+Hardware v1.1 have been tested and works perfectly! We are currently planning
+ElectroMagnetic Compatibility and Safety Testing for EU market distribution.
 
 # Scaffold
 
@@ -34,11 +15,14 @@ USB using the Python3 API, enabling easy automation of tests.
 
 The FPGA architecture runs at 100 MHz and embeds many peripherals:
 
-- UART,
+- 2 x UART,
 - I2C (master),
 - ISO7816 (master),
+- SPI (master),
 - Power supply controllers for each evaluation socket,
-- Delay and pulse generators with 10 ns resolution
+- 4 x Delay and pulse generators with 10 ns resolution
+- 2 x chaining modules for advanced triggering
+- Clock generator with glitching feature
 - And more to come in the future!
 
 The board also integrates an 11X analog amplifier with 200 MHz bandwidth for
