@@ -164,6 +164,15 @@ begin
         end if;
     end process;
 
-    reg_data <= miso_data_fetch(7 downto 0);
-    reg_status <= "0000000" & (not busy);
+    p_regs: process (clock, reset_n)
+    begin
+        if reset_n = '0' then
+            reg_data <= (others => '0');
+            reg_status <= (others => '0');
+        elsif rising_edge(clock) then
+            reg_data <= miso_data_fetch(7 downto 0);
+            reg_status <= "0000000" & (not busy);
+        end if;
+    end process;
+
 end;

@@ -42,6 +42,10 @@ Register read cycle
 
 |
 
+Peripherals connected to the bus must present valid data one clock cycle after
+the `bus_read` signal is asserted. This allow using FIFO blocks with
+*read-ahead* option disabled, which is more performant.
+
 Register write cycle
 --------------------
     
