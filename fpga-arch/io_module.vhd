@@ -136,6 +136,9 @@ begin
             when "11" =>
                 -- RFU
                 pin_out_en_mode <= pin_out_en;
+            when others =>
+                -- Never used, but must be defined if using modelsim
+                pin_out_en_mode <= pin_out_en;
         end case;
     end process;
 
@@ -157,6 +160,8 @@ begin
                 when "01" => pull_pin <= '0'; -- Pull-down
                 when "10" => pull_pin <= 'Z';
                 when "11" => pull_pin <= '1'; -- Pull-up
+                -- Never used, but must be defined if using modelsim
+                when others => pull_pin <= 'X';
             end case;
         end if;
     end process;
