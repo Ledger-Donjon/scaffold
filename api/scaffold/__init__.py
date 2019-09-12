@@ -1426,7 +1426,7 @@ class SPI(Module):
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
-    def transmit(self, value, size=8, trigger=False, read=True):
+    def transmit(self, value, size=8, trigger=False, read=False):
         """
         Performs a SPI transaction to transmit a value and receive data. If a
         transmission is still pending, this methods waits for the SPI peripheral
@@ -1472,20 +1472,28 @@ class SPI(Module):
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
             poll_value=(1 << self.__REG_STATUS_BIT_READY) )
         if read:
-            # The result bits are pushed from the right into the reception
-            # buffer. The reception buffer is read by bytes starting at the
-            # less significant byte.
-            res = self.reg_data.read(
-                (size-1)//8 + 1,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY) )
-            res = int.from_bytes(res, 'little')
+            res = self.read_data_buffer((size-1)//8 + 1)
             # Mask to discard garbage bits from previous operations
             res &= 2**size - 1
             return res
-        else:
-            return None
+
+    def read_data_buffer(self, n):
+        """
+        Read n bytes from the internal data buffer.
+
+        :param n: In [1, 4]
+        :type n: int
+        :return: int
+        """
+        # The result bits are pushed from the right into the reception
+        # buffer. The reception buffer is read by bytes starting at the
+        # less significant byte.
+        res = self.reg_data.read(
+            n,
+            poll=self.reg_status,
+            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+            poll_value=(1 << self.__REG_STATUS_BIT_READY) )
+        return int.from_bytes(res, 'little')
 
 
 class Chain(Module):
