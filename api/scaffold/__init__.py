@@ -20,6 +20,7 @@
 from enum import Enum
 import serial
 from binascii import hexlify
+from time import sleep
 
 
 class TimeoutError(Exception):
@@ -895,6 +896,54 @@ class Power(Module):
     def dut(self, value):
         self.reg_control.set_bit(0, value)
 
+    def restart_dut(self, toff=0.05, ton=0):
+        """
+        Power-cycle the DUT socket.
+
+        :param toff: Time to wait in seconds between power-off and power-on.
+        :type toff: float
+        :param ton: Time to wait in seconds after power-on.
+        :type ton: float
+        """
+        self.dut = 0
+        if toff > 0:
+            sleep(toff)
+        self.dut = 1
+        if ton > 0:
+            sleep(ton)
+
+    def restart_platform(self, toff=0.05, ton=0):
+        """
+        Power-cycle the platform socket.
+
+        :param toff: Time to wait in seconds between power-off and power-on.
+        :type toff: float
+        :param ton: Time to wait in seconds after power-on.
+        :type ton: float
+        """
+        self.platform = 0
+        if toff > 0:
+            sleep(toff)
+        self.platform = 1
+        if ton > 0:
+            sleep(ton)
+
+    def restart_all(self, toff=0.05, ton=0):
+        """
+        Power-cycle both DUT and platform sockets.
+
+        :param toff: Time to wait in seconds between power-off and power-on.
+        :type toff: float
+        :param ton: Time to wait in seconds after power-on.
+        :type ton: float
+        """
+        self.all = 0b00
+        if toff > 0:
+            sleep(toff)
+        self.all = 0b11
+        if ton > 0:
+            sleep(ton)
+
 
 class ISO7816ParityMode(Enum):
     EVEN = 0b00  # Even parity (standard and default)
@@ -1554,7 +1603,7 @@ class Clock(Module):
             self.parent.sys_freq, self.reg_divisor_b)
 
     @property
-    def freq_a(self):
+    def frequency(self):
         """
         Base clock frequency, in Hertz. Only divisors of the system frequency
         can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
@@ -1563,12 +1612,12 @@ class Clock(Module):
         """
         return self.__freq_helper_a.get()
 
-    @freq_a.setter
-    def freq_a(self, value):
+    @frequency.setter
+    def frequency(self, value):
         self.__freq_helper_a.set(value)
 
     @property
-    def freq_b(self):
+    def glitch_frequency(self):
         """
         Glitch clock frequency, in Hertz. Only divisors of the system frequency
         can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
@@ -1577,8 +1626,8 @@ class Clock(Module):
         """
         return self.__freq_helper_b.get()
 
-    @freq_b.setter
-    def freq_b(self, value):
+    @glitch_frequency.setter
+    def glitch_frequency(self, value):
         self.__freq_helper_b.set(value)
 
     @property
