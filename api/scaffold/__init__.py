@@ -1647,11 +1647,17 @@ class Clock(Module):
         self.reg_divisor_b.set(value)
 
     @property
-    def count(self):
+    def glitch_count(self):
+        """
+        Number of fast clock edges to be injected when glitching.
+        Maximum value is 255.
+
+        :type: int.
+        """
         return self.reg_count.get()
 
     @count.setter
-    def count(self, value):
+    def glitch_count(self, value):
         self.reg_count.set(value)
 
 
