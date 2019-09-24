@@ -17,9 +17,9 @@ Python API example
 .. code-block:: python
 
     clock = scaffold.clock0
-    clock.freq_a = 1e6
-    clock.freq_b = 4e6
-    clock.count = 20  # Number of glitching clock edges
+    clock.frequency = 1e6
+    clock.glitch_frequency = 4e6
+    clock.glitch_count = 20  # Number of glitching clock edges
     clock.out >> scaffold.d0
     clock.glitch << scaffold.d1  # Glitch trigger
 
