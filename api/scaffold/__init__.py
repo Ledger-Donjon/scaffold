@@ -1656,7 +1656,7 @@ class Clock(Module):
         """
         return self.reg_count.get()
 
-    @count.setter
+    @glitch_count.setter
     def glitch_count(self, value):
         self.reg_count.set(value)
 
