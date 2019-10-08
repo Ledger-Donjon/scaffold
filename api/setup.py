@@ -21,8 +21,17 @@
 
 from setuptools import setup, find_packages
 
+with open("README.md", "r") as f:
+    long_description = f.read()
+
 setup(
-    name='scaffold',
-    version='0.3',
-    install_requires=['pyserial'],
-    packages=find_packages())
+    name="donjon-scaffold",
+    version="0.7",
+    author="Olivier Heriveaux",
+    description="Python3 API for the Scaffold board",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/Ledger-Donjon/scaffold",
+    install_requires=["pyserial"],
+    packages=find_packages(),
+    python_requires=">=3.6")
