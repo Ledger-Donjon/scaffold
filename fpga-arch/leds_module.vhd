@@ -50,7 +50,7 @@ port (
     -- for all 24 LEDs.
     blink_mask: in std_logic_vector(23 downto 0);
 
-    -- TLC5927 LEDs driver control signals.
+    -- TLC5952 LEDs driver control signals.
     leds_sin: out std_logic;
     leds_sclk: out std_logic;
     leds_lat: out std_logic;

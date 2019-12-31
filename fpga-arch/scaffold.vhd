@@ -39,7 +39,7 @@ port (
     -- UART transmission to FT232
     tx: out std_logic;
     rx: in std_logic;
-    -- TLC5927 LEDs driver control signals.
+    -- TLC5952 LEDs driver control signals.
     leds_sin: out std_logic;
     leds_sclk: out std_logic;
     leds_lat: out std_logic;
