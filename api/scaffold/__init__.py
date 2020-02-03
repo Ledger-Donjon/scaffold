@@ -129,7 +129,11 @@ class Module:
         """
         Add a new signal to the object and set it as a new attribute of the
         instance.
+
         :name: Signal name.
+        :type name: str
+        :return: Created signal object
+        :rtype: Signal
         """
         assert not hasattr(self, name)
         if self.__path is None:
@@ -138,15 +142,19 @@ class Module:
             path = self.__path + '/' + name
         sig = Signal(self.__parent, path)
         self.__dict__[name] = sig
+        return sig
 
     def add_signals(self, *names):
         """
         Add many signals to the object and set them as new attributes of the
         instance.
+
         :param names: Name of the signals.
+        :type names: Iterable(str)
+        :return: List of created signals
+        :rtype: List(Signal)
         """
-        for name in names:
-            self.add_signal(name)
+        return list(self.add_signal(name) for name in names)
 
     def add_register(self, name, *args, **kwargs):
         """
