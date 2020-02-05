@@ -1840,7 +1840,12 @@ class ScaffoldBus:
     """
     MAX_CHUNK = 255
 
-    def __init__(self, sys_freq):
+    def __init__(self, sys_freq, baudrate):
+        """
+        :param baudrate: UART baudrate
+        :type baudrate: int
+        """
+        self.__baudrate = baudrate
         self.sys_freq = sys_freq
         # How long in seconds one timeout unit is.
         self.timeout_unit = (3.0/self.sys_freq)
@@ -1859,7 +1864,7 @@ class ScaffoldBus:
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
             linux, 'COM0' on Windows.
         """
-        self.ser = serial.Serial(dev, baudrate=2000000)
+        self.ser = serial.Serial(dev, self.__baudrate)
 
     def prepare_datagram(
             self, rw, addr, size, poll, poll_mask, poll_value):
@@ -2103,7 +2108,7 @@ class ArchBase:
     __ADDR_MTXR_BASE = 0xf100
     __ADDR_MTXL_BASE = 0xf000
 
-    def __init__(self, sys_freq, board_name, supported_versions):
+    def __init__(self, sys_freq, board_name, supported_versions, baudrate=2000000):
         """
         Defines basic parameters of the board.
 
@@ -2114,6 +2119,9 @@ class ArchBase:
         :param supported_versions: A list of supported version strings. For
             instance `[1.0, 2.0]`.
         :type supported_versions: list or tuple of string.
+        :param baudrate: UART baudrate. Default to 2 Mbps. Other hardware boards
+            may have different speed.
+        :type baudrate: int
         """
         self.sys_freq = sys_freq
         self.__expected_board_name = board_name
@@ -2131,7 +2139,7 @@ class ArchBase:
         # Low-level management
         # Set as an attribute to avoid having all low level routines visible in
         # the higher API Scaffold class.
-        self.bus = ScaffoldBus(self.sys_freq)
+        self.bus = ScaffoldBus(self.sys_freq, baudrate)
 
         # Mux matrices signals
         self.mtxl_in = []
