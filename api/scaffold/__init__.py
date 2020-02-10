@@ -743,16 +743,18 @@ class PulseGenerator(Module):
     Pulse generator module of Scaffold.
     Usually abreviated as pgen.
     """
-    def __init__(self, parent, index):
+    def __init__(self, parent, path, base):
         """
         :param parent: The :class:`Scaffold` instance owning the UART module.
-        :param index: UART module index.
+        :param path: Module path.
+        :type path: str
+        :param base: Base address for all registers.
+        :type base: int
         """
-        super().__init__(parent, '/pgen{0}'.format(index))
+        super().__init__(parent, path)
         # Create the signals
         self.add_signals('start', 'out')
         # Create the registers
-        self.__addr_base = base = 0x0300 + 0x0010 * index
         self.add_register('status', 'rv', base)
         self.add_register('control', 'wv', base + 1)
         self.add_register('config', 'w', base + 2, reset=0)
@@ -2443,7 +2445,7 @@ class Scaffold(ArchBase):
         # Create the pulse generator modules
         self.pgens = []
         for i in range(self.__PULSE_GENERATOR_COUNT):
-            pgen = PulseGenerator(self, i)
+            pgen = PulseGenerator(self, f'/pgen{i}', 0x0300 + 0x10*i)
             self.pgens.append(pgen)
             self.__setattr__(f'pgen{i}', pgen)
 
