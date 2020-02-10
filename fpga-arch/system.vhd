@@ -135,8 +135,6 @@ architecture behavior of system is
         return result;
     end;
 
-    -- Number of required input modules
-    constant input_group_module_count: positive := req_n(io_count, 8);
     -- Registered input signals
     signal in_reg: std_logic_vector(io_count-1 downto 0);
 
