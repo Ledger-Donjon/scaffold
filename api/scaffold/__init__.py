@@ -795,12 +795,22 @@ class PulseGenerator(Module):
 
         :type: float
         """
-        return self.__clock_cycles_to_duration(self.reg_delay.get()+1)
+        return self.__clock_cycles_to_duration(self.reg_delay.get() + 1)
 
     @delay.setter
     def delay(self, value):
         n = self.__duration_to_clock_cycles(value)-1
         self.reg_delay.set(n)
+
+    @property
+    def delay_min(self):
+        """ :return: Minimum possible delay. """
+        return self.__clock_cycles_to_duration(1)
+
+    @property
+    def delay_max(self):
+        """ :return: Maximum possible delay. """
+        return self.__clock_cycles_to_duration(self.reg_delay.max + 1)
 
     @property
     def interval(self):
@@ -809,12 +819,22 @@ class PulseGenerator(Module):
 
         :type: float
         """
-        return self.__clock_cycles_to_duration(self.reg_interval.get()+1)
+        return self.__clock_cycles_to_duration(self.reg_interval.get() + 1)
 
     @interval.setter
     def interval(self, value):
         n = self.__duration_to_clock_cycles(value)-1
         self.reg_interval.set(n)
+
+    @property
+    def interval_min(self):
+        """ :return: Minimum possible interval. """
+        return self.__clock_cycles_to_duration(1)
+
+    @property
+    def interval_max(self):
+        """ :return: Maximum possible interval. """
+        return self.__clock_cycles_to_duration(self.reg_interval.max + 1)
 
     @property
     def width(self):
@@ -823,12 +843,22 @@ class PulseGenerator(Module):
 
         :type: float
         """
-        return self.__clock_cycles_to_duration(self.reg_width.get()+1)
+        return self.__clock_cycles_to_duration(self.reg_width.get() + 1)
 
     @width.setter
     def width(self, value):
         n = self.__duration_to_clock_cycles(value)-1
         self.reg_width.set(n)
+
+    @property
+    def width_min(self):
+        """ :return: Minimum possible pulse width. """
+        return self.__clock_cycles_to_duration(1)
+
+    @property
+    def width_max(self):
+        """ :return: Maximum possible pulse width. """
+        return self.__clock_cycles_to_duration(self.reg_width.max + 1)
 
     @property
     def count(self):
@@ -838,13 +868,23 @@ class PulseGenerator(Module):
 
         :type: int
         """
-        return self.reg_count.get()+1
+        return self.reg_count.get() + 1
 
     @count.setter
     def count(self, value):
         if value not in range(1, 2**16+1):
             raise ValueError('Invalid pulse count')
         self.reg_count.set(value-1)
+
+    @property
+    def count_min(self):
+        """ :return: Minimum possible pulse count. """
+        return 1
+
+    @property
+    def count_max(self):
+        """ :return: Maximum possible pulse count. """
+        return self.reg_count.max + 1
 
     @property
     def polarity(self):
