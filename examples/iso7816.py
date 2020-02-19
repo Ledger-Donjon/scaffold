@@ -42,3 +42,12 @@ if info:
         print('  ' + line)
 else:
     print('No info found on this card.')
+
+while True:
+    try:
+        apdu = bytes.fromhex(input('apdu$ '))
+    except ValueError as e:
+        print('Invalid input')
+        continue
+    response = sc.apdu(apdu)
+    print(hexlify(response).decode())
