@@ -1101,9 +1101,10 @@ class ISO7816(Module):
 
         :param n: Number of bytes to be read.
         """
-        return self.reg_data.read(
-            n, poll=self.reg_status,
-            poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY), poll_value=0x00)
+        with self.parent.timeout_section(timeout):
+            return self.reg_data.read(
+                n, poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY), poll_value=0x00)
 
     def transmit(self, data):
         """
@@ -2093,9 +2094,12 @@ class ScaffoldBus:
 
     @timeout.setter
     def timeout(self, value):
+        if value is None:
+            value = 0
         n = int(value / self.timeout_unit)
-        self.__set_timeout_raw(n)  # May throw is n out of range.
-        self.__cache_timeout = n  # Must be after set_timeout
+        if n != self.__cache_timeout:
+            self.__set_timeout_raw(n)  # May throw is n out of range.
+            self.__cache_timeout = n  # Must be after set_timeout
 
     def push_timeout(self, value):
         """
