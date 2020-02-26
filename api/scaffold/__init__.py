@@ -1094,7 +1094,7 @@ class ISO7816(Module):
         """ Discard all the received bytes in the FIFO. """
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
-    def receive(self, n=1):
+    def receive(self, n=1, timeout=None):
         """
         Receive bytes. This function blocks until all bytes have been
         received or the timeout expires and a TimeoutError is thrown.
@@ -2370,12 +2370,12 @@ class ArchBase:
         """
         return self.bus.lazy_section()
 
-    def timeout_section(self):
+    def timeout_section(self, timeout):
         """
         :return: :class:`ScaffoldBusTimeoutSection` instance to be used with the
             python 'with' statement to push and pop timeout configuration.
         """
-        return self.bus.timeout_section()
+        return self.bus.timeout_section(timeout)
 
 
 class Scaffold(ArchBase):
