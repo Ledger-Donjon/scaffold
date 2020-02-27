@@ -208,13 +208,15 @@ class Smartcard:
                 in_data_len = 256
         # Transmit the header
         if 'a' in trigger:
-            self.iso7816.transmit(the_apdu[:4])
-            self.iso7816.trigger_long = 1
-            self.iso7816.transmit(the_apdu[4:5])
+            with self.scaffold.lazy_section():
+                self.iso7816.transmit(the_apdu[:4])
+                self.iso7816.trigger_long = 1
+                self.iso7816.transmit(the_apdu[4:5])
         else:
             # Send all the header at once
-            self.iso7816.trigger_long = 0
-            self.iso7816.transmit(the_apdu[:5])
+            with self.scaffold.lazy_section():
+                self.iso7816.trigger_long = 0
+                self.iso7816.transmit(the_apdu[:5])
         # Receive procedure byte
         procedure_byte = self.iso7816.receive(1)[0]
         if 'a' in trigger:  # Disable only if enabled previously
