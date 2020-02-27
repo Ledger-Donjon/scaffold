@@ -245,6 +245,9 @@ class Smartcard:
             if 'b' in trigger:  # Disable only if enabled previously
                 self.iso7816.trigger_long = 0
             return response
+        else:
+            raise RuntimeError('Unexpected procedure byte '
+                f'0x{procedure_byte:02x} received')
 
     def find_info(self):
         """
