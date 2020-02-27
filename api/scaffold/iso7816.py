@@ -250,6 +250,53 @@ class Smartcard:
             raise RuntimeError('Unexpected procedure byte '
                 f'0x{procedure_byte:02x} received')
 
+    def pps(self, pps0):
+        """
+        Send a PPS request to change the communication speed parameters Fi and
+        Di (as specified in ISO7816-3). Only PPS0 is sent. PPS1 and PPS2 are
+        ignored. This method waits for the response of the card and then
+        automatically changes the ETU from the Fi and Di values.
+        Scaffold hardware does not support all possible parameters:
+        ETU = Fi/Di must not have a fractional part.
+
+        :param pps0: Value of the PPS0 byte.
+        :return: New etu value.
+        :raises ValueError: if Fi or Di parameters in PPS0 are reserved.
+        :raises ValueError: if target ETU has a fractional part.
+        :raises RuntimeError: if response to PPS request is invalid.
+        """
+        if pps0 not in range(0x100):
+            raise ValueError('Invalid PPS0 value')
+        fi = ([372, 372, 558, 744, 1116, 1488, 1860, None, None, 512, 768, 1024,
+            1536, 2048, None, None][pps0 >> 4])
+        if fi is None:
+            raise ValueError('Fi parameter in PPS0 has a reserved value')
+        di = ([None, 1, 2, 4, 8, 16, 32, 64, 12, 20, None, None, None, None,
+            None, None][pps0 & 0x0f])
+        if di is None:
+            raise ValueError('Di parameter in PPS0 has a reserved value')
+        request = bytearray(b'\xff\x10')
+        request.append(pps0)
+        etu = round(fi / di)
+        if etu != fi / di:
+            raise ValueError(f'Cannot set ETU to {etu} because of the '
+                'fractional part (hardware limitation)')
+        # Checksum
+        pck = 0
+        for b in request:
+            pck ^= b
+        request.append(pck)
+        # Send the request
+        self.iso7816.transmit(request)
+        # Get the response
+        res = self.iso7816.receive(4, timeout=1)
+        if res == request:
+            # Negociation is successfull
+            self.iso7816.etu = etu
+            return etu
+        else:
+            raise RuntimeError('PPS request failed')
+
     def find_info(self):
         """
         Parse the smartcard ATR list database available at
