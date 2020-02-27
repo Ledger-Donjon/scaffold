@@ -181,6 +181,7 @@ class Smartcard:
             response byte is received.
         :type trigger: str
         :raises ValueError: if APDU data is invalid.
+        :raises RuntimeError: if the received procedure byte is invalid.
         :return bytes: Response data, with status word.
         """
         if type(the_apdu) == str:
