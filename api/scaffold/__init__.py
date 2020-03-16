@@ -21,6 +21,7 @@ from enum import Enum
 import serial
 from binascii import hexlify
 from time import sleep
+import serial.tools.list_ports
 
 
 class TimeoutError(Exception):
@@ -2243,8 +2244,25 @@ class ArchBase:
         """
         Connect to Scaffold board using the given serial port.
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
-            linux, 'COM0' on Windows.
+            linux, 'COM0' on Windows. If None, tries to automatically find the
+            board by scanning USB description strings.
         """
+        if dev is None:
+            # Try to find automatically the device
+            possible_ports = []
+            for port in serial.tools.list_ports.comports():
+                # USB description string can be 'Scaffold', with uppercase 'S'.
+                if port.description.lower() == self.__expected_board_name:
+                    possible_ports.append(port)
+            if len(possible_ports) > 1:
+                raise RuntimeError('Multiple ' + self.__expected_board_name +
+                    ' devices found! I don\'t know which one to use.')
+            elif len(possible_ports) == 1:
+                dev = possible_ports[0].device
+            else:
+                raise RuntimeError('No ' + self.__expected_board_name
+                    + ' device found')
+
         self.bus.connect(dev)
         # Check hardware responds and has the correct version.
         self.__version_string = self.__version_module.get_string()
@@ -2413,13 +2431,13 @@ class Scaffold(ArchBase):
     # Number of I2C modules
     __I2C_COUNT = 1
 
-    def __init__(self, dev="/dev/scaffold", init_ios=False):
+    def __init__(self, dev=None, init_ios=False):
         """
         Create Scaffold API instance.
 
         :param dev: If specified, connect to the hardware Scaffold board using
-            the given serial device. If None, call connect method later to
-            establish the communication.
+            the given serial device. If None, tries to find automatically the
+            device by scanning USB description strings.
         :param init_ios: True to enable I/Os peripherals initialization. Doing
             so will set all I/Os to a default state, but it may generate pulses
             on the I/Os. When set to False, I/Os connections are unchanged
@@ -2430,8 +2448,7 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
             ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7'))  # Supported versions
-        if dev is not None:
-            self.connect(dev, init_ios)
+        self.connect(dev, init_ios)
 
     def connect(self, dev, init_ios=False):
         """
