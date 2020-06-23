@@ -17,7 +17,7 @@ Scaffold board also embeds special electronics tailored for hardware attacks:
 - Fast power tearing capability, for emergency shutdown of the device under test
 - Delay and pulse generators, allowing firing glitches or laser pulses.
 
-An easy-to-use python API is provided to control the board.
+An easy-to-use python API is provided to control the board. https://github.com/Ledger-Donjon/scaffold
 
 
 Board tour
