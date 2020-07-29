@@ -1107,18 +1107,40 @@ class ISO7816(Module):
                 n, poll=self.reg_status,
                 poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY), poll_value=0x00)
 
-    def transmit(self, data):
+    def transmit(self, data, trigger=False):
         """
         Transmit data.
 
         :param data: Data to be transmitted.
+        :param trigger: Enable trigger on the last transmitted byte.
         :type data: bytes
         """
         # Polling on status.ready bit before sending each character
-        self.reg_data.write(
-            data, poll=self.reg_status,
-            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY))
+        if not trigger:
+            self.reg_data.write(
+                data, poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY))
+        else:
+            # We want to trig on the last sent character
+            with self.parent.lazy_section():
+                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 0,
+                    poll=self.reg_status,
+                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                self.reg_data.write(
+                    data[:-1], poll=self.reg_status,
+                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 1,
+                    poll=self.reg_status,
+                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                self.reg_data.write(data[-1])
+                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 0,
+                    poll=self.reg_status,
+                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
 
     @property
     def empty(self):
