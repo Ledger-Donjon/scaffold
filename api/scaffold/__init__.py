@@ -2274,7 +2274,8 @@ class ArchBase:
             possible_ports = []
             for port in serial.tools.list_ports.comports():
                 # USB description string can be 'Scaffold', with uppercase 'S'.
-                if port.description.lower() == self.__expected_board_name:
+                if ((port.product is not None) and
+                    (port.product.lower() == self.__expected_board_name)):
                     possible_ports.append(port)
             if len(possible_ports) > 1:
                 raise RuntimeError('Multiple ' + self.__expected_board_name +
