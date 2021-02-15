@@ -20,7 +20,9 @@
 from enum import Enum
 from binascii import hexlify
 from scaffold import Pull
+from typing import Tuple, List
 import os.path
+import unittest
 
 
 class ProtocolError(Exception):
@@ -39,6 +41,149 @@ class Convention(Enum):
     """
     INVERSE = 0x3f
     DIRECT = 0x3b
+
+
+def inverse_byte(byte):
+    """
+    Inverse order and polarity of bits in a byte. Used for ISO7816 inverse
+    convention decoding.
+    """
+    byte ^= 0xff
+    return int(f'{byte:08b}'[::-1], 2)
+
+
+def apply_convention(data: bytes, convention: Convention) -> bytes:
+    """
+    :return: `data` if convention is `DIRECT`, `data` with all bytes inversed if
+        convention is `INVERSE`.
+    """
+    if convention == Convention.DIRECT:
+        return data
+    elif convention == Convention.INVERSE:
+        return bytes(inverse_byte(b) for b in data)
+    else:
+        raise ValueError("invalid convention")
+
+
+class ATRInfo:
+    def __init__(self):
+        self.atr = bytearray()
+        self.convention = None
+        self.protocols = set()
+
+
+class ScaffoldISO7816ByteReader:
+    """ Used for `parse_atr` function with a Scaffold device. """
+    def __init__(self, iso7816):
+        """ :param iso7816: Scaffold ISO7816 module. """
+        self.iso7816 = iso7816
+        self.convention = Convention.DIRECT
+
+    def read(self, n: int) -> bytes:
+        return apply_convention(self.iso7816.receive(n), self.convention)
+
+
+class BasicByteReader:
+    """ Used for `parse_atr` function with a test vector. """
+    def __init__(self, data: bytes):
+        self.data = data
+
+    def read(self, n: int) -> bytes:
+        if len(self.data) < n:
+            raise EOFError()
+        chunk = self.data[:n]
+        self.data = self.data[n:]
+        return chunk
+
+
+def parse_atr(reader) -> ATRInfo:
+    """
+    ATR parsing function used by Smartcard class when reading a card ATR. The
+    reader object passed in arguments allows unit testing with a list of ATR.
+
+    :param reader: An object giving requested bytes for parsing ATR.
+    :return: ATR info.
+    """
+    info = ATRInfo()
+    atr = info.atr
+    # Receive and parse TS
+    atr.append(reader.read(1)[0])
+    ts = atr[0]
+    try:
+        info.convention = Convention(ts)
+    except ValueError as e:
+        raise ProtocolError(f'Invalid TS byte in ATR: 0x{ts:02x}') from e
+    reader.convention = info.convention
+    # Receive T0
+    atr += reader.read(1)
+    # Parse the rest of the ATR
+    i = 1
+    td = atr[i]
+    while td is not None:
+        has_t_abcd = list(bool(td & (1 << (j+4))) for j in range(4))
+        count = has_t_abcd.count(True)
+        atr += reader.read(count)
+        # Test to skip T0 byte
+        if i != 1:
+            info.protocols.add(td & 0x0f)
+        # Test TD presence
+        if has_t_abcd[3]:
+            td = atr[-1]
+        else:
+            td = None
+        i += 1
+    # If no protocol is specified, then T=0 is available by default
+    if len(info.protocols) == 0:
+        info.protocols.add(0)
+    # Fetch historical bytes
+    # Number of historical bytes is the low nibble of T0
+    atr += reader.read(atr[1] & 0x0f)
+    # Parse TCK (check byte)
+    # This byte is absent if only T=0 is supported
+    if info.protocols != {0}:
+    #if True:
+        # TCK expected
+        atr += reader.read(1)
+        tck = atr[-1]
+        # Verify the checksum
+        xored = 0x00
+        for b in atr[1:]:
+            xored ^= b
+        if xored != 0x00:
+            raise ProtocolError('ATR checksum error')
+    return info
+
+
+def load_atr_info_db() -> List[Tuple[str, List[str]]]:
+    """
+    Parse the smartcard ATR list database available at
+    http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
+    to get list of known ATR.
+
+    The database file cannot be embedded in the library because it uses GPL
+    and not LGPL license. On debian systems, this file is provided in the
+    pcsc-tools package.
+
+    ATR values are returned with strings, and can have '.' wildcards for
+    matching, or other special formatting characters. With each ATR is returned
+    of list of description strings.
+    """
+    tab = []
+    text_file = open('/usr/share/pcsc/smartcard_list.txt', 'r')
+    # We don't want to keep end lines such as LR or CR LF
+    lines = text_file.read().splitlines()
+    text_file.close()
+    # Parse the file and build a table with ATR patterns and infos
+    for line in lines:
+        if (len(line) > 0) and (line[0] not in ('#', '\t')):
+            # ATR line
+            atr = line.replace(' ', '').lower()
+            tab.append((atr, []))
+        elif (len(line) > 0) and (line[0] == '\t'):
+            # Info line
+            # Remove first character \t
+            tab[-1][1].append(line[1:])
+    return tab
 
 
 class Smartcard:
@@ -61,11 +206,13 @@ class Smartcard:
     :var set protocols: Communication protocols found in ATR. This set contains
         integers, for instance 0 if T=0 is supported, 1 if T=1 is supported...
     """
-    def __init__(self, scaffold):
+    def __init__(self, scaffold=None):
         """
         Configure a Scaffold board for use with smartcards.
         :param scaffold: :class:`scaffold.Scaffold` instance.
         """
+        if scaffold is None:
+            scaffold = Scaffold()
         self.iso7816 = scaffold.iso7816
         self.scaffold = scaffold
         self.sig_nrst = scaffold.d1
@@ -83,15 +230,7 @@ class Smartcard:
         self.atr = None
         self.convention = Convention.DIRECT
 
-    def inverse_byte(self, byte):
-        """
-        Inverse order and polarity of bits in a byte. Used for ISO7816 inverse
-        convention decoding.
-        """
-        byte ^= 0xff
-        return int(f'{byte:08b}'[::-1], 2)
-
-    def receive(self, n):
+    def receive(self, n: int) -> bytes:
         """
         Use the ISO7816 peripheral to receive bytes from the smartcard, and
         apply direct or inverse convention depending on what has been read in
@@ -99,13 +238,9 @@ class Smartcard:
 
         :param n: Number of bytes to be read.
         """
-        data = self.iso7816.receive(n)
-        if self.convention == Convention.INVERSE:
-            for i in range(len(data)):
-                data[i] = self.inverse_byte(data[i])
-        return data
+        return apply_convention(self.iso7816.receive(n), self.convention)
 
-    def reset(self):
+    def reset(self) -> bytes:
         """
         Reset the smartcard and retrieve the ATR.
         If the ATR is retrieved successfully, the attributes :attr:`atr`
@@ -117,55 +252,14 @@ class Smartcard:
         self.sig_nrst << 0
         self.iso7816.flush()
         self.sig_nrst << 1
-        # Receive and parse TS
-        atr = bytearray(self.iso7816.receive(1))
-        ts = atr[0]
-        try:
-            self.convention = Convention(ts)
-        except ValueError as e:
-            raise ProtocolError(f'Invalid TS byte in ATR: 0x{ts:02x}') \
-                from e
-        # Receive T0
-        atr += self.receive(1)
-        # Parse the rest of the ATR
-        self.protocols = protocols = set()
-        i = 1
-        td = atr[i]
-        while td is not None:
-            has_t_abcd = list(bool(td & (1 << (j+4))) for j in range(4))
-            count = has_t_abcd.count(True)
-            atr += self.receive(count)
-            # Test to skip T0 byte
-            if i != 1:
-                protocols.add(td & 0x0f)
-            # Test TD presence
-            if has_t_abcd[3]:
-                td = atr[-1]
-            else:
-                td = None
-        # If no protocol is specified, then T=0 is available by default
-        if len(protocols) == 0:
-            protocols.add(0)
-        # Fetch historical bytes
-        # Number of historical bytes is the low nibble of T0
-        atr += self.receive(atr[1] & 0x0f)
-        # Parse TCK (check byte)
-        # This byte is absent is only T=0 is supported
-        if protocols != {0}:
-            # TCK expected
-            atr += self.receive(1)
-            tck = atr[-1]
-            # Verify the checksum
-            xored = 0x00
-            for b in atr:
-                xored ^= b
-            if xored != 0x00:
-                raise ProtocolError('ATR checksum error')
-        # Verify that there is no more bytes
+        info = parse_atr(ScaffoldISO7816ByteReader(self.iso7816))
+        self.atr = info.atr
+        self.convention = info.convention
+        self.protocols = info.protocols
+        # Verify that there are no more bytes
         if not self.iso7816.empty:
             raise ProtocolError('Unexpected bytes after ATR')
-        self.atr = bytes(atr)
-        return atr
+        return info.atr
 
     def apdu(self, the_apdu, trigger=''):
         """
@@ -313,20 +407,7 @@ class Smartcard:
             the card. Return None if the ATR did not match any entry in the
             database.
         """
-        tab = []
-        text_file = open('/usr/share/pcsc/smartcard_list.txt', 'r')
-        # We don't want to keep end lines such as LR or CR LF
-        lines = text_file.read().splitlines()
-        # Parse the file and build a table with ATR patterns and infos
-        for line in lines:
-            if (len(line) > 0) and (line[0] not in ('#', '\t')):
-                # ATR line
-                atr = line.replace(' ', '').lower()
-                tab.append((atr, []))
-            elif (len(line) > 0) and (line[0] == '\t'):
-                # Info line
-                # Remove first character \t
-                tab[-1][1].append(line[1:])
+        tab = load_atr_info_db()
         # Try to match ATR
         for item in tab:
             pattern = item[0]
@@ -362,3 +443,79 @@ class Smartcard:
         with a mecanical switch connected to D3 of Scaffold.
         """
         return self.sig_sense.value == 1
+
+
+class TestATRParser(unittest.TestCase):
+    def test_parsing_ok(self):
+        tab = load_atr_info_db()
+        
+        # Some cards do not respect the norm correctly and have malformated ATR
+        # Here are some list of invalid ATR in the database.
+
+        # List with incomplete ATR
+        badlist_incomplete = [
+            "3b260011016d03",
+            "3b2f008069af0307066800000a0e8306",
+            "3b6b00ff56434152445f4e5353",
+            "3b9e96801fc78031e073fe211b66d00177970d00",
+            "3b9f95801fc78031e073fe2113574a33052e323400",
+            "3bba94004014",
+            "3bbf96008131fe5d00640411030131c07301d000900000",
+            "3bbf96008131fe5d00640411030131c073f701d0009000",
+            "3bee00008131804380318066b1a11101a0f683009000",
+            "3bef00ff813166456563202049424d20332e3120202020",
+            "3bfa1300008131fe454a434f50343156",
+            "3bfd9600008131204380318065b0831148c883009000",
+            "3fff9500ff918171a04700444e4153503031312052657642",
+            "3fff9500ff918171fe4700444e41535032343120447368"]
+
+        # List of invalid ATR with too much bytes
+        badlist_extra = [
+            "3b02145011",
+            "3b101450",
+            "3b16964173747269643b021450",
+            "3b230000364181",
+            "3b6500002063cb680026",
+            "3b66000090d1020110b13b021450",
+            "3b6700ffc50000ffffffff5d",
+            "3b781800000073c840000000009000",
+            "3b84800101112003369000",
+            "3b961880018051006110309f006110309e",
+            "3b9f11406049524445544f204143532056352e3800",
+            "3b9f96801fc78031e073fe211b6407595100829000ce00000000000000000000",
+            "3bba96008131865d00640560020331809000667001040530c9",
+            "3bec00004032424c554520445241474f4e20430001",
+            "3bf711000140965430040e6cb6d69000",
+            "3bf711000140967070070e6cb6d69000",
+            "3bf7110001409670700a0e6cb6d69000",
+            "3bfe9600008131fe45803180664090a5102e03830190006e9000"]
+
+        # List of ATR with invalid checksum
+        badlist_checksum = [
+            "3b888001000000007783950000",
+            "3b9e95801fc78031e073fe211b66d0004900c0004a",
+            "3bdd97ff81b1fe451f0300640405080373969621d00090c8",
+            "3bef00ff8131504565630000000000000000000000000000",
+            "3bfe9100ff918171fe40004138002180818066b00701017707b7",
+            "3bff0000ff8131fe458025a000000056575343363530000000"]
+
+        atrs = []
+        for atr_pattern, _ in tab:
+            if ('.' not in atr_pattern) and ('[' not in atr_pattern):
+                atrs.append(atr_pattern)
+        for atr in atrs:
+            reader = BasicByteReader(bytes.fromhex(atr))
+            if atr in badlist_extra:
+                parse_atr(reader)
+                self.assertGreater(len(reader.data), 0)
+            elif atr in badlist_incomplete:
+                with self.assertRaises(EOFError):
+                    parse_atr(reader)
+            elif atr in badlist_checksum:
+                with self.assertRaises(ProtocolError):
+                    parse_atr(reader)
+            else:
+                parse_atr(reader)
+
+if __name__ == '__main__':
+    unittest.main()
