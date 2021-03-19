@@ -345,6 +345,31 @@ class STM32:
             # Restore timeout setting, even if something bad happened!
             self.scaffold.timeout = previous_timeout
 
+    def write_protect(self, sectors: List[int]):
+        """
+        Execute Write Protect command.
+
+        :param sectors: List of sectors to be write protected.
+        """
+        if len(sectors) not in range(1, 0x100):
+            raise ValueError("Invalid sector count")
+        self.uart.transmit(b'\x63\x9c')
+        self.wait_ack()
+        buf = bytearray()
+        buf.append(len(sectors)-1)
+        buf += bytes(sectors)
+        buf.append(self.checksum(buf))
+        self.uart.transmit(buf)
+        self.wait_ack()
+
+    def write_unprotect(self):
+        """
+        Execute Write Unprotect command.
+        """
+        self.uart.transmit(b'\x73\x8c')
+        self.wait_ack()
+        self.wait_ack()
+
     def extended_erase(self):
         """
         Execute the Extended Erase command to erase all the Flash memory of the
