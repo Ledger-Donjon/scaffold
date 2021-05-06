@@ -1905,6 +1905,7 @@ class ScaffoldBus:
     Low level methods to drive the Scaffold device.
     """
     MAX_CHUNK = 255
+    FIFO_SIZE = 512
 
     def __init__(self, sys_freq, baudrate):
         """
@@ -1917,6 +1918,8 @@ class ScaffoldBus:
         self.timeout_unit = (3.0/self.sys_freq)
         self.ser = None
         self.__lazy_writes = []
+        self.__lazy_fifo_total_size = 0
+        self.__lazy_fifo_sizes = []
         self.__lazy_stack = 0
         # Timeout value. This value can't be read from the board, so we cache
         # it there once set.
@@ -1999,8 +2002,9 @@ class ScaffoldBus:
             datagram = self.prepare_datagram(
                 1, addr, chunk_size, poll, poll_mask, poll_value)
             datagram += data[offset:offset + chunk_size]
-            self.ser.write(datagram)
+            assert len(datagram) < self.FIFO_SIZE
             if self.__lazy_stack == 0:
+                self.ser.write(datagram)
                 # Check immediately the result of the write operation.
                 ack = self.ser.read(1)[0]
                 if ack != chunk_size:
@@ -2011,6 +2015,27 @@ class ScaffoldBus:
             else:
                 # Lazy-update section. The write result will be checked later,
                 # when all lazy-sections are closed.
+                dg_len = len(datagram)
+                # We don't know how many write datagram have been processed
+                # until we don't fetch the responses. It is possible to overflow
+                # the hardware FIFO if a polling operation is blocking. We have
+                # to check for those potential troubles.
+                while self.__lazy_fifo_total_size + dg_len > self.FIFO_SIZE:
+                    # FIFO might be full. We must process some responses to get
+                    # some guaranteed FIFO space
+                    expected_size = self.__lazy_writes[0]
+                    # Following read will block if first operation in the FIFO
+                    # is still pending.
+                    ack = self.ser.read(1)[0]
+                    del self.__lazy_writes[0]
+                    self.__lazy_fifo_total_size -= self.__lazy_fifo_sizes[0]
+                    del self.__lazy_fifo_sizes[0]
+                    if ack != expected_size:
+                        # Timeout error !
+                        raise TimeoutError(size=ack, expected=expected_size)
+                self.__lazy_fifo_total_size += dg_len
+                self.__lazy_fifo_sizes.append(dg_len)
+                self.ser.write(datagram)
                 self.__lazy_writes.append(chunk_size)
             remaining -= chunk_size
             offset += chunk_size
@@ -2102,6 +2127,9 @@ class ScaffoldBus:
                     # Timeout error !
                     last_error = TimeoutError(size=ack, expected=expected_size)
             self.__lazy_writes.clear()
+            # All writes have been processed, we know the FIFO buffer is empty.
+            self.__lazy_fifo_total_size = 0
+            self.__lazy_fifo_sizes.clear()
             if last_error is not None:
                 raise last_error
 
