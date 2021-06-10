@@ -1549,7 +1549,7 @@ class SPI(Module):
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
-    def transmit(self, value, size=8, trigger=False, read=False):
+    def transmit(self, value: int, size: int=8, trigger=False, read=True):
         """
         Performs a SPI transaction to transmit a value and receive data. If a
         transmission is still pending, this methods waits for the SPI peripheral
@@ -1557,10 +1557,8 @@ class SPI(Module):
 
         :param value: Value to be transmitted. Less significant bit is
             transmitted last.
-        :type value: int
         :param size: Number of bits to be transmitted. Minimum is 1, maximum is 32.
-        :type size: int
-        :pram trigger: 1 or True to enable trigger upon SPI transmission.
+        :param trigger: 1 or True to enable trigger upon SPI transmission.
         :type trigger: bool or int.
         :param read: Set 0 or False to disable received value readout (the
             method will return None). Default is True, but disabling it will
