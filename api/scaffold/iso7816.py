@@ -346,33 +346,35 @@ class Smartcard:
             raise RuntimeError('Unexpected procedure byte '
                 f'0x{procedure_byte:02x} received')
 
-    def pps(self, pps0):
+    def pps(self, pps1):
         """
         Send a PPS request to change the communication speed parameters Fi and
-        Di (as specified in ISO7816-3). Only PPS0 is sent. PPS1 and PPS2 are
-        ignored. This method waits for the response of the card and then
-        automatically changes the ETU from the Fi and Di values.
+        Di (as specified in ISO7816-3). PPS0 and PPS1 are sent. PPS2 is ignored
+        This method waits for the response of the card and then automatically
+        changes the ETU from the Fi and Di values.
         Scaffold hardware does not support all possible parameters:
         ETU = Fi/Di must not have a fractional part.
 
-        :param pps0: Value of the PPS0 byte.
+        :param pps1: Value of the PPS1 byte.
         :return: New etu value.
-        :raises ValueError: if Fi or Di parameters in PPS0 are reserved.
+        :raises ValueError: if Fi or Di parameters in PPS1 are reserved.
         :raises ValueError: if target ETU has a fractional part.
         :raises RuntimeError: if response to PPS request is invalid.
         """
-        if pps0 not in range(0x100):
-            raise ValueError('Invalid PPS0 value')
+        if pps1 not in range(0x100):
+            raise ValueError('Invalid PPS1 value')
         fi = ([372, 372, 558, 744, 1116, 1488, 1860, None, None, 512, 768, 1024,
-            1536, 2048, None, None][pps0 >> 4])
+            1536, 2048, None, None][pps1 >> 4])
         if fi is None:
-            raise ValueError('Fi parameter in PPS0 has a reserved value')
+            raise ValueError('Fi parameter in PPS1 has a reserved value')
         di = ([None, 1, 2, 4, 8, 16, 32, 64, 12, 20, None, None, None, None,
-            None, None][pps0 & 0x0f])
+            None, None][pps1 & 0x0f])
         if di is None:
-            raise ValueError('Di parameter in PPS0 has a reserved value')
+            raise ValueError('Di parameter in PPS1 has a reserved value')
+        # PPSS = 0xff
+        # PPS0 = 0x10 to indicate presence of PPS1
         request = bytearray(b'\xff\x10')
-        request.append(pps0)
+        request.append(pps1)
         etu = round(fi / di)
         if etu != fi / di:
             raise ValueError(f'Cannot set ETU to {etu} because of the '
