@@ -40,6 +40,12 @@ be powered from USB or external power supplies.
 Six special I/Os can generate 5V pulses, which are compatible with
 *ALPhANOV PDM* laser sources (50 Ohm TTL).
 
+## Installation
+
+Python3 library can be installed using pip:
+
+    pip3 install donjon-scaffold
+
 ## Documentation
 
 API documentation is available on [Read the Docs](https://donjonscaffold.readthedocs.io).

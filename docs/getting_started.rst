@@ -75,6 +75,16 @@ USB-To-Serial device (COMx on Windows, /dev/ttyUSBx on linux). It may be
 necessary to install FTDI driver for some Windows versions.
 
 
+Installation
+------------
+
+Python3 API library can be installed using pip3:
+
+.. code-block:: bash
+
+    pip3 install donjon-scaffold
+
+
 Using the Python API
 --------------------
 
