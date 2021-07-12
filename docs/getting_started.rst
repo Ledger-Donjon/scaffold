@@ -100,7 +100,7 @@ Scaffold board.
     scaffold = Scaffold('/dev/ttyUSB0')
 
     # Configure UART0 for operation
-    uart = scaff.uart0
+    uart = scaffold.uart0
     uart.baudrate = 115200
 
     # Connect UART0 signals to board pins
@@ -113,5 +113,5 @@ Scaffold board.
     uart.rx << scaffold.d2
 
     # UART is now ready to use
-    uart.send('Hello world !')
+    uart.transmit('Hello world !'.encode())
 
