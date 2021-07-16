@@ -23,6 +23,7 @@ from scaffold import Pull
 from typing import Tuple, List
 import os.path
 import unittest
+from . import Scaffold
 
 
 class ProtocolError(Exception):
