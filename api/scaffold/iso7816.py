@@ -24,6 +24,7 @@ from typing import Tuple, List
 import os.path
 import unittest
 from . import Scaffold
+import requests
 
 
 class ProtocolError(Exception):
@@ -155,25 +156,50 @@ def parse_atr(reader) -> ATRInfo:
     return info
 
 
-def load_atr_info_db() -> List[Tuple[str, List[str]]]:
+class NoATRDatabase(Exception):
+    pass
+
+
+def load_atr_info_db(allow_web_download: bool=False) \
+        -> List[Tuple[str, List[str]]]:
     """
-    Parse the smartcard ATR list database available at
-    http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
-    to get list of known ATR.
+    Parse the smartcard ATR list database from Ludovic Rousseau to get list of
+    known ATR.
 
     The database file cannot be embedded in the library because it uses GPL
     and not LGPL license. On debian systems, this file is provided in the
-    pcsc-tools package.
+    pcsc-tools package. If this file is missing and `allow_web_download` is
+    enabled, this method will read the file with an HTTP GET request to:
+    http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
 
     ATR values are returned with strings, and can have '.' wildcards for
     matching, or other special formatting characters. With each ATR is returned
     of list of description strings.
+
+    :param allow_web_download: If enabled, allow the method to download the
+        database from the web as a fallback when it is missing from the system.
+    :raises NoATRDatabase: When database file is missing and download is not
+        allowed, or when database file is missing and download failed.
     """
     tab = []
-    text_file = open('/usr/share/pcsc/smartcard_list.txt', 'r')
-    # We don't want to keep end lines such as LR or CR LF
-    lines = text_file.read().splitlines()
-    text_file.close()
+    try:
+        text_file = open('/usr/share/pcsc/smartcard_list.txt', 'r')
+        # We don't want to keep end lines such as LR or CR LF
+        lines = text_file.read().splitlines()
+        text_file.close()
+    except FileNotFoundError as e:
+        if allow_web_download:
+            url = "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/" \
+                + "smartcard_list.txt"
+            try:
+                res = requests.get(url)
+            except Exception as e:
+                raise NoATRDatabase()
+            if res.status_code != 200:
+                raise NoATRDatabase()
+            lines = res.content.decode().splitlines()
+        else:
+            raise NoATRDatabase()
     # Parse the file and build a table with ATR patterns and infos
     for line in lines:
         if (len(line) > 0) and (line[0] not in ('#', '\t')):
@@ -396,7 +422,7 @@ class Smartcard:
         else:
             raise RuntimeError('PPS request failed')
 
-    def find_info(self):
+    def find_info(self, allow_web_download: bool=False):
         """
         Parse the smartcard ATR list database available at
         http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
@@ -406,11 +432,16 @@ class Smartcard:
         and not LGPL license. On debian systems, this file is provided in the
         pcsc-tools package.
 
+        :param allow_web_download: If enabled, allow the method to download the
+            database from the web as a fallback when it is missing from the
+            system.
         :return: A list of str, where each item is an information line about
             the card. Return None if the ATR did not match any entry in the
             database.
+        :raises NoATRDatabase: When database file is missing and download is not
+            allowed, or when database file is missing and download failed.
         """
-        tab = load_atr_info_db()
+        tab = load_atr_info_db(allow_web_download)
         # Try to match ATR
         for item in tab:
             pattern = item[0]

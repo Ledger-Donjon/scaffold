@@ -35,7 +35,7 @@ if not sc.card_inserted:
 scaffold.power.dut = 1
 atr = sc.reset()
 print('ATR: ' + hexlify(atr).decode())
-info = sc.find_info()
+info = sc.find_info(allow_web_download=True)
 if info:
     print('Card found in ATR list:')
     for line in info:

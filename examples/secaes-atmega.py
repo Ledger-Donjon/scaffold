@@ -115,7 +115,7 @@ scaffold.iso7816.clock_frequency = 10e6
 scaffold.power.dut = 1
 atr = sc.reset()
 print('ATR: ' + hexlify(atr).decode())
-info = sc.find_info()
+info = sc.find_info(allow_web_download=True)
 
 sc.test()
 
