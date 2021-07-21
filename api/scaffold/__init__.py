@@ -43,7 +43,6 @@ class TimeoutError(Exception):
             self.size = size
 
     def __str__(self):
-        s = "Timeout."
         if self.data is not None:
             if len(self.data):
                 h = hexlify(self.data).decode()
@@ -2560,7 +2559,6 @@ class Scaffold(ArchBase):
         else:
             self.a2 = IO(self, '/io/a2', 1)
             self.a3 = IO(self, '/io/a3', 1)
-            io_index = 4
             for i in range(self.__IO_D_COUNT):
                 # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
                 self.__setattr__(
@@ -2643,7 +2641,7 @@ class Scaffold(ArchBase):
             # Feeback signals from module outputs (mostly triggers)
             for i in range(len(self.uarts)):
                 self.add_mtxl_in(f'/uart{i}/trigger')
-            self.add_mtxl_in(f'/iso7816/trigger')
+            self.add_mtxl_in('/iso7816/trigger')
             for i in range(len(self.i2cs)):
                 self.add_mtxl_in(f'/i2c{i}/trigger')
             for i in range(len(self.spis)):

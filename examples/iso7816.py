@@ -46,7 +46,7 @@ else:
 while True:
     try:
         apdu = bytes.fromhex(input('apdu$ '))
-    except ValueError as e:
+    except ValueError:
         print('Invalid input')
         continue
     response = sc.apdu(apdu)

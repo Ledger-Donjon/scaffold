@@ -21,7 +21,6 @@ from enum import Enum
 from binascii import hexlify
 from scaffold import Pull
 from typing import Tuple, List
-import os.path
 import unittest
 from . import Scaffold
 import requests
@@ -145,7 +144,7 @@ def parse_atr(reader) -> ATRInfo:
     if info.protocols != {0}:
         # TCK expected
         atr += reader.read(1)
-        tck = atr[-1]
+        # tck = atr[-1]
         # Verify the checksum
         xored = 0x00
         for b in atr[1:]:
@@ -186,13 +185,13 @@ def load_atr_info_db(allow_web_download: bool = False) \
         # We don't want to keep end lines such as LR or CR LF
         lines = text_file.read().splitlines()
         text_file.close()
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         if allow_web_download:
             url = "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/" \
                 + "smartcard_list.txt"
             try:
                 res = requests.get(url)
-            except Exception as e:
+            except Exception:
                 raise NoATRDatabase()
             if res.status_code != 200:
                 raise NoATRDatabase()

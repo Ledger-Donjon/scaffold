@@ -53,7 +53,7 @@ stm = STM32(scaffold)
 # RDP2 state.
 try:
     stm.startup_bootloader()
-except TimeoutError as e:
+except TimeoutError:
     print('Failed to communicate with bootloader!')
     sys.exit()
 print('Communication initiated')
@@ -85,7 +85,7 @@ if stm.device is not None:
         else:
             rdp_str = 'read protection'
         print(f'RDP: {rdp_str}')
-    except NACKError as e:
+    except NACKError:
         print('Failed to read protection bytes, device probably in RDP1.')
 
 if args.erase or ((args.load is not None) and (args.ram is None)):
