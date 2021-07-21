@@ -14,7 +14,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  lint:
+  check:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -23,10 +23,12 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
-      - name: Install Flake8
-        run: pip install flake8
+      - name: Install apt packages
+        run: sudo apt install pcsc-tools
+      - name: Install pip packages
+        run: pip install flake8 pytest
       - name: Lint Python
         run: find . -type f -name '*.py' -exec flake8 '{}' '+'
       - name: Test Python
-        run: pytest
+        run: python3 -m pytest
         working-directory: api
