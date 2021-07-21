@@ -25,10 +25,12 @@ import argparse
 
 
 # Arguments parsing
-parser = argparse.ArgumentParser(description='Connects to a Scaffold board and '
-    'prints FPGA architecture version.')
+parser = argparse.ArgumentParser(
+    description='Connects to a Scaffold board and prints FPGA architecture '
+    'version.')
 default_com = {'win32': 'COM0'}.get(sys.platform, '/dev/ttyUSB0')
-parser.add_argument('-d', '--dev', help='Scaffold serial device path. '
+parser.add_argument(
+    '-d', '--dev', help='Scaffold serial device path. '
     f'If not specified, {default_com} is used.', default=default_com)
 args = parser.parse_args()
 

@@ -24,17 +24,17 @@ This is a custom extension for sphinx to generate modules figures.
 """
 
 
-import matplotlib
-# Change backend to agg as workaround for import troubles with tkinter when
-# building with readthedocs.io docker image.
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import matplotlib.lines as lines
-import matplotlib.patches as patches
 import os.path
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from hashlib import sha1
+import matplotlib
+# Change backend to agg as workaround for import troubles with tkinter when
+# building with readthedocs.io docker image.
+matplotlib.use('agg')
+import matplotlib.pyplot as plt  # noqa
+import matplotlib.lines as lines  # noqa
+import matplotlib.patches as patches  # noqa
 
 
 def make_fig(path, inputs, outputs):
@@ -66,22 +66,26 @@ def make_fig(path, inputs, outputs):
     plt.figure(figsize=(area_w * 0.3, area_h * 0.3), dpi=75)
     ax = plt.axes()
 
-    r = patches.Rectangle((box_left, box_bottom), box_w, box_h, fill=False,
-        lw=line_width)
+    r = patches.Rectangle(
+        (box_left, box_bottom), box_w, box_h, fill=False, lw=line_width)
     ax.add_patch(r)
 
     for i, name in enumerate(inputs):
-        ax.arrow(box_left - arrow_length_left, -i, arrow_length_left - hl, 0, fc='k', ec='k',
-            head_length=hl, head_width=hw, lw=line_width)
-        ax.annotate(s=name, xy=(box_left + text_margin, -i),
+        ax.arrow(
+            box_left - arrow_length_left, -i, arrow_length_left - hl, 0,
+            fc='k', ec='k', head_length=hl, head_width=hw, lw=line_width)
+        ax.annotate(
+            s=name, xy=(box_left + text_margin, -i),
             horizontalalignment='left', verticalalignment='center')
 
     num_feedback = 0
 
     for i, name in enumerate(outputs):
-        ax.arrow(box_right, -i, arrow_length_right - hl, 0, fc='k', ec='k',
+        ax.arrow(
+            box_right, -i, arrow_length_right - hl, 0, fc='k', ec='k',
             head_length=hl, head_width=hw, lw=line_width)
-        ax.annotate(s=name, xy=(box_right - text_margin, -i),
+        ax.annotate(
+            s=name, xy=(box_right - text_margin, -i),
             horizontalalignment='right', verticalalignment='center')
         if name in feedback_signals:
             x0 = box_right + num_feedback + 1
@@ -91,7 +95,8 @@ def make_fig(path, inputs, outputs):
             line = lines.Line2D(
                 [x0, x0], [y0, y1], color='black', linewidth=line_width)
             ax.add_line(line)
-            ax.arrow(x0, y1, x1 - x0, 0, fc='k', ec='k', head_length=hl,
+            ax.arrow(
+                x0, y1, x1 - x0, 0, fc='k', ec='k', head_length=hl,
                 head_width=hw, lw=line_width)
             plt.scatter(x0, y0, s=6, color='black')
             num_feedback += 1
@@ -123,15 +128,14 @@ class ModBoxNode(nodes.Element):
 def io_list(s):
     return list(
         filter(
-            lambda x: len(x) > 0,
-            (x.strip() for x in s.split(',')) ) )
+            lambda x: len(x) > 0, (x.strip() for x in s.split(','))))
 
 
 class ModBoxDirective(Directive):
     has_content = True
     option_spec = {
         'inputs': directives.unchanged,
-        'outputs': directives.unchanged }
+        'outputs': directives.unchanged}
 
     def run(self):
         node = ModBoxNode()
@@ -156,4 +160,3 @@ def depart_modbox_node(self, node):
 def setup(app):
     app.add_node(ModBoxNode, html=(visit_modbox_node, depart_modbox_node))
     app.add_directive('modbox', ModBoxDirective)
-

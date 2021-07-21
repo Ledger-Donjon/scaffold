@@ -86,7 +86,7 @@ class STM32:
     map_f20xxx = {
         'option_bytes': MemorySection(0x1fffc000, 0x1fffc008),
         'system': MemorySection(0x1fff0000, 0x1fff7a10),
-        'flash': MemorySection(0x08000000, 0x08100000) }
+        'flash': MemorySection(0x08000000, 0x08100000)}
 
     # Memory layout for STM32F4xxx
     map_f40xxx = map_f20xxx
@@ -96,7 +96,7 @@ class STM32:
         'option_bytes': MemorySection(0x1fff7800, 0x1fff7810),
         'otp': MemorySection(0x1fff7000, 0x1fff7400),
         'system': MemorySection(0x1fff0000, 0x1fff7000),
-        'flash': MemorySection(0x08000000, 0x08040000) }
+        'flash': MemorySection(0x08000000, 0x08040000)}
 
     # See AN2606 for PID values
     PIDS = [
@@ -227,8 +227,8 @@ class STM32:
 
     def get_id(self):
         """
-        Execute the Get ID command. The result is interpreted and the class will
-        try to find information if the ID matches a known device.
+        Execute the Get ID command. The result is interpreted and the class
+        will try to find information if the ID matches a known device.
         """
         self.device = None
         response = self.command(0x02)
@@ -307,8 +307,9 @@ class STM32:
     def assert_device(self):
         """ Raise a RuntimeError is device is unknown (None). """
         if self.device is None:
-            raise RuntimeError('Unknown device or not discovered yet. Call '
-                'get_id or set the device attribute.')
+            raise RuntimeError(
+                'Unknown device or not discovered yet. Call get_id or set the '
+                'device attribute.')
 
     def read_option_bytes(self):
         """

@@ -27,16 +27,19 @@ import argparse
 
 
 # Arguments parsing
-parser = argparse.ArgumentParser(description='This script uses Scaffold to '
-    'communicate with STM32 devices. It allows loading and executing code.')
+parser = argparse.ArgumentParser(
+    description='This script uses Scaffold to communicate with STM32 devices. '
+    'It allows loading and executing code.')
 default_com = {'win32': 'COM0'}.get(sys.platform, '/dev/ttyUSB0')
-parser.add_argument('-d', '--dev', help='Scaffold serial device path. '
+parser.add_argument(
+    '-d', '--dev', help='Scaffold serial device path. '
     f'If not specified, {default_com} is used on Linux by default.',
     default=default_com)
 parser.add_argument('-l', '--load', help='Load binary into device.')
 parser.add_argument('--ram', help='Load binary into RAM memory.')
-parser.add_argument('-r', '--run', help='Reset and run device from Flash '
-    'memory.', action='store_true')
+parser.add_argument(
+    '-r', '--run', help='Reset and run device from Flash memory.',
+    action='store_true')
 parser.add_argument('-j', '--jump', help='Jump to RAM memory.')
 parser.add_argument('--erase', help='Erase Flash memory.', action='store_true')
 args = parser.parse_args()
@@ -88,7 +91,7 @@ if stm.device is not None:
 if args.erase or ((args.load is not None) and (args.ram is None)):
     # Erase Flash memory before writing it. This may be very long.
     print('Erasing Flash memory...')
-    stm.extended_erase()    
+    stm.extended_erase()
 
 # Load binary file into Flash memory
 if (args.load is not None) and (args.ram is None):

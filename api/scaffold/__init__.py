@@ -416,8 +416,8 @@ class Register:
 
 class FreqRegisterHelper:
     """
-    Helper to provide frequency attributes which compute clock divisor registers
-    value based on asked target frequencies.
+    Helper to provide frequency attributes which compute clock divisor
+    registers value based on asked target frequencies.
     """
     def __init__(self, sys_freq, reg):
         """
@@ -709,7 +709,8 @@ class UART(Module):
                 self.reg_data.write(data[-1])
                 # Disable trigger
                 self.reg_config.write(
-                    config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+                    config, poll=self.reg_status, poll_mask=0x01,
+                    poll_value=0x01)
 
     def receive(self, n=1):
         """
@@ -1125,21 +1126,21 @@ class ISO7816(Module):
         else:
             # We want to trig on the last sent character
             with self.parent.lazy_section():
-                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 0,
-                    poll=self.reg_status,
+                self.reg_config.set_bit(
+                    self.__REG_CONFIG_TRIGGER_TX, 0, poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
                     poll_value=(1 << self.__REG_STATUS_BIT_READY))
                 self.reg_data.write(
                     data[:-1], poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
                     poll_value=(1 << self.__REG_STATUS_BIT_READY))
-                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 1,
-                    poll=self.reg_status,
+                self.reg_config.set_bit(
+                    self.__REG_CONFIG_TRIGGER_TX, 1, poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
                     poll_value=(1 << self.__REG_STATUS_BIT_READY))
                 self.reg_data.write(data[-1])
-                self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, 0,
-                    poll=self.reg_status,
+                self.reg_config.set_bit(
+                    self.__REG_CONFIG_TRIGGER_TX, 0, poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
                     poll_value=(1 << self.__REG_STATUS_BIT_READY))
 
@@ -1361,8 +1362,9 @@ class I2C(Module):
             # purpose. This shall always be the case, unless there is an
             # implementation bug. This check is not enabled by default because
             # it will slow down I2C communication.
-            #if self.reg_status.get_bit(self.__REG_STATUS_BIT_DATA_AVAIL) == 1:
-            #    raise RuntimeError('FIFO should be empty')
+            # if self.reg_status.get_bit(self.__REG_STATUS_BIT_DATA_AVAIL) \
+            #     == 1:
+            #     raise RuntimeError('FIFO should be empty')
             return fifo
 
     def __make_header(self, address, rw):
@@ -1550,15 +1552,16 @@ class SPI(Module):
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
-    def transmit(self, value: int, size: int=8, trigger=False, read=True):
+    def transmit(self, value: int, size: int = 8, trigger=False, read=True):
         """
         Performs a SPI transaction to transmit a value and receive data. If a
-        transmission is still pending, this methods waits for the SPI peripheral
-        to be ready.
+        transmission is still pending, this methods waits for the SPI
+        peripheral to be ready.
 
         :param value: Value to be transmitted. Less significant bit is
             transmitted last.
-        :param size: Number of bits to be transmitted. Minimum is 1, maximum is 32.
+        :param size: Number of bits to be transmitted. Minimum is 1, maximum is
+            32.
         :param trigger: 1 or True to enable trigger upon SPI transmission.
         :type trigger: bool or int.
         :param read: Set 0 or False to disable received value readout (the
@@ -1592,7 +1595,7 @@ class SPI(Module):
             (trigger << self.__REG_CONTROL_BIT_TRIGGER) + (size - 1),
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY) )
+            poll_value=(1 << self.__REG_STATUS_BIT_READY))
         if read:
             res = self.read_data_buffer((size-1)//8 + 1)
             # Mask to discard garbage bits from previous operations
@@ -1614,7 +1617,7 @@ class SPI(Module):
             n,
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY) )
+            poll_value=(1 << self.__REG_STATUS_BIT_READY))
         return int.from_bytes(res, 'little')
 
 
@@ -2016,9 +2019,9 @@ class ScaffoldBus:
                 # when all lazy-sections are closed.
                 dg_len = len(datagram)
                 # We don't know how many write datagram have been processed
-                # until we don't fetch the responses. It is possible to overflow
-                # the hardware FIFO if a polling operation is blocking. We have
-                # to check for those potential troubles.
+                # until we don't fetch the responses. It is possible to
+                # overflow the hardware FIFO if a polling operation is
+                # blocking. We have to check for those potential troubles.
                 while self.__lazy_fifo_total_size + dg_len > self.FIFO_SIZE:
                     # FIFO might be full. We must process some responses to get
                     # some guaranteed FIFO space
@@ -2198,13 +2201,15 @@ class ArchBase:
     """
     Base class for Scaffold API.
     The :class:`Scaffold` class inherits from this class and defines which
-    modules and signals are defined on the board. This class can be inherited to
-    create other boards than Scaffold sharing the same architecture principle.
+    modules and signals are defined on the board. This class can be inherited
+    to create other boards than Scaffold sharing the same architecture
+    principle.
     """
     __ADDR_MTXR_BASE = 0xf100
     __ADDR_MTXL_BASE = 0xf000
 
-    def __init__(self, sys_freq, board_name, supported_versions, baudrate=2000000):
+    def __init__(self, sys_freq, board_name, supported_versions,
+                 baudrate=2000000):
         """
         Defines basic parameters of the board.
 
@@ -2215,8 +2220,8 @@ class ArchBase:
         :param supported_versions: A list of supported version strings. For
             instance `[1.0, 2.0]`.
         :type supported_versions: list or tuple of string.
-        :param baudrate: UART baudrate. Default to 2 Mbps. Other hardware boards
-            may have different speed.
+        :param baudrate: UART baudrate. Default to 2 Mbps. Other hardware
+            boards may have different speed.
         :type baudrate: int
         """
         self.sys_freq = sys_freq
@@ -2289,7 +2294,7 @@ class ArchBase:
         """
         return self.__version
 
-    def connect(self, dev: Optional[str]=None, sn: Optional[str]=None):
+    def connect(self, dev: Optional[str] = None, sn: Optional[str] = None):
         """
         Connect to Scaffold board using the given serial port.
 
@@ -2307,17 +2312,19 @@ class ArchBase:
             for port in serial.tools.list_ports.comports():
                 # USB description string can be 'Scaffold', with uppercase 'S'.
                 if ((port.product is not None)
-                    and (port.product.lower() == self.__expected_board_name)
-                    and ((sn is None) or (port.serial_number == sn))):
+                        and (port.product.lower() ==
+                             self.__expected_board_name)
+                        and ((sn is None) or (port.serial_number == sn))):
                     possible_ports.append(port)
             if len(possible_ports) > 1:
-                raise RuntimeError('Multiple ' + self.__expected_board_name +
+                raise RuntimeError(
+                    'Multiple ' + self.__expected_board_name +
                     ' devices found! I don\'t know which one to use.')
             elif len(possible_ports) == 1:
                 dev = possible_ports[0].device
             else:
-                raise RuntimeError('No ' + self.__expected_board_name
-                    + ' device found')
+                raise RuntimeError(
+                    'No ' + self.__expected_board_name + ' device found')
         else:
             if sn is not None:
                 raise ValueError("dev and sn cannot be set together")
@@ -2388,8 +2395,9 @@ class ArchBase:
             if dest_in_mtxl_out and src_in_mtxl_in:
                 # Shall never happen unless a module output has the same name
                 # as one of its input.
-                raise RuntimeError(f'Connection ambiguity \'{dest_path}\' << '
-                    + f'\'{src_path}\'.');
+                raise RuntimeError(
+                    f'Connection ambiguity \'{dest_path}\' << '
+                    + f'\'{src_path}\'.')
             # Connect a module output to an IO output
             src_index = self.mtxr_in.index(src_path)
             dst_index = self.mtxr_out.index(dest_path)
@@ -2401,8 +2409,8 @@ class ArchBase:
             self.bus.write(self.__ADDR_MTXL_BASE + dst_index, src_index)
         else:
             # Shall never happen unless there is a bug
-            raise RuntimeError(f'Failed to connect \'{dest_path}\' << '
-                    + f'\'{src_path}\'.');
+            raise RuntimeError(
+                f'Failed to connect \'{dest_path}\' << ' + f'\'{src_path}\'.')
 
     def sig_disconnect_all(self):
         """
@@ -2453,8 +2461,8 @@ class ArchBase:
 
     def timeout_section(self, timeout):
         """
-        :return: :class:`ScaffoldBusTimeoutSection` instance to be used with the
-            python 'with' statement to push and pop timeout configuration.
+        :return: :class:`ScaffoldBusTimeoutSection` instance to be used with
+            the python 'with' statement to push and pop timeout configuration.
         """
         return self.bus.timeout_section(timeout)
 
@@ -2490,8 +2498,8 @@ class Scaffold(ArchBase):
     # Number of I2C modules
     __I2C_COUNT = 1
 
-    def __init__(self, dev: Optional[str]=None, init_ios: bool=False,
-        sn: Optional[str]=None):
+    def __init__(self, dev: Optional[str] = None, init_ios: bool = False,
+                 sn: Optional[str] = None):
         """
         Create Scaffold API instance.
 
@@ -2513,8 +2521,8 @@ class Scaffold(ArchBase):
             ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7'))  # Supported versions
         self.connect(dev, init_ios, sn)
 
-    def connect(self, dev: Optional[str]=None, init_ios: bool=False,
-        sn: Optional[str]=None):
+    def connect(self, dev: Optional[str] = None, init_ios: bool = False,
+                sn: Optional[str] = None):
         """
         Connect to Scaffold board using the given serial port.
 
@@ -2556,7 +2564,7 @@ class Scaffold(ArchBase):
             for i in range(self.__IO_D_COUNT):
                 # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
                 self.__setattr__(
-                    f'd{i}', IO(self, f'/io/d{i}', i+4, pullable=(i<3)))
+                    f'd{i}', IO(self, f'/io/d{i}', i + 4, pullable=(i < 3)))
             if float(self.version) >= 0.6:
                 for i in range(self.__IO_P_COUNT):
                     self.__setattr__(
@@ -2759,4 +2767,3 @@ class Scaffold(ArchBase):
                 i2c.reset_config()
             for spi in self.spis:
                 spi.reset_registers()
-

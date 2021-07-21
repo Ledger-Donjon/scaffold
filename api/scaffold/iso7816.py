@@ -56,8 +56,8 @@ def inverse_byte(byte):
 
 def apply_convention(data: bytes, convention: Convention) -> bytes:
     """
-    :return: `data` if convention is `DIRECT`, `data` with all bytes inversed if
-        convention is `INVERSE`.
+    :return: `data` if convention is `DIRECT`, `data` with all bytes inversed
+        if convention is `INVERSE`.
     """
     if convention == Convention.DIRECT:
         return data
@@ -143,7 +143,6 @@ def parse_atr(reader) -> ATRInfo:
     # Parse TCK (check byte)
     # This byte is absent if only T=0 is supported
     if info.protocols != {0}:
-    #if True:
         # TCK expected
         atr += reader.read(1)
         tck = atr[-1]
@@ -160,7 +159,7 @@ class NoATRDatabase(Exception):
     pass
 
 
-def load_atr_info_db(allow_web_download: bool=False) \
+def load_atr_info_db(allow_web_download: bool = False) \
         -> List[Tuple[str, List[str]]]:
     """
     Parse the smartcard ATR list database from Ludovic Rousseau to get list of
@@ -319,7 +318,8 @@ class Smartcard:
             p3 = the_apdu[4]
             expected_p3 = out_data_len % 256
             if p3 != expected_p3:
-                raise ValueError('Expected P3 (length) in APDU is '
+                raise ValueError(
+                    'Expected P3 (length) in APDU is '
                     f'0x{expected_p3:02x}, got 0x{p3:02x}')
             in_data_len = 0
         else:
@@ -370,8 +370,8 @@ class Smartcard:
                 self.iso7816.trigger_long = 0
             return response
         else:
-            raise RuntimeError('Unexpected procedure byte '
-                f'0x{procedure_byte:02x} received')
+            raise RuntimeError(
+                f'Unexpected procedure byte 0x{procedure_byte:02x} received')
 
     def pps(self, pps1):
         """
@@ -390,12 +390,12 @@ class Smartcard:
         """
         if pps1 not in range(0x100):
             raise ValueError('Invalid PPS1 value')
-        fi = ([372, 372, 558, 744, 1116, 1488, 1860, None, None, 512, 768, 1024,
-            1536, 2048, None, None][pps1 >> 4])
+        fi = ([372, 372, 558, 744, 1116, 1488, 1860, None, None, 512, 768,
+               1024, 1536, 2048, None, None][pps1 >> 4])
         if fi is None:
             raise ValueError('Fi parameter in PPS1 has a reserved value')
         di = ([None, 1, 2, 4, 8, 16, 32, 64, 12, 20, None, None, None, None,
-            None, None][pps1 & 0x0f])
+               None, None][pps1 & 0x0f])
         if di is None:
             raise ValueError('Di parameter in PPS1 has a reserved value')
         # PPSS = 0xff
@@ -404,7 +404,8 @@ class Smartcard:
         request.append(pps1)
         etu = round(fi / di)
         if etu != fi / di:
-            raise ValueError(f'Cannot set ETU to {etu} because of the '
+            raise ValueError(
+                f'Cannot set ETU to {etu} because of the '
                 'fractional part (hardware limitation)')
         # Checksum
         pck = 0
@@ -422,12 +423,12 @@ class Smartcard:
         else:
             raise RuntimeError('PPS request failed')
 
-    def find_info(self, allow_web_download: bool=False):
+    def find_info(self, allow_web_download: bool = False):
         """
         Parse the smartcard ATR list database available at
         http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
         and try to match the current ATR to retrieve more info about the card.
-        
+
         The database file cannot be embedded in the library because it uses GPL
         and not LGPL license. On debian systems, this file is provided in the
         pcsc-tools package.
@@ -438,8 +439,8 @@ class Smartcard:
         :return: A list of str, where each item is an information line about
             the card. Return None if the ATR did not match any entry in the
             database.
-        :raises NoATRDatabase: When database file is missing and download is not
-            allowed, or when database file is missing and download failed.
+        :raises NoATRDatabase: When database file is missing and download is
+            not allowed, or when database file is missing and download failed.
         """
         tab = load_atr_info_db(allow_web_download)
         # Try to match ATR
@@ -482,7 +483,7 @@ class Smartcard:
 class TestATRParser(unittest.TestCase):
     def test_parsing_ok(self):
         tab = load_atr_info_db()
-        
+
         # Some cards do not respect the norm correctly and have malformated ATR
         # Here are some list of invalid ATR in the database.
 
@@ -550,6 +551,7 @@ class TestATRParser(unittest.TestCase):
                     parse_atr(reader)
             else:
                 parse_atr(reader)
+
 
 if __name__ == '__main__':
     unittest.main()

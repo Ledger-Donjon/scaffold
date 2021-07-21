@@ -24,7 +24,7 @@
 
 system_frequency = 100e6
 baudrates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000,
-    2000000]
+             2000000]
 table = [('Baudrate', 'Divisor', 'Effective baudrate', 'Error')]
 
 for baudrate in baudrates:
@@ -36,7 +36,7 @@ for baudrate in baudrates:
         str(baudrate),
         str(divisor),
         '{0:.3f}'.format(real_baudrate),
-        '{0:.3f} %'.format(error * 100) ))
+        '{0:.3f} %'.format(error * 100)))
 
 # Get the size of the table
 row_count = len(table)
@@ -50,17 +50,20 @@ for i in range(col_count):
         size = max(size, len(table[j][i]))
     col_sizes.append(size)
 
-def gen_bar(sizes, c = '-'):
+
+def gen_bar(sizes, c='-'):
     result = '+'
     for size in sizes:
         result += c * (size + 2) + '+'
     return result
+
 
 def gen_row(row, sizes):
     result = '|'
     for i, size in enumerate(sizes):
         result += ' ' + row[i].rjust(size) + ' |'
     return result
+
 
 rest = gen_bar(col_sizes) + '\n'
 
