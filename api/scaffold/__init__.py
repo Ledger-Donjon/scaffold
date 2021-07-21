@@ -22,6 +22,7 @@ import serial
 from binascii import hexlify
 from time import sleep
 import serial.tools.list_ports
+from typing import Optional
 
 
 class TimeoutError(Exception):
@@ -2288,20 +2289,26 @@ class ArchBase:
         """
         return self.__version
 
-    def connect(self, dev):
+    def connect(self, dev: Optional[str]=None, sn: Optional[str]=None):
         """
         Connect to Scaffold board using the given serial port.
+
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
             linux, 'COM0' on Windows. If None, tries to automatically find the
             board by scanning USB description strings.
+        :param sn: If `dev` is not specified, automatic detection must find a
+            board with the given serial number. This is an interesting feature
+            when multiple Scaffold boards are connected to the same computer.
+            Must be `None` when `dev` is set.
         """
         if dev is None:
             # Try to find automatically the device
             possible_ports = []
             for port in serial.tools.list_ports.comports():
                 # USB description string can be 'Scaffold', with uppercase 'S'.
-                if ((port.product is not None) and
-                    (port.product.lower() == self.__expected_board_name)):
+                if ((port.product is not None)
+                    and (port.product.lower() == self.__expected_board_name)
+                    and ((sn is None) or (port.serial_number == sn))):
                     possible_ports.append(port)
             if len(possible_ports) > 1:
                 raise RuntimeError('Multiple ' + self.__expected_board_name +
@@ -2311,6 +2318,9 @@ class ArchBase:
             else:
                 raise RuntimeError('No ' + self.__expected_board_name
                     + ' device found')
+        else:
+            if sn is not None:
+                raise ValueError("dev and sn cannot be set together")
 
         self.bus.connect(dev)
         # Check hardware responds and has the correct version.
@@ -2480,7 +2490,8 @@ class Scaffold(ArchBase):
     # Number of I2C modules
     __I2C_COUNT = 1
 
-    def __init__(self, dev=None, init_ios=False):
+    def __init__(self, dev: Optional[str]=None, init_ios: bool=False,
+        sn: Optional[str]=None):
         """
         Create Scaffold API instance.
 
@@ -2492,14 +2503,18 @@ class Scaffold(ArchBase):
             on the I/Os. When set to False, I/Os connections are unchanged
             during initialization and keep the configuration set by previous
             sessions.
+        :param sn: If `dev` is not specified, automatic detection must find a
+            board with the given serial number. This is an interesting feature
+            when multiple Scaffold boards are connected to the same computer.
         """
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
             ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7'))  # Supported versions
-        self.connect(dev, init_ios)
+        self.connect(dev, init_ios, sn)
 
-    def connect(self, dev, init_ios=False):
+    def connect(self, dev: Optional[str]=None, init_ios: bool=False,
+        sn: Optional[str]=None):
         """
         Connect to Scaffold board using the given serial port.
 
@@ -2510,8 +2525,11 @@ class Scaffold(ArchBase):
             on the I/Os. When set to False, I/Os connections are unchanged
             during initialization and keep the configuration set by previous
             sessions.
+        :param sn: If `dev` is not specified, automatic detection must find a
+            board with the given serial number. This is an interesting feature
+            when multiple Scaffold boards are connected to the same computer.
         """
-        super().connect(dev)
+        super().connect(dev, sn=sn)
 
         # Power module
         self.power = Power(self)

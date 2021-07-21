@@ -26,7 +26,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="donjon-scaffold",
-    version="0.7.3",
+    version="0.7.4",
     author="Olivier Heriveaux",
     description="Python3 API for the Scaffold board",
     long_description=long_description,
