@@ -17,9 +17,7 @@
 # Copyright 2021 Ledger SAS, written by Olivier Hériveaux
 
 
-from scaffold import Pull
 import pytest
-from scaffold import Scaffold
 from scaffold.iso7816 import load_atr_info_db, BasicByteReader, parse_atr, \
     ProtocolError
 

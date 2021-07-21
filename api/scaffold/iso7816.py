@@ -21,7 +21,6 @@ from enum import Enum
 from binascii import hexlify
 from scaffold import Pull
 from typing import Tuple, List
-import pytest
 from . import Scaffold
 import requests
 
