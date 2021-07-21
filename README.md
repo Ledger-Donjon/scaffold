@@ -1,10 +1,5 @@
 [![Documentation Status](https://readthedocs.org/projects/donjonscaffold/badge/?version=latest)](https://donjonscaffold.readthedocs.io/en/latest/?badge=latest)
 
-# Board status
-
-Hardware v1.1 have been tested and works perfectly! We are currently planning
-ElectroMagnetic Compatibility and Safety Testing for EU market distribution.
-
 # Scaffold
 
 When performing hardware security evaluation of integrated circuits and embedded
