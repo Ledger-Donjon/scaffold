@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.abspath('../api'))
 # ones.
 extensions = ['sphinx.ext.mathjax', 'sphinxcontrib.wavedrom',
     'sphinxcontrib.spelling', 'sphinx.ext.graphviz', 'modbox',
-    'sphinx.ext.autodoc']
+    'sphinx.ext.autodoc', 'sphinx_rtd_theme']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
