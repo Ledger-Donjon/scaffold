@@ -13,5 +13,12 @@ This API provides support for ISO7816 support with Scaffold.
     :members:
     :undoc-members:
 
+.. autoclass:: T1RedundancyCode
+    :members:
+    :undoc-members:
+
 .. autoclass:: ProtocolError
 
+.. autoclass:: NoATRDatabase
+
+.. autoclass:: T1RedundancyCodeError

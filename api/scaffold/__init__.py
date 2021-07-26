@@ -680,11 +680,11 @@ class UART(Module):
         self.reg_divisor.set(d)
         self.__cache_baudrate = real
 
-    def transmit(self, data, trigger=False):
+    def transmit(self, data: bytes, trigger: bool = False):
         """
         Transmit data using the UART.
 
-        :param data: Data to be transmitted. bytes or bytearray.
+        :param data: Data to be transmitted.
         :param trigger: True or 1 to enable trigger on last byte, False or 0 to
             disable trigger.
         """

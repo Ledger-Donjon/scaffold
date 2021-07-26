@@ -88,8 +88,8 @@ Python3 API library can be installed using pip3:
 Using the Python API
 --------------------
 
-The file ``scaffold.py`` is the library which can be used to interact with
-Scaffold board.
+The following example shows how to transmit for data using a UART peripheral of
+Scaffold.
 
 .. code-block:: python
     
@@ -97,6 +97,8 @@ Scaffold board.
 
     # Connect to the board.
     # This will open the serial device and check for hardware version
+    # Passing the serial device path is optional. If not specified, the library
+    # will try to find the board automatically if not specified.
     scaffold = Scaffold('/dev/ttyUSB0')
 
     # Configure UART0 for operation
@@ -113,5 +115,5 @@ Scaffold board.
     uart.rx << scaffold.d2
 
     # UART is now ready to use
-    uart.transmit('Hello world !'.encode())
+    uart.transmit('Hello world !'.encode(), trigger=True)
 
