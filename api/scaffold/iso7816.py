@@ -19,7 +19,7 @@
 
 from enum import Enum
 from scaffold import Pull
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Optional
 from . import Scaffold
 import requests
 import crcmod
@@ -53,6 +53,7 @@ class T1RedundancyCode(Enum):
 
 
 class T1RedundancyCodeError(Exception):
+    """ Thrown when the redundancy code of a received block is invalid. """
     pass
 
 
@@ -175,6 +176,9 @@ def parse_atr(reader) -> ATRInfo:
 
 
 class NoATRDatabase(Exception):
+    """
+    Thrown during card information lookup if no ATR database could be loaded
+    """
     pass
 
 
@@ -242,8 +246,8 @@ class Smartcard:
     - D3: Socket card contactor sense
 
     :class:`scaffold.Scaffold` class has ISO-7816 peripheral support, but it is
-    very limited. This class adds full support to ISO-7816 by managing ATR,
-    convention convertion, etc.
+    very limited. This class enables full support to ISO-7816 by managing ATR,
+    convention convertion, T=0 or T=1 protocols, etc.
 
     :var bytes atr: ATR received from card after reset.
     :var Convention convention: Communication convention between card
@@ -251,10 +255,12 @@ class Smartcard:
     :var set protocols: Communication protocols found in ATR. This set contains
         integers, for instance 0 if T=0 is supported, 1 if T=1 is supported...
     """
-    def __init__(self, scaffold=None):
+    def __init__(self, scaffold: Scaffold = None):
         """
         Configure a Scaffold board for use with smartcards.
-        :param scaffold: :class:`scaffold.Scaffold` instance.
+
+        :param scaffold: Board instance which will be configured as a smartcard
+            reader. :class:`scaffold.Scaffold` instance.
         """
         if scaffold is None:
             scaffold = Scaffold()
@@ -478,7 +484,7 @@ class Smartcard:
             self.t1_redundancy_code]
         return block[3:-edc_len]  # Trim header and EDC
 
-    def pps(self, pps1):
+    def pps(self, pps1: int) -> int:
         """
         Send a PPS request to change the communication speed parameters Fi and
         Di (as specified in ISO-7816-3). PPS0 and PPS1 are sent. PPS2 is
@@ -528,7 +534,8 @@ class Smartcard:
         else:
             raise RuntimeError('PPS request failed')
 
-    def find_info(self, allow_web_download: bool = False):
+    def find_info(self, allow_web_download: bool = False) \
+            -> Optional[List[str]]:
         """
         Parse the smartcard ATR list database available at
         http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
@@ -564,14 +571,13 @@ class Smartcard:
                 return item[1]
                 break
 
-    def apdu_str(self, the_apdu):
+    def apdu_str(self, the_apdu: str) -> str:
         """
         Same as :meth:`apdu` function, with str argument and return type for
         convenience.
 
         :param the_apdu: APDU to be sent, as an hexadecimal string.
-        :type the_apdu: str
-        :return str: Response from the card, as a lowercase hexadecimal string
+        :return: Response from the card, as a lowercase hexadecimal string
             without spaces.
         """
         return self.apdu(bytes.fromhex(the_apdu)).hex()
