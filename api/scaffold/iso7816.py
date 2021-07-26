@@ -18,11 +18,11 @@
 
 
 from enum import Enum
-from binascii import hexlify
 from scaffold import Pull
-from typing import Tuple, List
+from typing import Tuple, List, Union
 from . import Scaffold
 import requests
+import crcmod
 
 
 class ProtocolError(Exception):
@@ -36,16 +36,29 @@ class ProtocolError(Exception):
 
 class Convention(Enum):
     """
-    Possible ISO7816 communication convention. This is given by the first byte
+    Possible ISO-7816 communication convention. This is given by the first byte
     of the ATR returned by the card.
     """
     INVERSE = 0x3f
     DIRECT = 0x3b
 
 
+class T1RedundancyCode(Enum):
+    """
+    Possible ISO78-16 possible error detection codes that can be used for T=1
+    protocol. It is indicated in the first TC byte for T=1 of the ATR.
+    """
+    LRC = 0
+    CRC = 1
+
+
+class T1RedundancyCodeError(Exception):
+    pass
+
+
 def inverse_byte(byte):
     """
-    Inverse order and polarity of bits in a byte. Used for ISO7816 inverse
+    Inverse order and polarity of bits in a byte. Used for ISO-7816 inverse
     convention decoding.
     """
     byte ^= 0xff
@@ -70,6 +83,7 @@ class ATRInfo:
         self.atr = bytearray()
         self.convention = None
         self.protocols = set()
+        self.t_abcd_n = []
 
 
 class ScaffoldISO7816ByteReader:
@@ -123,6 +137,13 @@ def parse_atr(reader) -> ATRInfo:
         has_t_abcd = list(bool(td & (1 << (j+4))) for j in range(4))
         count = has_t_abcd.count(True)
         atr += reader.read(count)
+        t_abcd = [None, None, None, None]
+        offset = 0
+        for j in range(4):
+            if has_t_abcd[j]:
+                t_abcd[j] = atr[-count + offset]
+                offset += 1
+        info.t_abcd_n.append(t_abcd)
         # Test to skip T0 byte
         if i != 1:
             info.protocols.add(td & 0x0f)
@@ -215,13 +236,13 @@ class Smartcard:
     Class for smartcard testing with Scaffold board and API. The
     following IOs are used:
 
-    - D0: ISO7816 IO
-    - D1: ISO7816 nRST
-    - D2: ISO7816 CLK
+    - D0: ISO-7816 IO
+    - D1: ISO-7816 nRST
+    - D2: ISO-7816 CLK
     - D3: Socket card contactor sense
 
-    :class:`scaffold.Scaffold` class has ISO7816 peripheral support, but it is
-    very limited. This class adds full support to ISO7816 by managing ATR,
+    :class:`scaffold.Scaffold` class has ISO-7816 peripheral support, but it is
+    very limited. This class adds full support to ISO-7816 by managing ATR,
     convention convertion, etc.
 
     :var bytes atr: ATR received from card after reset.
@@ -253,10 +274,13 @@ class Smartcard:
         scaffold.d2 << scaffold.iso7816.clk
         self.atr = None
         self.convention = Convention.DIRECT
+        self.crc16 = None
+        self.t1_ns_tx = 0  # Sequence number for I-block tranmission in T=1
+        self.t1_ns_rx = 0  # Sequence number for I-block reception in T=1
 
     def receive(self, n: int) -> bytes:
         """
-        Use the ISO7816 peripheral to receive bytes from the smartcard, and
+        Use the ISO-7816 peripheral to receive bytes from the smartcard, and
         apply direct or inverse convention depending on what has been read in
         the ATR.
 
@@ -267,8 +291,15 @@ class Smartcard:
     def reset(self) -> bytes:
         """
         Reset the smartcard and retrieve the ATR.
+
         If the ATR is retrieved successfully, the attributes :attr:`atr`
         :attr:`convention` and :attr:`protocols` are updated.
+
+        :attr:`protocols` indicates what protocols are supported. It will
+            contain 0 if T=0 is supported, and 1 if T=1 is supported.
+
+        If only T=1 is supported, exchanges using :meth:`apdu` will use I-block
+        transmission automatically.
 
         :return: ATR from the card.
         :raises ProtocolError: if the ATR is not valid.
@@ -280,34 +311,75 @@ class Smartcard:
         self.atr = info.atr
         self.convention = info.convention
         self.protocols = info.protocols
+        self.atr_info = info
+        # If T=1 is supported, read in TC1 the correct redundancy code to be
+        # used
+        if 1 in self.protocols:
+            tc1 = self.atr_info.t_abcd_n[0][2]
+            self.t1_ns_tx = 0
+            self.t1_ns_rx = 0
+            if tc1 is not None:
+                self.t1_redundancy_code = T1RedundancyCode(tc1 & 1)
+            else:
+                self.t1_redundancy_code = T1RedundancyCode.LRC
+        else:
+            self.t1_redundancy_code = None
         # Verify that there are no more bytes
         if not self.iso7816.empty:
             raise ProtocolError('Unexpected bytes after ATR')
         return info.atr
 
-    def apdu(self, the_apdu, trigger=''):
+    def apdu(self, the_apdu: Union[bytes, str], trigger: str = '') -> bytes:
         """
         Send an APDU to the smartcard and retrieve the response.
 
+        If only T=1 protocol is supported, this method use `transmit_block` and
+        `receive_block` to send the APDU by sending information blocks.
+
         :param the_apdu: APDU to be sent. str hexadecimal strings are allowed,
             but user should consider using the :meth:`apdu_str` method instead.
-        :type the_apdu: bytes or str
         :param trigger: If 'a' is in this string, trigger is raised after
-            ISO-7816 header is sent, and cleared when the following response
-            byte arrives. If 'b' is in this string, trigger is raised after
-            data field has been transmitted, and cleared when the next
-            response byte is received.
-        :type trigger: str
+            ISO-7816 header is sent in T=0, and cleared when the following
+            response byte arrives. If 'b' is in this string, trigger is raised
+            after data field has been transmitted in T=0, and cleared when the
+            next response byte is received. If T=1, both 'a' and 'b' will raise
+            trigger after the I-block has been transmitted, and will be cleared
+            when first byte of next block ir received.
         :raises ValueError: if APDU data is invalid.
-        :raises RuntimeError: if the received procedure byte is invalid.
-        :return bytes: Response data, with status word.
+        :raises RuntimeError: if the received procedure byte is invalid in T=0,
+            or if neither T=0 and T=1 protocols are supported by the card.
+        :raises T1RedundancyCodeError: If LRC or CRC is wrong in T=1 protocol.
+        :return: Response data, with status word.
         """
         if type(the_apdu) == str:
             the_apdu = bytes.fromhex(the_apdu)
         apdu_len = len(the_apdu)
         if apdu_len < 5:
             raise ValueError('APDU too short')
-        out_data_len = apdu_len - 5
+        if 0 in self.protocols:
+            return self.__apdu_t0(the_apdu, trigger)
+        elif 1 in self.protocols:
+            return self.__apdu_t1(
+                the_apdu, ('a' in trigger) or ('b' in trigger))
+        else:
+            raise RuntimeError("Neither T=0 or T=1 are supported by the card")
+
+    def __apdu_t0(self, the_apdu: bytes, trigger: str = '') -> bytes:
+        """
+        Send an APDU to the smartcard and retrieve the response, using T=0
+        protocol.
+
+        :param the_apdu: APDU to be sent.
+        :param trigger: If 'a' is in this string, trigger is raised after
+            ISO-7816 header is sent, and cleared when the following response
+            byte arrives. If 'b' is in this string, trigger is raised after
+            data field has been transmitted, and cleared when the next
+            response byte is received.
+        :raises ValueError: if APDU data is invalid.
+        :raises RuntimeError: if the received procedure byte is invalid.
+        :return: Response data, with status word.
+        """
+        out_data_len = len(the_apdu) - 5
         if out_data_len > 256:
             raise ValueError('APDU too long')
         if out_data_len > 0:
@@ -371,12 +443,47 @@ class Smartcard:
             raise RuntimeError(
                 f'Unexpected procedure byte 0x{procedure_byte:02x} received')
 
+    def __apdu_t1(self, the_apdu: bytes, trigger: bool = False) -> bytes:
+        """
+        Send an APDU to the smartcard and retrieve the response, using T=1
+        protocol.
+
+        :param the_apdu: APDU to be sent.
+        :param trigger: If True, raise trigger on last byte transmission.
+        :return: Response data, with status word.
+        :raises T1RedundancyCodeError: If LRC or CRC is wrong.
+        :raises ProtocolError: If an unpexpected response is received.
+        """
+        self.transmit_block(0, (self.t1_ns_tx << 6), the_apdu, trigger)
+        self.t1_ns_tx = (self.t1_ns_tx + 1) % 2  # Increment sequence number
+        block = self.receive_block()
+        # Disable trigger is enabled during transmit_block
+        if trigger:
+            self.iso7816.trigger_long = 0
+        pcb = block[1]
+        if pcb & (1 << 7) == 0:
+            # We received an I-block, as expected.
+            # Check that the sequence number is correct
+            if (pcb >> 6) & 1 != self.t1_ns_rx:
+                raise ProtocolError(
+                    'Incorrect received sequence number in I-block '
+                    + block.hex())
+            self.t1_ns_rx = (self.t1_ns_rx + 1) % 2
+        else:
+            if pcb & (1 << 6) == 0:
+                raise ProtocolError('Expected I-block, received R-block')
+            else:
+                raise ProtocolError('Expected I-block, received S-block')
+        edc_len = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}[
+            self.t1_redundancy_code]
+        return block[3:-edc_len]  # Trim header and EDC
+
     def pps(self, pps1):
         """
         Send a PPS request to change the communication speed parameters Fi and
-        Di (as specified in ISO7816-3). PPS0 and PPS1 are sent. PPS2 is ignored
-        This method waits for the response of the card and then automatically
-        changes the ETU from the Fi and Di values.
+        Di (as specified in ISO-7816-3). PPS0 and PPS1 are sent. PPS2 is
+        ignored. This method waits for the response of the card and then
+        automatically changes the ETU from the Fi and Di values.
         Scaffold hardware does not support all possible parameters:
         ETU = Fi/Di must not have a fractional part.
 
@@ -444,7 +551,7 @@ class Smartcard:
         # Try to match ATR
         for item in tab:
             pattern = item[0]
-            atr = hexlify(self.atr).decode()
+            atr = self.atr.hex()
             if len(pattern) != len(atr):
                 continue
             match = True
@@ -467,7 +574,73 @@ class Smartcard:
         :return str: Response from the card, as a lowercase hexadecimal string
             without spaces.
         """
-        return hexlify(self.apdu(bytes.fromhex(the_apdu))).decode()
+        return self.apdu(bytes.fromhex(the_apdu)).hex()
+
+    def calculate_edc(self, data: bytes) -> bytes:
+        """
+        Calculate expected error detection code for a block. Depending on
+        `self.t1_redundancy_code` LRC (1 bytes) or CRC (2 bytes) is calculated.
+
+        :param data: Input data for the error detection code calculation.
+            Includes all bytes of the block excepted the LRC or CRC bytes.
+        :return: ECC bytes at the end of the block.
+        """
+        if self.t1_redundancy_code == T1RedundancyCode.LRC:
+            result = 0
+            for b in data:
+                result = result ^ b
+            return bytes([result])
+        elif self.t1_redundancy_code == T1RedundancyCode.CRC:
+            # CRC is CRC-16-CCITT, with initial value 0xffff
+            # I cannot tell if this is correct as it does not seem very well
+            # documented and I don't have any card to test this...
+            if self.crc16 is None:
+                self.crc16 = crcmod.mkCrcFun(0x11021, 0xffff, rev=False)
+            return self.crc16(data).to_bytes(2, 'big')
+        else:
+            raise RuntimeError("invalid t1_redundancy_code value")
+
+    def transmit_block(self, nad: int, pcb: int, info: bytes = b"",
+                       trigger: bool = False):
+        """
+        Transmit a T=1 protocol block.
+        Error detection code is calculated and appended automatically.
+
+        :param nad: Node address byte.
+        :param pcb: Protocol control byte.
+        :param info: Information field.
+        :param trigger: If True, raise trigger on last byte transmission.
+        """
+        if len(info) > 254:
+            raise ValueError(
+                f"info field is too long ({len(info)} > 254)")
+        data = bytearray([nad, pcb, len(info)]) + info
+        data += self.calculate_edc(data)
+        with self.scaffold.lazy_section():
+            if trigger:
+                self.iso7816.transmit(data[:-1])
+                self.iso7816.trigger_long = 1
+                self.iso7816.transmit(data[-1:])
+            else:
+                self.iso7816.trigger_long = 0
+                self.iso7816.transmit(data)
+
+    def receive_block(self) -> bytes:
+        """
+        Receive a T=1 protocol block.
+
+        :raises T1RedundancyCodeError: If LRC or CRC is wrong.
+        """
+        block = self.iso7816.receive(3)
+        if self.t1_redundancy_code == T1RedundancyCode.LRC:
+            edc_len = 1
+        elif self.t1_redundancy_code == T1RedundancyCode.CRC:
+            edc_len = 2
+        block += self.iso7816.receive(block[2] + edc_len)
+        # Verify LRC/CRC
+        if self.calculate_edc(block[:-edc_len]) != block[-edc_len:]:
+            raise T1RedundancyCodeError()
+        return block
 
     @property
     def card_inserted(self):

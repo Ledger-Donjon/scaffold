@@ -19,7 +19,6 @@
 
 from enum import Enum
 import serial
-from binascii import hexlify
 from time import sleep
 import serial.tools.list_ports
 from typing import Optional
@@ -45,7 +44,7 @@ class TimeoutError(Exception):
     def __str__(self):
         if self.data is not None:
             if len(self.data):
-                h = hexlify(self.data).decode()
+                h = self.data.hex()
                 return (
                     f'Read timeout: partially received {len(self.data)} '
                     f'bytes {h}.')

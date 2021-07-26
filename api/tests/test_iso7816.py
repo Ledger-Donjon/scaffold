@@ -18,8 +18,9 @@
 
 
 import pytest
+import types
 from scaffold.iso7816 import load_atr_info_db, BasicByteReader, parse_atr, \
-    ProtocolError
+    ProtocolError, Smartcard, T1RedundancyCode
 
 
 def test_parsing_ok():
@@ -124,3 +125,31 @@ def test_parsing_ok():
                 parse_atr(reader)
         else:
             parse_atr(reader)
+
+
+def test_t1_lrc():
+    dummy = types.SimpleNamespace()
+    dummy.t1_redundancy_code = T1RedundancyCode.LRC
+    vectors = [
+        ("", 0x00),
+        ("de0945b4298047029dd07a2b74975a86", 0xe9),
+        ("7c5031c4ae356ce2cada16c6533eb9d9", 0x01),
+        ("89973440f0af5e0e892137a3c15933de", 0x2c),
+        ("181079e03db2992b423b61941a06a91c", 0x89)]
+    for data, lrc in vectors:
+        expected = bytes([lrc])
+        assert Smartcard.calculate_edc(dummy, bytes.fromhex(data)) == expected
+
+
+def test_t1_crc():
+    dummy = types.SimpleNamespace()
+    dummy.t1_redundancy_code = T1RedundancyCode.CRC
+    dummy.crc16 = None
+    vectors = [
+        ("dbc4fc2ad285292881f66af0f5c2a77d", "0aeb"),
+        ("9da60b24b6b6b9b82c5edc5e53162063", "daf0"),
+        ("5c24dea73cb5c4f4f0ca11d2a3ec9f89", "11cc"),
+        ("c97124d4b54d8c427bfce6f3c6486518", "1f11")]
+    for data, crc in vectors:
+        expected = bytes.fromhex(crc)
+        assert Smartcard.calculate_edc(dummy, bytes.fromhex(data)) == expected
