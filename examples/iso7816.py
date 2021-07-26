@@ -20,7 +20,7 @@
 
 
 from scaffold import Scaffold
-from scaffold.iso7816 import Smartcard
+from scaffold.iso7816 import Smartcard, T1RedundancyCode, ProtocolError
 from binascii import hexlify
 import sys
 
@@ -35,6 +35,12 @@ if not sc.card_inserted:
 scaffold.power.dut = 1
 atr = sc.reset()
 print('ATR: ' + hexlify(atr).decode())
+print('Protocols: ' + ', '.join(f"T={x}" for x in sc.protocols))
+if 1 in sc.protocols:
+    edc_dict = {
+        T1RedundancyCode.LRC: 'LRC (1 byte)',
+        T1RedundancyCode.CRC: 'CRC (2 bytes)'}
+    print('T1 redundancy code:', edc_dict[sc.t1_redundancy_code])
 info = sc.find_info(allow_web_download=True)
 if info:
     print('Card found in ATR list:')
@@ -49,5 +55,10 @@ while True:
     except ValueError:
         print('Invalid input')
         continue
-    response = sc.apdu(apdu)
-    print(hexlify(response).decode())
+    try:
+        response = sc.apdu(apdu, trigger='a')
+        print(hexlify(response).decode())
+    except ProtocolError as e:
+        print(e)
+    except ValueError as e:
+        print(e)
