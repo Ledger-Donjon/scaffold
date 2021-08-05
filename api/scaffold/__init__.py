@@ -21,7 +21,7 @@ from enum import Enum
 import serial
 from time import sleep
 import serial.tools.list_ports
-from typing import Optional
+from typing import Optional, Union
 
 
 class TimeoutError(Exception):
@@ -1484,14 +1484,21 @@ class I2C(Module):
         self.__cache_frequency = real
 
 
+class SPIMode(Enum):
+    MASTER = 0
+    SLAVE = 1
+
+
 class SPI(Module):
     """
     SPI peripheral of Scaffold.
     """
     __REG_STATUS_BIT_READY = 0
+    __REG_CONTROL_BIT_CLEAR = 6
     __REG_CONTROL_BIT_TRIGGER = 7
     __REG_CONFIG_BIT_POLARITY = 0
     __REG_CONFIG_BIT_PHASE = 1
+    __REG_CONFIG_BIT_MODE = 2
 
     def __init__(self, parent, index):
         """
@@ -1517,7 +1524,6 @@ class SPI(Module):
     def polarity(self):
         """
         Clock polarity. 0 or 1.
-        :type: int
         """
         return self.reg_config.get_bit(self.__REG_CONFIG_BIT_POLARITY)
 
@@ -1529,13 +1535,30 @@ class SPI(Module):
     def phase(self):
         """
         Clock phase. 0 or 1.
-        :type: int
         """
         return self.reg_config.get_bit(self.__REG_CONFIG_BIT_PHASE)
 
     @phase.setter
     def phase(self, value):
         self.reg_config.set_bit(self.__REG_CONFIG_BIT_PHASE, value)
+
+    @property
+    def mode(self) -> SPIMode:
+        """ SPI mode """
+        if self.parent.version < '0.8':
+            return SPIMode.MASTER
+        else:
+            return SPIMode(self.reg_config.get_bit(self.__REG_CONFIG_BIT_MODE))
+
+    @mode.setter
+    def mode(self, value: SPIMode):
+        if self.parent.version < '0.8':
+            if value != SPIMode.MASTER:
+                raise RuntimeError(
+                    'Current FPGA confware only supports master mode. '
+                    'Slave mode requires confware >= 0.8.')
+        else:
+            self.reg_config.set_bit(self.__REG_CONFIG_BIT_MODE, value.value)
 
     @property
     def frequency(self):
@@ -1628,6 +1651,35 @@ class SPI(Module):
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
             poll_value=(1 << self.__REG_STATUS_BIT_READY))
         return int.from_bytes(res, 'little')
+    
+    def append(self, data: Union[int, bytes]):
+        """
+        Append data to be returned by the peripheral when configured as a
+        slave.
+
+        .. warning:: Appended data is stored in an internal FIFO memory of the
+            SPI peripheral. Size is limited to 512 bytes, any write beyond that
+            limit is discarded without any warning.
+
+        :param data: Byte or bytes to be appended.
+        """
+        if self.parent.version < '0.8':
+            raise RuntimeError(
+                'SPI slave support requires FPGA confware >= 0.8')
+        if self.mode != SPIMode.SLAVE:
+            raise RuntimeError(
+                'Select slave mode first to append response data.')
+        self.reg_data.write(data)
+
+    def clear(self):
+        """
+        Clear the FIFO memory of the data to be returned by the peripheral when
+        configured as a slave.
+        """
+        if self.parent.version < '0.8':
+            raise RuntimeError(
+                'SPI slave support requires FPGA confware >= 0.8')
+        self.reg_control.write(1 << self.__REG_CONTROL_BIT_CLEAR)
 
 
 class Chain(Module):
@@ -2540,7 +2592,7 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
             # Supported FPGA bitstream versions
-            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2'))
+            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2', '0.8'))
         self.connect(dev, init_ios, sn)
 
     def connect(self, dev: Optional[str] = None, init_ios: bool = False,
@@ -2686,6 +2738,9 @@ class Scaffold(ArchBase):
             self.add_mtxl_out(f'/i2c{i}/scl_in')
         for i in range(len(self.spis)):
             self.add_mtxl_out(f'/spi{i}/miso')
+        for i in range(len(self.spis)):
+            self.add_mtxl_out(f'/spi{i}/sck')
+            self.add_mtxl_out(f'/spi{i}/ss')
         for i in range(len(self.chains)):
             for j in range(3):  # 3 is the number of chain events
                 self.add_mtxl_out(f'/chain{i}/event{j}')
@@ -2716,6 +2771,8 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f'/spi{i}/mosi')
             self.add_mtxr_in(f'/spi{i}/ss')
             self.add_mtxr_in(f'/spi{i}/trigger')
+        for i in range(len(self.spis)):
+            self.add_mtxr_in(f'/spi{i}/miso')
         for i in range(len(self.chains)):
             self.add_mtxr_in(f'/chain{i}/trigger')
         for i in range(len(self.clocks)):

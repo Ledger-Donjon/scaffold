@@ -160,6 +160,7 @@ architecture behavior of system is
         + 1 -- ISO7816 module
         + 2 -- I2C
         + 1 -- SPI
+        + 2 -- SPI slave
         + 1; -- Clock
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
@@ -168,6 +169,8 @@ architecture behavior of system is
     signal mtxl_out_i2c_sda_in: std_logic;
     signal mtxl_out_i2c_scl_in: std_logic;
     signal mtxl_out_spi_miso: std_logic;
+    signal mtxl_out_spi_slave_sck: std_logic;
+    signal mtxl_out_spi_slave_ss: std_logic;
     signal mtxl_out_clock_glitch_start: std_logic;
     signal mtxl_out_chain_events:
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
@@ -180,6 +183,7 @@ architecture behavior of system is
         + 2 -- Power signals
         + 3 -- I2C module
         + 4 -- SPI module
+        + 1 -- SPI slave module
         + 1; -- Clock
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
@@ -197,6 +201,7 @@ architecture behavior of system is
     signal mtxr_in_spi_mosi: std_logic;
     signal mtxr_in_spi_ss: std_logic;
     signal mtxr_in_spi_trigger: std_logic;
+    signal mtxr_in_spi_slave_miso: std_logic;
     signal mtxr_in_clock_out: std_logic;
     signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
 
@@ -515,7 +520,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.7.2")
+    generic map (version => "scaffold-0.8")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -594,11 +599,14 @@ begin
         en_data => en_spi_data,
         reg_status => reg_spi_status,
         reg_data => reg_spi_data,
-        miso => mtxl_out_spi_miso,
-        sck => mtxr_in_spi_sck,
-        mosi => mtxr_in_spi_mosi,
-        ss => mtxr_in_spi_ss,
-        trigger => mtxr_in_spi_trigger );
+        miso_in => mtxl_out_spi_miso,
+        sck_out => mtxr_in_spi_sck,
+        mosi_out => mtxr_in_spi_mosi,
+        ss_out => mtxr_in_spi_ss,
+        trigger => mtxr_in_spi_trigger,
+        sck_in => mtxl_out_spi_slave_sck,
+        ss_in => mtxl_out_spi_slave_ss,
+        miso_out => mtxr_in_spi_slave_miso);
 
     -- Pulse generators
     g_pulse_gen_module: for i in 0 to pulse_gen_count-1 generate
@@ -715,6 +723,10 @@ begin
         i := i + 1;
         mtxl_out_spi_miso <= mtxl_out(i);
         i := i + 1;
+        mtxl_out_spi_slave_sck <= mtxl_out(i);
+        i := i + 1;
+        mtxl_out_spi_slave_ss <= mtxl_out(i);
+        i := i + 1;
         for j in 0 to chain_count-1 loop
             mtxl_out_chain_events(j) <= mtxl_out(i+chain_size-1 downto i);
             i := i + chain_size;
@@ -769,6 +781,7 @@ begin
         mtxr_in_spi_mosi,
         mtxr_in_spi_ss,
         mtxr_in_spi_trigger,
+        mtxr_in_spi_slave_miso,
         mtxr_in_chain_out,
         mtxr_in_clock_out )
         variable i: integer;
@@ -807,6 +820,9 @@ begin
         mtxr_in(i+2) <= "1" & mtxr_in_spi_ss;
         mtxr_in(i+3) <= "1" & mtxr_in_spi_trigger;
         i := i + 4;
+        -- SPI slave module
+        mtxr_in(i) <= "1" & mtxr_in_spi_slave_miso;
+        i := i + 1;
         -- Chain triggers
         for j in 0 to chain_count-1 loop
             mtxr_in(i) <= "1" & mtxr_in_chain_out(j);

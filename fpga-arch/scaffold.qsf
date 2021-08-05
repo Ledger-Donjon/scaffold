@@ -64,6 +64,35 @@ set_location_assignment PIN_132 -to power_platform
 set_location_assignment PIN_133 -to power_dut
 set_location_assignment PIN_28 -to teardown
 
+
+set_location_assignment PIN_39 -to io_dir[3]
+set_location_assignment PIN_69 -to pull_d0
+set_location_assignment PIN_71 -to pull_d1
+set_location_assignment PIN_72 -to pull_d2
+
+# nCEO is Platform P8 signal. We don't want it to be used as a programming pin.
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_location_assignment PIN_59 -to io[20]
+set_location_assignment PIN_64 -to io[21]
+set_location_assignment PIN_66 -to io[22]
+set_location_assignment PIN_68 -to io[23]
+set_location_assignment PIN_77 -to io[24]
+set_location_assignment PIN_83 -to io[25]
+set_location_assignment PIN_86 -to io[26]
+set_location_assignment PIN_99 -to io[27]
+set_location_assignment PIN_101 -to io[28]
+set_location_assignment PIN_104 -to io[29]
+set_location_assignment PIN_106 -to io[30]
+set_location_assignment PIN_111 -to io[31]
+set_location_assignment PIN_113 -to io[32]
+set_location_assignment PIN_115 -to io[33]
+set_location_assignment PIN_125 -to io[34]
+set_location_assignment PIN_120 -to io[35]
+set_global_assignment -name LAST_QUARTUS_VERSION "21.1.1 Lite Edition"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name VHDL_FILE spi_slave.vhd
 set_global_assignment -name VHDL_FILE clock_module.vhd
 set_global_assignment -name VHDL_FILE chain.vhd
 set_global_assignment -name VHDL_FILE chain_module.vhd
@@ -104,27 +133,8 @@ set_global_assignment -name VHDL_FILE uart_module.vhd
 set_global_assignment -name VHDL_FILE uart_rx.vhd
 set_global_assignment -name VHDL_FILE uart_tx.vhd
 set_global_assignment -name VHDL_FILE version_module.vhd
-
-set_location_assignment PIN_39 -to io_dir[3]
-set_location_assignment PIN_69 -to pull_d0
-set_location_assignment PIN_71 -to pull_d1
-set_location_assignment PIN_72 -to pull_d2
-
-# nCEO is Platform P8 signal. We don't want it to be used as a programming pin.
-set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_location_assignment PIN_59 -to io[20]
-set_location_assignment PIN_64 -to io[21]
-set_location_assignment PIN_66 -to io[22]
-set_location_assignment PIN_68 -to io[23]
-set_location_assignment PIN_77 -to io[24]
-set_location_assignment PIN_83 -to io[25]
-set_location_assignment PIN_86 -to io[26]
-set_location_assignment PIN_99 -to io[27]
-set_location_assignment PIN_101 -to io[28]
-set_location_assignment PIN_104 -to io[29]
-set_location_assignment PIN_106 -to io[30]
-set_location_assignment PIN_111 -to io[31]
-set_location_assignment PIN_113 -to io[32]
-set_location_assignment PIN_115 -to io[33]
-set_location_assignment PIN_125 -to io[34]
-set_location_assignment PIN_120 -to io[35]
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
