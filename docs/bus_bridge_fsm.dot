@@ -26,7 +26,9 @@ digraph {
   SIZE -> LOOP [label = " data &or; ! has_size"];
 
   RD[group = g1];
-  RD -> WAIT1 [label = " 1"];
+  RD -> RLD [label = " 1"]
+  RLD[group = g1];
+  RLD -> WAIT1 [label = " 1", group = g1];
   WAIT1[label = "WAIT", group = g1];
   WAIT1 -> SEND [label = " ready"];
   SEND[group = g1];

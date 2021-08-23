@@ -539,7 +539,7 @@ class LEDs(Module):
         self.add_register('leds_1', 'w', 0x0203)
         self.add_register('leds_2', 'w', 0x0204)
         self.add_register('mode', 'w', 0x0205, wideness=3)
-        if float(self.parent.version) <= 0.3:
+        if self.parent.version <= '0.3':
             # Scaffold hardware v1 only
             leds = [
                 'a0', 'a1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3',
@@ -1830,12 +1830,12 @@ class IO(Signal, Module):
 
         :type: IOMode
         """
-        assert float(self.parent.version) >= 0.3
+        assert self.parent.version >= '0.3'
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
     def mode(self, value):
-        assert float(self.parent.version) >= 0.3
+        assert self.parent.version >= '0.3'
         if not isinstance(value, IOMode):
             raise ValueError('mode must be an instance of IOMode enumeration')
         self.reg_config.set_mask(value.value, 0b11)
@@ -1848,14 +1848,14 @@ class IO(Signal, Module):
 
         :type: Pull
         """
-        assert float(self.parent.version) >= 0.3
+        assert self.parent.version >= '0.3'
         if not self.__pullable:
             return Pull.NONE
         return Pull((self.reg_config.get() >> 2) & 0b11)
 
     @pull.setter
     def pull(self, value):
-        assert float(self.parent.version) >= 0.3
+        assert self.parent.version >= '0.3'
         # Accept None as value
         if value is None:
             value = Pull.NONE
@@ -2516,7 +2516,8 @@ class Scaffold(ArchBase):
         super().__init__(
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
-            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7'))  # Supported versions
+            # Supported FPGA bitstream versions
+            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1'))
         self.connect(dev, init_ios, sn)
 
     def connect(self, dev: Optional[str] = None, init_ios: bool = False,
@@ -2548,7 +2549,7 @@ class Scaffold(ArchBase):
         # The I/Os have changed between both versions.
         self.a0 = IO(self, '/io/a0', 0)
         self.a1 = IO(self, '/io/a1', 1)
-        if float(self.version) <= 0.3:
+        if self.version <= '0.3':
             self.b0 = IO(self, '/io/b0', 2)
             self.b1 = IO(self, '/io/b1', 3)
             self.c0 = IO(self, '/io/c0', 4)
@@ -2562,7 +2563,7 @@ class Scaffold(ArchBase):
                 # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
                 self.__setattr__(
                     f'd{i}', IO(self, f'/io/d{i}', i + 4, pullable=(i < 3)))
-            if float(self.version) >= 0.6:
+            if self.version >= '0.6':
                 for i in range(self.__IO_P_COUNT):
                     self.__setattr__(
                         f'p{i}',
@@ -2591,7 +2592,7 @@ class Scaffold(ArchBase):
 
         # Declare the SPI peripherals
         self.spis = []
-        if float(self.version) >= 0.7:
+        if self.version >= '0.7':
             for i in range(1):
                 spi = SPI(self, i)
                 self.spis.append(spi)
@@ -2599,7 +2600,7 @@ class Scaffold(ArchBase):
 
         # Declare the trigger chain modules
         self.chains = []
-        if float(self.version) >= 0.7:
+        if self.version >= '0.7':
             for i in range(2):
                 chain = Chain(self, i, 3)
                 self.chains.append(chain)
@@ -2607,7 +2608,7 @@ class Scaffold(ArchBase):
 
         # Declare clock generation module
         self.clocks = []
-        if float(self.version) >= 0.7:
+        if self.version >= '0.7':
             for i in range(1):
                 clock = Clock(self, i)
                 self.clocks.append(clock)
@@ -2621,7 +2622,7 @@ class Scaffold(ArchBase):
         self.add_mtxl_in('1')
         self.add_mtxl_in('/io/a0')
         self.add_mtxl_in('/io/a1')
-        if float(self.version) <= 0.3:
+        if self.version <= '0.3':
             # Scaffold hardware v1 only
             self.add_mtxl_in('/io/b0')
             self.add_mtxl_in('/io/b1')
@@ -2633,10 +2634,10 @@ class Scaffold(ArchBase):
             self.add_mtxl_in('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxl_in(f'/io/d{i}')
-        if float(self.version) >= 0.6:
+        if self.version >= '0.6':
             for i in range(self.__IO_P_COUNT):
                 self.add_mtxl_in(f'/io/p{i}')
-        if float(self.version) >= 0.7:
+        if self.version >= '0.7':
             # Feeback signals from module outputs (mostly triggers)
             for i in range(len(self.uarts)):
                 self.add_mtxl_in(f'/uart{i}/trigger')
@@ -2700,7 +2701,7 @@ class Scaffold(ArchBase):
         # FPGA right matrix output signals
         self.add_mtxr_out('/io/a0')
         self.add_mtxr_out('/io/a1')
-        if float(self.version) <= 0.3:
+        if self.version <= '0.3':
             # Scaffold hardware v1 only
             self.add_mtxr_out('/io/b0')
             self.add_mtxr_out('/io/b1')
@@ -2712,7 +2713,7 @@ class Scaffold(ArchBase):
             self.add_mtxr_out('/io/a3')
         for i in range(self.__IO_D_COUNT):
             self.add_mtxr_out(f'/io/d{i}')
-        if float(self.version) >= 0.6:
+        if self.version >= '0.6':
             for i in range(self.__IO_P_COUNT):
                 self.add_mtxr_out(f'/io/p{i}')
 
@@ -2739,7 +2740,7 @@ class Scaffold(ArchBase):
                 self.sig_disconnect_all()
                 self.a0.reset_registers()
                 self.a1.reset_registers()
-                if float(self.version) <= 0.3:
+                if self.version <= '0.3':
                     # Scaffold hardware v1 only
                     self.b0.reset_registers()
                     self.b1.reset_registers()
@@ -2751,7 +2752,7 @@ class Scaffold(ArchBase):
                     self.a3.reset_registers()
                 for i in range(self.__IO_D_COUNT):
                     self.__getattribute__(f'd{i}').reset_registers()
-                if float(self.version) >= 0.6:
+                if self.version >= '0.6':
                     for i in range(self.__IO_P_COUNT):
                         self.__getattribute__(f'p{i}').reset_registers()
             for uart in self.uarts:

@@ -81,6 +81,7 @@ architecture behavior of bus_bridge is
         st_value,
         st_write,
         st_read,
+        st_read_load,
         st_read_wait,
         st_read_send,
         st_error );
@@ -210,12 +211,19 @@ begin
 
     -- Registration of the data bus, to reduce design critical path. This is
     -- done at the cost of some FSM extra states to handle read delay.
+    -- Read data is valid only the clock cycle after bus_in.read signal is
+    -- asserted
     p_bus_read_data_pipelined: process (clock, reset_n)
     begin
         if reset_n = '0' then
             bus_read_data_pipelined <= (others => '0');
         elsif rising_edge(clock) then
-            bus_read_data_pipelined <= bus_out.read_data;
+            case current_state is
+                when st_read_load | st_poll_2 =>
+                    bus_read_data_pipelined <= bus_out.read_data;
+                when others =>
+                    bus_read_data_pipelined <= bus_read_data_pipelined;
+            end case;
         end if;
     end process;
 
@@ -425,6 +433,10 @@ begin
 
             -- Register read cycle.
             when st_read =>
+                next_state <= st_read_load;
+
+            -- One clock cycle to fetch data from the bus
+            when st_read_load =>
                 next_state <= st_read_wait;
 
             -- Waiting for UART to be ready to transmit.
