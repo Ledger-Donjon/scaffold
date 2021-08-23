@@ -25,7 +25,7 @@ from binascii import hexlify
 import sys
 
 
-scaffold = Scaffold('/dev/ttyUSB0')
+scaffold = Scaffold()
 sc = Smartcard(scaffold)
 
 if not sc.card_inserted:
