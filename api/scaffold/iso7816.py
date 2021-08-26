@@ -273,7 +273,7 @@ class Smartcard:
         # resistor if hardware version is >= 1.1. For version 1.0, the pull-up
         # resistor must be soldered on the daughterboard.
         # 1.0 hardware version boards have <= 0.3 architecture version.
-        if float(scaffold.version) >= 0.3:
+        if scaffold.version >= "0.3":
             scaffold.d0.pull = Pull.UP
         scaffold.d0 << scaffold.iso7816.io_out
         scaffold.d0 >> scaffold.iso7816.io_in
