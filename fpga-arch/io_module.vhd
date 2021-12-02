@@ -27,6 +27,9 @@ use work.common_pkg.all;
 -- Module managing a Scaffold I/O pin.
 --
 entity io_module is
+generic (
+    -- Reset value of the configuration register
+    config_reset: std_logic_vector(7 downto 0) := x"00" );
 port (
     -- System clock.
     clock: in std_logic;
@@ -81,7 +84,7 @@ architecture behavior of io_module is
     signal pin_out_en_mode: std_logic;
 begin
     e_config: entity work.module_reg
-    generic map (reset => x"00")
+    generic map (reset => config_reset)
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -134,8 +137,8 @@ begin
                 -- Push only
                 pin_out_en_mode <= pin_out;
             when "11" =>
-                -- RFU
-                pin_out_en_mode <= pin_out_en;
+                -- Push pull always
+                pin_out_en_mode <= '1';
             when others =>
                 -- Never used, but must be defined if using modelsim
                 pin_out_en_mode <= pin_out_en;

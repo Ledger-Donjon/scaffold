@@ -83,11 +83,16 @@ architecture behavior of system is
     -- registers to read and write operations. UART, SPI, pulse generators are
     -- some examples of the available modules.
     --
-    --         +----+   +------+    +----------+    +------+   +-----+
-    --   0 --->|    |-->|      |--->|          |--->|      |-->|     |-----> io0
-    --   1 --->|    |-->|      |--->| Module 1 |--->|      |-->|     |-----> io1
-    -- io0 --->|    |-->|      |    |          |--->|      |-->|     |-----> io2
-    -- io1 --->|    |-->|      |    +----------+    |      |   |     |
+    --                                              +------+   +-----+
+    --                         high impedance Z --->|      |-->|     |-----> io0
+    --                                        0 --->|      |-->|     |-----> io1
+    --                                        1 --->|      |-->|     |-----> io2
+    --                                              |      |   |     |
+    --         +----+   +------+    +----------+    |      |   |     |   .
+    --   0 --->|    |-->|      |--->|          |--->|      |-->|     |   .
+    --   1 --->|    |-->|      |--->| Module 1 |--->|      |-->|     |   .
+    -- io0 --->|    |-->|      |    |          |--->|      |-->|     |   .
+    -- io1 --->|    |-->|      |    +----------+    |      |   |     |   .
     -- io2 --->|    |-->|      |    +----------+    |      |   |     |   .
     --         |    |   |      |--->|          |--->|      |   |     |   .
     --      .  |    |   |      |    | Module 2 |--->|      |   |     |   .
@@ -470,7 +475,29 @@ begin
         value => bus_out.read_data );
 
     -- I/O modules
-    g_io_module: for i in 0 to io_count-1 generate
+    -- A0 to A3
+    -- Those first module are output only, so the initial value of the IO
+    -- configuration register sets the mode to "Push-Pull always". This forces
+    -- the outputs to be 0 when the board is powered-up or reset.
+    g_io_module_a0_to_a3: for i in 0 to 3 generate
+        e_io_module: entity work.io_module
+        generic map (config_reset => x"03")
+        port map (
+            clock => clock,
+            reset_n => reset_n,
+            bus_in => bus_in,
+            en_value => en_io_value(i),
+            en_config => en_io_config(i),
+            reg_value => reg_io_value(i),
+            pin => io(i),
+            pull_pin => pull(i),
+            pin_out_en => mtxr_out(i)(1),
+            pin_out => mtxr_out(i)(0),
+            pin_in_reg => in_reg(i) );
+    end generate;
+
+    -- All other I/O modules
+    g_io_module_others: for i in 4 to io_count-1 generate
         e_io_module: entity work.io_module
         port map (
             clock => clock,
@@ -488,7 +515,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.7.1")
+    generic map (version => "scaffold-0.7.2")
     port map (
         clock => clock,
         reset_n => reset_n,

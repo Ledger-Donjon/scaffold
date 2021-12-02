@@ -2517,7 +2517,7 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
             # Supported FPGA bitstream versions
-            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1'))
+            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2'))
         self.connect(dev, init_ios, sn)
 
     def connect(self, dev: Optional[str] = None, init_ios: bool = False,
