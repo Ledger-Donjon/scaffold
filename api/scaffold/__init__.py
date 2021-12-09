@@ -2160,9 +2160,9 @@ class ScaffoldBus:
         """
         Save previous timeout setting in a stack, and set a new timeout value.
         Call to `pop_timeout` will restore previous timeout value.
-        The new effective timeout will be lower or equal to the current timeout.
-        That is, the timeout cannot be increased, previous defined timeout have
-        higher priority.
+        The new effective timeout will be lower or equal to the current
+        timeout. That is, the timeout cannot be increased, previous defined
+        timeout have higher priority.
 
         :param value: New timeout value, in seconds.
         """
