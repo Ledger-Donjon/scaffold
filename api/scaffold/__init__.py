@@ -2134,20 +2134,24 @@ class ScaffoldBus:
                 raise last_error
 
     @property
-    def timeout(self):
+    def timeout(self) -> Optional[float]:
         """
-        Timeout in seconds for read and write commands. If set to 0, timeout is
-        disabled.
+        Timeout in seconds for read and write commands. If set to None, timeout
+        is disabled.
         """
         if self.__cache_timeout is None:
             return RuntimeError('Timeout not set yet')
-        return self.__cache_timeout * self.timeout_unit
+        if self.__cache_timeout == 0:
+            return None
+        else:
+            return self.__cache_timeout * self.timeout_unit
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value: Optional[float]):
         if value is None:
-            value = 0
-        n = int(value / self.timeout_unit)
+            n = 0
+        else:
+            n = max(1, int(value / self.timeout_unit))
         if n != self.__cache_timeout:
             self.__set_timeout_raw(n)  # May throw is n out of range.
             self.__cache_timeout = n  # Must be after set_timeout
@@ -2156,9 +2160,17 @@ class ScaffoldBus:
         """
         Save previous timeout setting in a stack, and set a new timeout value.
         Call to `pop_timeout` will restore previous timeout value.
+        The new effective timeout will be lower or equal to the current timeout.
+        That is, the timeout cannot be increased, previous defined timeout have
+        higher priority.
 
         :param value: New timeout value, in seconds.
         """
+        if value is None:
+            value = self.timeout
+        else:
+            if self.timeout is not None:
+                value = min(self.timeout, value)
         self.__timeout_stack.append(self.timeout)
         self.timeout = value
 
@@ -2732,7 +2744,7 @@ class Scaffold(ArchBase):
         # This will perform many writes to registers, so we start a lazy
         # section for maximum speed! (about 7 times faster)
         with self.lazy_section():
-            self.timeout = 0
+            self.timeout = None
             # Sometime we don't want the I/Os to be changed, since it may
             # generate pulses and triggering stuff... Reseting the I/Os is an
             # option.
