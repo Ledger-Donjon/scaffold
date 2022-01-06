@@ -32,8 +32,14 @@ Scaffold is able to operate from 1.5V to 3.3V devices: power supplies and I/O
 bank voltage can be tuned thanks to adjustable voltage regulators. Scaffold can
 be powered from USB or external power supplies.
 
-Six special I/Os can generate 5V pulses, which are compatible with
+Four special I/Os can generate 5V pulses, which are compatible with
 *ALPhANOV PDM* laser sources (50 Ohm TTL).
+
+## Getting the board
+
+All the files required to fabricate the board are included in the repository.
+If you do not wish to build it yourself, you can request for quotation by
+sending a mail to scaffold@ledger.fr (only for Europe or USA shipping).
 
 ## Installation
 
