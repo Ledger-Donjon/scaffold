@@ -25,7 +25,7 @@ APDU command.
 
     sc = Smartcard(Scaffold('/dev/ttyUSB0'))
     # Power-on the card
-    sc.power.dut = 1
+    sc.scaffold.power.dut = 1
     # Reset the card and retrieve ATR
     atr = sc.reset()
     # Send a SELECT command and get the response
