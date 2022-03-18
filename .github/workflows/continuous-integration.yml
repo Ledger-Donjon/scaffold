@@ -23,6 +23,8 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
+      - name: Update apt packages
+        run: sudo apt update
       - name: Install apt packages
         run: sudo apt install pcsc-tools
       - name: Install pip packages
