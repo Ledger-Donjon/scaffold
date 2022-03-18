@@ -350,7 +350,7 @@ class Smartcard:
             after data field has been transmitted in T=0, and cleared when the
             next response byte is received. If T=1, both 'a' and 'b' will raise
             trigger after the I-block has been transmitted, and will be cleared
-            when first byte of next block ir received.
+            when first byte of next block is received.
         :raises ValueError: if APDU data is invalid.
         :raises RuntimeError: if the received procedure byte is invalid in T=0,
             or if neither T=0 and T=1 protocols are supported by the card.
@@ -452,37 +452,74 @@ class Smartcard:
     def __apdu_t1(self, the_apdu: bytes, trigger: bool = False) -> bytes:
         """
         Send an APDU to the smartcard and retrieve the response, using T=1
-        protocol.
+        protocol. Transmission supports chaining for both command and response.
 
         :param the_apdu: APDU to be sent.
-        :param trigger: If True, raise trigger on last byte transmission.
+        :param trigger: If True, raise trigger on last byte of last I-block
+            transmission.
         :return: Response data, with status word.
         :raises T1RedundancyCodeError: If LRC or CRC is wrong.
         :raises ProtocolError: If an unpexpected response is received.
         """
-        self.transmit_block(0, (self.t1_ns_tx << 6), the_apdu, trigger)
-        self.t1_ns_tx = (self.t1_ns_tx + 1) % 2  # Increment sequence number
-        block = self.receive_block()
-        # Disable trigger is enabled during transmit_block
-        if trigger:
-            self.iso7816.trigger_long = 0
-        pcb = block[1]
-        if pcb & (1 << 7) == 0:
-            # We received an I-block, as expected.
-            # Check that the sequence number is correct
-            if (pcb >> 6) & 1 != self.t1_ns_rx:
-                raise ProtocolError(
-                    'Incorrect received sequence number in I-block '
-                    + block.hex())
-            self.t1_ns_rx = (self.t1_ns_rx + 1) % 2
-        else:
-            if pcb & (1 << 6) == 0:
+        edc_len_dict = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}
+
+        apdu_remaining = the_apdu
+        while len(apdu_remaining):
+            chunk = apdu_remaining[:254]
+            apdu_remaining = apdu_remaining[254:]
+            has_more = min(1, len(apdu_remaining))
+            enable_trigger = trigger and not has_more
+            # Send I-block
+            self.transmit_block(
+                0, (self.t1_ns_tx << 6) + (has_more << 5), chunk,
+                enable_trigger)
+            # Increment sequence number
+            self.t1_ns_tx = (self.t1_ns_tx + 1) % 2
+            if has_more:
+                # We expect a R-block before sending the next info block
+                block = self.receive_block()
+                pcb = block[1]
+                if pcb & (1 << 7) == 0:  # I-block
+                    raise ProtocolError('Expected R-block, received I-block')
+                elif pcb & (1 << 6) == 0:  # R-block
+                    if pcb & 0x0f == 0:  # Error free acknowledgement
+                        pass
+                    elif pcb & 0x0f == 1:
+                        raise ProtocolError(
+                            'Redundancy code error reported by card')
+                    else:
+                        raise ProtocolError(
+                            'Unspecified error reported by card')
+                else:  # S-block
+                    raise ProtocolError('Expected R-block, received I-block')
+
+        response = bytearray()
+        has_more = True
+        while has_more:
+            block = self.receive_block()
+            if enable_trigger:
+                self.iso7816.trigger_long = 0
+            pcb = block[1]
+            if pcb & (1 << 7) == 0:  # I-block
+                # Check that the sequence number is correct
+                if (pcb >> 6) & 1 != self.t1_ns_rx:
+                    raise ProtocolError(
+                        'Incorrect received sequence number in I-block '
+                        + block.hex())
+                has_more = bool((pcb >> 5) & 1)
+                edc_len = edc_len_dict[self.t1_redundancy_code]
+                response += block[3:-edc_len]  # Trim header and EDC
+            elif pcb & (1 << 6) == 0:  # R-block
                 raise ProtocolError('Expected I-block, received R-block')
-            else:
+            else:  # S-block
                 raise ProtocolError('Expected I-block, received S-block')
-        edc_len = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}[
-            self.t1_redundancy_code]
-        return block[3:-edc_len]  # Trim header and EDC
+
+            self.t1_ns_rx = (self.t1_ns_rx + 1) % 2
+            if has_more:
+                # Send R block
+                self.transmit_block(0, 0b10000000 + (self.t1_ns_rx << 4), b'')
+
+        return response
 
     def pps(self, pps1: int) -> int:
         """
