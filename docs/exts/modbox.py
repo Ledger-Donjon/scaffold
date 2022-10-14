@@ -75,7 +75,7 @@ def make_fig(path, inputs, outputs):
             box_left - arrow_length_left, -i, arrow_length_left - hl, 0,
             fc='k', ec='k', head_length=hl, head_width=hw, lw=line_width)
         ax.annotate(
-            s=name, xy=(box_left + text_margin, -i),
+            text=name, xy=(box_left + text_margin, -i),
             horizontalalignment='left', verticalalignment='center')
 
     num_feedback = 0
@@ -85,7 +85,7 @@ def make_fig(path, inputs, outputs):
             box_right, -i, arrow_length_right - hl, 0, fc='k', ec='k',
             head_length=hl, head_width=hw, lw=line_width)
         ax.annotate(
-            s=name, xy=(box_right - text_margin, -i),
+            text=name, xy=(box_right - text_margin, -i),
             horizontalalignment='right', verticalalignment='center')
         if name in feedback_signals:
             x0 = box_right + num_feedback + 1
