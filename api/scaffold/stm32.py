@@ -297,7 +297,7 @@ class STM32:
         while remaining > 0:
             chunk_size = min(256, remaining)
             self.uart.transmit(b'\x31\xce', trigger=trigger)
-            self.wait_ack(1)
+            self.wait_ack(0)
             buf = bytearray(
                 (address + offset).to_bytes(4, 'big', signed=False))
             buf.append(self.checksum(buf))
