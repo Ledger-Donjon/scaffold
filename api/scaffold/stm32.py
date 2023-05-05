@@ -87,6 +87,13 @@ class STM32:
         'option_bytes': MemorySection(0x1fffc000, 0x1fffc008),
         'system': MemorySection(0x1fff0000, 0x1fff7a10),
         'flash': MemorySection(0x08000000, 0x08100000)}
+    
+    # Memory layout for STM32F100xx written by Hugo LE GUEN, intern at IETR
+
+    map_f100xx = {
+        'option_bytes': MemorySection(0x1ffff800, 0x1ffff80f),
+        'system': MemorySection(0x1ffff000, 0x1ffff7ff),
+        'flash': MemorySection(0x08000000, 0x0801ffff)}
 
     # Memory layout for STM32F4xxx
     map_f40xxx = map_f20xxx
@@ -103,6 +110,7 @@ class STM32:
         STM32Device('STM32F05xxx', 0x440, {}),
         STM32Device('STM32F030x8', 0x440, {}),
         STM32Device('STM32F03xx4/6', 0x444, {}),
+        STM32Device('STM32F100xx', 0x420, map_f100xx), # Written by Hugo LE GUEN, intern at IETR
         STM32Device('STM32F2xxxx', 0x411, map_f20xxx, offset_rdp=1),
         STM32Device('STM32F40xxx/41xxx', 0x413, map_f40xxx, offset_rdp=1),
         STM32Device('STM32F42xxx/43xxx', 0x419, map_f40xxx, offset_rdp=1),
@@ -289,7 +297,7 @@ class STM32:
         while remaining > 0:
             chunk_size = min(256, remaining)
             self.uart.transmit(b'\x31\xce', trigger=trigger)
-            self.wait_ack(0)
+            self.wait_ack(1)
             buf = bytearray(
                 (address + offset).to_bytes(4, 'big', signed=False))
             buf.append(self.checksum(buf))
@@ -388,6 +396,23 @@ class STM32:
             self.wait_ack()
         finally:
             self.scaffold.timeout = previous_timeout
+        
+
+    def global_erase(self):
+        """
+        This function works with a chip that has a bootloader version lower than 3.0 like STM32 F100xx.
+        Unlike a chip that has a bootloader version higher or equal to 3.0,
+        the command to erase the Flash memory is x43/xbc instead of x44/xbb.
+        The function is based on the translation of the diagram in the documentation "USART protocol used in the STM32" in 
+        the category "Erase Memory command: host side".
+        Written by Hugo LE GUEN, intern at IETR.
+        """  
+        self.uart.transmit(b'\x43\xbc')
+        self.wait_ack()
+        self.uart.transmit(b'\xff')
+        self.uart.transmit(b'\x00')
+        self.wait_ack()  
+            
 
     def go(self, address, trigger=0):
         """
