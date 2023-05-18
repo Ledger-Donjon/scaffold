@@ -772,12 +772,13 @@ class PulseGenerator(Module):
         """
         Wait while the pulse generator is busy.
 
-        This uses the polling mechanism on the ready bit in the status register.
-        It can be used to block next commands and synchronize their execution
-        to the end of the pulse.
+        This uses the polling mechanism on the ready bit in the status
+        register. It can be used to block next commands and synchronize their
+        execution to the end of the pulse.
         """
         # Dummy write to the address 0 which is not mapped.
-        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
+        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1,
+            poll_value=1)
 
     def __duration_to_clock_cycles(self, t):
         """
@@ -1118,13 +1119,12 @@ class ISO7816(Module):
                 n, poll=self.reg_status,
                 poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY), poll_value=0x00)
 
-    def transmit(self, data, trigger=False):
+    def transmit(self, data: bytes, trigger: bool = False):
         """
         Transmit data.
 
         :param data: Data to be transmitted.
         :param trigger: Enable trigger on the last transmitted byte.
-        :type data: bytes
         """
         # Polling on status.ready bit before sending each character
         if not trigger:
