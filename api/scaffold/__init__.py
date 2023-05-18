@@ -768,6 +768,17 @@ class PulseGenerator(Module):
         """ Manually trigger the pulse generation. """
         self.reg_control.set(1)
 
+    def wait_ready(self):
+        """
+        Wait while the pulse generator is busy.
+
+        This uses the polling mechanism on the ready bit in the status register.
+        It can be used to block next commands and synchronize their execution
+        to the end of the pulse.
+        """
+        # Dummy write to the address 0 which is not mapped.
+        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
+
     def __duration_to_clock_cycles(self, t):
         """
         Calculate the number of clock cycles corresponding to a given time.
