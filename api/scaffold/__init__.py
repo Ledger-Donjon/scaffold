@@ -777,8 +777,8 @@ class PulseGenerator(Module):
         execution to the end of the pulse.
         """
         # Dummy write to the address 0 which is not mapped.
-        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1,
-            poll_value=1)
+        self.parent.bus.write(
+            0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
 
     def __duration_to_clock_cycles(self, t):
         """
