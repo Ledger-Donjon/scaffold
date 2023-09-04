@@ -3,3 +3,4 @@ sphinxcontrib-spelling
 matplotlib
 pyserial
 crcmod
+sphinx-rtd-theme>=1.3.0rc1
