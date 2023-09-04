@@ -1651,7 +1651,7 @@ class SPI(Module):
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
             poll_value=(1 << self.__REG_STATUS_BIT_READY))
         return int.from_bytes(res, 'little')
-    
+
     def append(self, data: Union[int, bytes]):
         """
         Append data to be returned by the peripheral when configured as a
@@ -2430,11 +2430,11 @@ class ArchBase:
             if signal.parent != self:
                 raise ValueError('Signal belongs to another Scaffold instance')
             return signal.path
-        elif type(signal) == int:
+        elif type(signal) is int:
             if signal not in (0, 1):
                 raise ValueError('Invalid signal value')
             return str(signal)
-        elif type(signal) == int:
+        elif type(signal) is int:
             return str(signal)
         elif signal is None:
             return 'z'  # High impedance
@@ -2592,7 +2592,8 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             'scaffold',  # board name
             # Supported FPGA bitstream versions
-            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2', '0.8'))
+            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2', '0.8')
+        )
         self.connect(dev, init_ios, sn)
 
     def connect(self, dev: Optional[str] = None, init_ios: bool = False,

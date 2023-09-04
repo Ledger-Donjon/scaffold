@@ -357,7 +357,7 @@ class Smartcard:
         :raises T1RedundancyCodeError: If LRC or CRC is wrong in T=1 protocol.
         :return: Response data, with status word.
         """
-        if type(the_apdu) == str:
+        if type(the_apdu) is str:
             the_apdu = bytes.fromhex(the_apdu)
         apdu_len = len(the_apdu)
         if apdu_len < 5:

@@ -122,4 +122,3 @@ if args.jump is not None:
     ram_addr = int(args.jump, 0)
     print(f'Jumping to 0x{ram_addr:08x}...')
     stm.go(ram_addr)
-
