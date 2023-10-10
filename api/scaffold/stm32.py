@@ -104,6 +104,13 @@ class STM32:
         'system': MemorySection(0x1fff0000, 0x1fff7000),
         'flash': MemorySection(0x08000000, 0x08040000)}
 
+    # Memory layout for STM32U5A9
+    map_u5 = {
+        'otp': MemorySection(0x0bfa0000, 0x0bfa0200),
+        'system': MemorySection(0x0bf90000, 0x0bf98000),
+        'flash': MemorySection(0x08000000, 0x08080000)
+    }
+
     # See AN2606 for PID values
     PIDS = [
         STM32Device('STM32F05xxx', 0x440, {}),
@@ -117,7 +124,8 @@ class STM32:
         STM32Device('STM32L45xxx/46xxx', 0x462, {}),
         STM32Device('STM32L47xxx/48xxx', 0x415, {}),
         STM32Device('STM32L496xx/4A6xx', 0x461, {}),
-        STM32Device('STM32L4Rxx/4Sxx', 0x470, {})]
+        STM32Device('STM32L4Rxx/4Sxx', 0x470, {}),
+        STM32Device('STM32U59x/5Ax', 0x481, map_u5)]
 
     def __init__(self, scaffold):
         """

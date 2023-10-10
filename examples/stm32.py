@@ -72,21 +72,24 @@ version = f'{data[0]:02x}'
 print(f'Bootloader version: {version[0]}.{version[1]}')
 
 if stm.device is not None:
-    try:
-        data = stm.read_option_bytes()
-        print(f'Option bytes: {hexlify(data).decode()}')
-        rdp = data[stm.device.offset_rdp]
-        if rdp == 0xaa:
-            rdp_str = 'no protection'
-        elif rdp == 0xcc:
-            # If the chip is really protected, we should not be able to know it
-            # by reading the option bytes... So this may be useless.
-            rdp_str = 'chip protection'
-        else:
-            rdp_str = 'read protection'
-        print(f'RDP: {rdp_str}')
-    except NACKError:
-        print('Failed to read protection bytes, device probably in RDP1.')
+    if 'option_bytes' in stm.device.memory_mapping:
+        try:
+            data = stm.read_option_bytes()
+            print(f'Option bytes: {hexlify(data).decode()}')
+            rdp = data[stm.device.offset_rdp]
+            if rdp == 0xaa:
+                rdp_str = 'no protection'
+            elif rdp == 0xcc:
+                # If the chip is really protected, we should not be able to know it
+                # by reading the option bytes... So this may be useless.
+                rdp_str = 'chip protection'
+            else:
+                rdp_str = 'read protection'
+            print(f'RDP: {rdp_str}')
+        except NACKError:
+            print('Failed to read protection bytes, device probably in RDP1.')
+    else:
+        print('Unknown option bytes memory location')
 
 if args.erase or ((args.load is not None) and (args.ram is None)):
     # Erase Flash memory before writing it. This may be very long.
