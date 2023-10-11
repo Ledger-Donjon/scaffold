@@ -80,8 +80,9 @@ if stm.device is not None:
             if rdp == 0xaa:
                 rdp_str = 'no protection'
             elif rdp == 0xcc:
-                # If the chip is really protected, we should not be able to know it
-                # by reading the option bytes... So this may be useless.
+                # If the chip is really protected, we should not be able to
+                # know it by reading the option bytes... So this may be
+                # useless.
                 rdp_str = 'chip protection'
             else:
                 rdp_str = 'read protection'
