@@ -25,7 +25,8 @@ from typing import Optional, Union
 
 
 class TimeoutError(Exception):
-    """ Thrown when a polling read or write command timed out. """
+    """Thrown when a polling read or write command timed out."""
+
     def __init__(self, data=None, size=None, expected=None):
         """
         :param data: The received data until timeout. None if timeout occured
@@ -45,15 +46,11 @@ class TimeoutError(Exception):
         if self.data is not None:
             if len(self.data):
                 h = self.data.hex()
-                return (
-                    f'Read timeout: partially received {len(self.data)} '
-                    f'bytes {h}.')
+                return f"Read timeout: partially received {len(self.data)} bytes {h}."
             else:
-                return 'Read timeout: no data received.'
+                return "Read timeout: no data received."
         else:
-            return (
-                f'Write timeout. Only {self.size}/{self.expected} bytes '
-                'written.')
+            return f"Write timeout. Only {self.size}/{self.expected} bytes written."
 
 
 class Signal:
@@ -63,6 +60,7 @@ class Signal:
     configure the hardware board when two :class:`Signal` are connected
     together.
     """
+
     def __init__(self, parent, path):
         """
         :param parent: Scaffold instance which the signal belongs to.
@@ -74,12 +72,12 @@ class Signal:
 
     @property
     def parent(self):
-        """ Parent :class:`Scaffold` board instance. Read-only. """
+        """Parent :class:`Scaffold` board instance. Read-only."""
         return self.__parent
 
     @property
     def path(self):
-        """ Signal path. For instance '/dev/uart0/tx'. Read-only. """
+        """Signal path. For instance '/dev/uart0/tx'. Read-only."""
         return self.__path
 
     @property
@@ -87,10 +85,10 @@ class Signal:
         """
         Signal name (last element of the path). For instance 'tx'. Read-only.
         """
-        return self.__path.split('/')[-1]
+        return self.__path.split("/")[-1]
 
     def __str__(self):
-        """ :return: Signal path. For instance '/dev/uart0/tx'. """
+        """:return: Signal path. For instance '/dev/uart0/tx'."""
         return self.__path
 
     def __lshift__(self, other):
@@ -116,6 +114,7 @@ class Module:
     """
     Class to facilitate signals and registers declaration.
     """
+
     def __init__(self, parent, path=None):
         """
         :param parent: The Scaffold instance owning the object.
@@ -137,9 +136,9 @@ class Module:
         """
         assert not hasattr(self, name)
         if self.__path is None:
-            path = '/' + name
+            path = "/" + name
         else:
-            path = self.__path + '/' + name
+            path = self.__path + "/" + name
         sig = Signal(self.__parent, path)
         self.__dict__[name] = sig
         return sig
@@ -163,7 +162,7 @@ class Module:
         :param args: Arguments passed to Register.__init__.
         :param kwargs: Keyword arguments passed to Register.__init__.
         """
-        attr_name = 'reg_' + name
+        attr_name = "reg_" + name
         reg = Register(self.__parent, *args, **kwargs)
         self.__dict__[attr_name] = reg
         # Keep track of the register for reset_registers method
@@ -189,7 +188,7 @@ class Module:
 
     @property
     def parent(self):
-        """ Scaffold instance the module belongs to. Read-only. """
+        """Scaffold instance the module belongs to. Read-only."""
         return self.__parent
 
 
@@ -198,9 +197,17 @@ class Register:
     Manages accesses to a register of a module. Implements value cache
     mechanism whenever possible.
     """
+
     def __init__(
-            self, parent, mode, address, wideness=1, min_value=None,
-            max_value=None, reset=None):
+        self,
+        parent,
+        mode,
+        address,
+        wideness=1,
+        min_value=None,
+        max_value=None,
+        reset=None,
+    ):
         """
         :param parent: The Scaffold instance owning the register.
         :param address: 16-bits address of the register.
@@ -220,17 +227,17 @@ class Register:
         self.__parent = parent
 
         if address not in range(0x10000):
-            raise ValueError('Invalid register address')
+            raise ValueError("Invalid register address")
         self.__address = address
 
-        self.__w = 'w' in mode
-        self.__r = 'r' in mode
-        self.__volatile = 'v' in mode
+        self.__w = "w" in mode
+        self.__r = "r" in mode
+        self.__volatile = "v" in mode
 
         if wideness < 1:
-            raise ValueError('Invalid wideness')
+            raise ValueError("Invalid wideness")
         if (wideness > 1) and self.__r:
-            raise ValueError('Wideness must be 1 if register can be read.')
+            raise ValueError("Wideness must be 1 if register can be read.")
         self.__wideness = wideness
 
         if min_value is None:
@@ -238,28 +245,28 @@ class Register:
             self.__min_value = 0
         else:
             # Check maximum value.
-            if min_value not in range(2**(wideness*8)):
-                raise ValueError('Invalid register minimum value')
+            if min_value not in range(2 ** (wideness * 8)):
+                raise ValueError("Invalid register minimum value")
             self.__min_value = min_value
 
         if max_value is None:
             # Set default maximum value based on register size.
-            self.__max_value = 2**(wideness*8) - 1
+            self.__max_value = 2 ** (wideness * 8) - 1
         else:
             # Check maximum value.
-            if max_value not in range(2**(wideness*8)):
-                raise ValueError('Invalid register maximum value')
+            if max_value not in range(2 ** (wideness * 8)):
+                raise ValueError("Invalid register maximum value")
             self.__max_value = max_value
 
         if self.__min_value > self.__max_value:
             raise ValueError(
-                'Register minimum value must be lower or equal to maximum '
-                'value')
+                "Register minimum value must be lower or equal to maximum value"
+            )
 
         self.__reset = reset
         self.__cache = None
 
-    def set(self, value, poll=None, poll_mask=0xff, poll_value=0x00):
+    def set(self, value, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Set a new value to the register. This method will check bounds against
         the minimum and maximum allowed values of the register. If polling is
@@ -273,15 +280,16 @@ class Register:
         :param poll_value: Register polling value.
         """
         if value < self.__min_value:
-            raise ValueError('Value too low')
+            raise ValueError("Value too low")
         if value > self.__max_value:
-            raise ValueError('Value too high')
+            raise ValueError("Value too high")
         if not self.__w:
-            raise RuntimeError('Register cannot be written')
+            raise RuntimeError("Register cannot be written")
         # Handle wideness
-        value_bytes = value.to_bytes(self.__wideness, 'big', signed=False)
+        value_bytes = value.to_bytes(self.__wideness, "big", signed=False)
         self.__parent.bus.write(
-            self.__address, value_bytes, poll, poll_mask, poll_value)
+            self.__address, value_bytes, poll, poll_mask, poll_value
+        )
         # Save as int
         self.__cache = value
 
@@ -295,7 +303,7 @@ class Register:
         """
         if self.__volatile:
             if not self.__r:
-                raise RuntimeError('Register cannot be read')
+                raise RuntimeError("Register cannot be read")
             return self.__parent.bus.read(self.__address)[0]
         else:
             # Register is not volatile, so its data can be cached.
@@ -304,7 +312,7 @@ class Register:
                     value = self.__parent.bus.read(self.__address)[0]
                     self.__cache = value
                 else:
-                    raise RuntimeError('Register cannot be read')
+                    raise RuntimeError("Register cannot be read")
             return self.__cache
 
     def or_set(self, value):
@@ -314,8 +322,7 @@ class Register:
         """
         self.set(self.get() | value)
 
-    def set_bit(
-            self, index, value, poll=None, poll_mask=0xff, poll_value=0x00):
+    def set_bit(self, index, value, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Sets the value of a single bit of the register.
         :param index: Bit index, in [0, 7].
@@ -327,7 +334,10 @@ class Register:
         """
         self.set(
             (self.get() & ~(1 << index)) | (int(bool(value)) << index),
-            poll, poll_mask, poll_value)
+            poll,
+            poll_mask,
+            poll_value,
+        )
 
     def get_bit(self, index):
         """
@@ -336,8 +346,7 @@ class Register:
         """
         return (self.get() >> index) & 1
 
-    def set_mask(
-            self, value, mask, poll=None, poll_mask=0xff, poll_value=0x00):
+    def set_mask(self, value, mask, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Set selected bits value.
         :param value: Bits value.
@@ -349,10 +358,9 @@ class Register:
         """
         # TODO: raise an exception is the register is declared as volatile ?
         current = self.get()
-        self.set(
-            (current & (~mask)) | (value & mask), poll, poll_mask, poll_value)
+        self.set((current & (~mask)) | (value & mask), poll, poll_mask, poll_value)
 
-    def write(self, data, poll=None, poll_mask=0xff, poll_value=0x00):
+    def write(self, data, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Raw write in the register. This method raises a RuntimeError if the
         register cannot be written.
@@ -363,11 +371,10 @@ class Register:
         :param poll_value: Register polling value.
         """
         if not self.__w:
-            raise RuntimeError('Register cannot be written')
-        self.__parent.bus.write(
-            self.__address, data, poll, poll_mask, poll_value)
+            raise RuntimeError("Register cannot be written")
+        self.__parent.bus.write(self.__address, data, poll, poll_mask, poll_value)
 
-    def read(self, size=1, poll=None, poll_mask=0xff, poll_value=0x00):
+    def read(self, size=1, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Raw read the register. This method raises a RuntimeError if the
         register cannot be read.
@@ -378,9 +385,8 @@ class Register:
         :return: bytearray
         """
         if not self.__r:
-            raise RuntimeError('Register cannot be read')
-        return self.__parent.bus.read(
-            self.__address, size, poll, poll_mask, poll_value)
+            raise RuntimeError("Register cannot be read")
+        return self.__parent.bus.read(self.__address, size, poll, poll_mask, poll_value)
 
     def reset(self):
         """
@@ -392,7 +398,7 @@ class Register:
 
     @property
     def address(self):
-        """ :return: Register address. """
+        """:return: Register address."""
         return self.__address
 
     @property
@@ -417,6 +423,7 @@ class FreqRegisterHelper:
     Helper to provide frequency attributes which compute clock divisor
     registers value based on asked target frequencies.
     """
+
     def __init__(self, sys_freq, reg):
         """
         :param sys_freq: System base frequency used to compute clock divisors.
@@ -439,16 +446,17 @@ class FreqRegisterHelper:
         d = round((0.5 * self.__sys_freq / value) - 1)
         # Check that the divisor fits in the register
         if d > self.__reg.max:
-            raise ValueError('Target clock frequency is too low.')
+            raise ValueError("Target clock frequency is too low.")
         if d < self.__reg.min:
-            raise ValueError('Target clock frequency is too high.')
+            raise ValueError("Target clock frequency is too high.")
         # Calculate error between target and effective clock frequency
         real = self.__sys_freq / ((d + 1) * 2)
         err = abs(real - value) / value
         if err > self.__max_err:
             raise RuntimeError(
-                f'Cannot reach target clock frequency within '
-                f'{self.__max_err*100}% accuracy.')
+                f"Cannot reach target clock frequency within "
+                f"{self.__max_err*100}% accuracy."
+            )
         self.__reg.set(d)
         self.__cache = real
 
@@ -460,13 +468,14 @@ class FreqRegisterHelper:
 
 
 class Version(Module):
-    """ Version module of Scaffold. """
+    """Version module of Scaffold."""
+
     def __init__(self, parent):
         """
         :param parent: The Scaffold instance owning the version module.
         """
         super().__init__(parent)
-        self.add_register('data', 'r', 0x0100)
+        self.add_register("data", "r", 0x0100)
 
     def get_string(self):
         """
@@ -478,7 +487,7 @@ class Version(Module):
         # allows us reading the string with only one command to be faster.
         buf = self.reg_data.read(32 + 1 + 32 + 1)
         offset = 0
-        result = ''
+        result = ""
         # Find the first \0 character.
         while buf[offset] != 0:
             offset += 1
@@ -500,6 +509,7 @@ class LED:
     Represents a LED of the board.
     Each instance of this class is an attribute of a :class:`LEDs` instance.
     """
+
     def __init__(self, parent, index):
         """
         :param parent: Parent LEDs module instance.
@@ -523,38 +533,50 @@ class LED:
     @mode.setter
     def mode(self, value):
         self.__parent.reg_mode.set_mask(
-            LEDMode(value).value << self.__index, 1 << self.__index)
+            LEDMode(value).value << self.__index, 1 << self.__index
+        )
 
 
 class LEDs(Module):
-    """ LEDs module of Scaffold. """
+    """LEDs module of Scaffold."""
+
     def __init__(self, parent):
         """
         :param parent: The Scaffold instance owning the version module.
         """
         super().__init__(parent)
-        self.add_register('control', 'w', 0x0200)
-        self.add_register('brightness', 'w', 0x0201)
-        self.add_register('leds_0', 'w', 0x0202)
-        self.add_register('leds_1', 'w', 0x0203)
-        self.add_register('leds_2', 'w', 0x0204)
-        self.add_register('mode', 'w', 0x0205, wideness=3)
-        if self.parent.version <= '0.3':
+        self.add_register("control", "w", 0x0200)
+        self.add_register("brightness", "w", 0x0201)
+        self.add_register("leds_0", "w", 0x0202)
+        self.add_register("leds_1", "w", 0x0203)
+        self.add_register("leds_2", "w", 0x0204)
+        self.add_register("mode", "w", 0x0205, wideness=3)
+        if self.parent.version <= "0.3":
             # Scaffold hardware v1 only
             leds = [
-                'a0', 'a1', 'b0', 'b1', 'c0', 'c1', 'd0', 'd1', 'd2', 'd3',
-                'd4', 'd5']
+                "a0",
+                "a1",
+                "b0",
+                "b1",
+                "c0",
+                "c1",
+                "d0",
+                "d1",
+                "d2",
+                "d3",
+                "d4",
+                "d5",
+            ]
             offset = 6
         else:
             # Scaffold hardware v1.1
-            leds = [
-                'a0', 'a1', 'a2', 'a3', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']
+            leds = ["a0", "a1", "a2", "a3", "d0", "d1", "d2", "d3", "d4", "d5"]
             offset = 8
         for i, name in enumerate(leds):
             self.__setattr__(name, LED(self, i + offset))
 
     def reset(self):
-        """ Set module registers to default values. """
+        """Set module registers to default values."""
         self.reg_control = 0
         self.reg_brightness.set(20)
         self.reg_mode.set(0)
@@ -571,12 +593,12 @@ class LEDs(Module):
     @brightness.setter
     def brightness(self, value):
         if (value < 0) or (value > 1):
-            raise ValueError('Invalid brightness value')
+            raise ValueError("Invalid brightness value")
         self.reg_brightness.set(int(value * 127))
 
     @property
     def disabled(self):
-        """ If set to True, LEDs driver outputs are all disabled. """
+        """If set to True, LEDs driver outputs are all disabled."""
         return bool(self.reg_control.get() & 1)
 
     @disabled.setter
@@ -598,7 +620,8 @@ class LEDs(Module):
 
 
 class UARTParity(Enum):
-    """ Possible parity modes for UART peripherals. """
+    """Possible parity modes for UART peripherals."""
+
     NONE = 0
     ODD = 1
     EVEN = 2
@@ -608,6 +631,7 @@ class UART(Module):
     """
     UART module of Scaffold.
     """
+
     __REG_CONTROL_BIT_FLUSH = 0
     __REG_CONFIG_BIT_TRIGGER = 3
     __REG_CONFIG_BIT_PARITY = 0
@@ -617,17 +641,17 @@ class UART(Module):
         :param parent: The Scaffold instance owning the UART module.
         :param index: UART module index.
         """
-        super().__init__(parent, f'/uart{index}')
+        super().__init__(parent, f"/uart{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals('rx', 'tx', 'trigger')
+        self.add_signals("rx", "tx", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0400 + 0x0010 * index
-        self.add_register('status', 'rv', base)
-        self.add_register('control', 'w', base + 1)
-        self.add_register('config', 'w', base + 2)
-        self.add_register('divisor', 'w', base + 3, wideness=2, min_value=1)
-        self.add_register('data', 'rwv', base + 4)
+        self.add_register("status", "rv", base)
+        self.add_register("control", "w", base + 1)
+        self.add_register("config", "w", base + 2)
+        self.add_register("divisor", "w", base + 3, wideness=2, min_value=1)
+        self.add_register("data", "rwv", base + 4)
         # Current board target baudrate (this is not the effective baudrate)
         self.__cache_baudrate = None
         # Accuracy parameter
@@ -665,18 +689,18 @@ class UART(Module):
         """
         d = round((self.parent.sys_freq / value) - 1)
         # Check that the divisor can be stored on 16 bits.
-        if d > 0xffff:
-            raise ValueError('Target baudrate is too low.')
+        if d > 0xFFFF:
+            raise ValueError("Target baudrate is too low.")
         if d < 1:
-            raise ValueError('Target baudrate is too high.')
+            raise ValueError("Target baudrate is too high.")
         # Calculate error between target and effective baudrates
         real = self.parent.sys_freq / (d + 1)
         err = abs(real - value) / value
         max_err = self.max_err
         if err > max_err:
             raise RuntimeError(
-                f'Cannot reach target baudrate within {max_err*100}% '
-                'accuracy.')
+                f"Cannot reach target baudrate within {max_err*100}% accuracy."
+            )
         self.reg_divisor.set(d)
         self.__cache_baudrate = real
 
@@ -695,20 +719,24 @@ class UART(Module):
         # Polling on status.ready bit before sending each character.
         with self.parent.lazy_section():
             self.reg_data.write(
-                buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+                buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
+            )
             if trigger:
                 config = self.reg_config.get()
                 # Enable trigger as soon as previous transmission ends
                 self.reg_config.write(
                     config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
-                    poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+                    poll=self.reg_status,
+                    poll_mask=0x01,
+                    poll_value=0x01,
+                )
                 # Send the last byte. No need for polling here, because it has
                 # already been done when enabling trigger.
                 self.reg_data.write(data[-1])
                 # Disable trigger
                 self.reg_config.write(
-                    config, poll=self.reg_status, poll_mask=0x01,
-                    poll_value=0x01)
+                    config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
+                )
 
     def receive(self, n=1):
         """
@@ -716,10 +744,11 @@ class UART(Module):
         have been received or the timeout expires and a TimeoutError is thrown.
         """
         return self.reg_data.read(
-            n, poll=self.reg_status, poll_mask=0x04, poll_value=0x00)
+            n, poll=self.reg_status, poll_mask=0x04, poll_value=0x00
+        )
 
     def flush(self):
-        """ Discard all the received bytes in the FIFO. """
+        """Discard all the received bytes in the FIFO."""
         self.reg_control.set_bit(self.__REG_CONTROL_BIT_FLUSH, 1)
 
     @property
@@ -730,13 +759,15 @@ class UART(Module):
         :type: UARTParity
         """
         return UARTParity(
-            (self.reg_config.get() >> self.__REG_CONFIG_BIT_PARITY) & 0b11)
+            (self.reg_config.get() >> self.__REG_CONFIG_BIT_PARITY) & 0b11
+        )
 
     @parity.setter
     def parity(self, value):
         self.reg_config.set_mask(
             (value.value & 0b11) << self.__REG_CONFIG_BIT_PARITY,
-            0b11 << self.__REG_CONFIG_BIT_PARITY)
+            0b11 << self.__REG_CONFIG_BIT_PARITY,
+        )
 
 
 class PulseGenerator(Module):
@@ -744,6 +775,7 @@ class PulseGenerator(Module):
     Pulse generator module of Scaffold.
     Usually abreviated as pgen.
     """
+
     def __init__(self, parent, path, base):
         """
         :param parent: The :class:`Scaffold` instance owning the UART module.
@@ -754,18 +786,18 @@ class PulseGenerator(Module):
         """
         super().__init__(parent, path)
         # Create the signals
-        self.add_signals('start', 'out')
+        self.add_signals("start", "out")
         # Create the registers
-        self.add_register('status', 'rv', base)
-        self.add_register('control', 'wv', base + 1)
-        self.add_register('config', 'w', base + 2, reset=0)
-        self.add_register('delay', 'w', base + 3, wideness=3, reset=0)
-        self.add_register('interval', 'w', base + 4, wideness=3, reset=0)
-        self.add_register('width', 'w', base + 5, wideness=3, reset=0)
-        self.add_register('count', 'w', base + 6, wideness=2, reset=0)
+        self.add_register("status", "rv", base)
+        self.add_register("control", "wv", base + 1)
+        self.add_register("config", "w", base + 2, reset=0)
+        self.add_register("delay", "w", base + 3, wideness=3, reset=0)
+        self.add_register("interval", "w", base + 4, wideness=3, reset=0)
+        self.add_register("width", "w", base + 5, wideness=3, reset=0)
+        self.add_register("count", "w", base + 6, wideness=2, reset=0)
 
     def fire(self):
-        """ Manually trigger the pulse generation. """
+        """Manually trigger the pulse generation."""
         self.reg_control.set(1)
 
     def wait_ready(self):
@@ -777,8 +809,7 @@ class PulseGenerator(Module):
         execution to the end of the pulse.
         """
         # Dummy write to the address 0 which is not mapped.
-        self.parent.bus.write(
-            0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
+        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
 
     def __duration_to_clock_cycles(self, t):
         """
@@ -788,7 +819,7 @@ class PulseGenerator(Module):
         :type t: float.
         """
         if t < 0:
-            raise ValueError('Duration cannot be negative')
+            raise ValueError("Duration cannot be negative")
         cc = round(t * self.parent.sys_freq)
         return cc
 
@@ -812,17 +843,17 @@ class PulseGenerator(Module):
 
     @delay.setter
     def delay(self, value):
-        n = self.__duration_to_clock_cycles(value)-1
+        n = self.__duration_to_clock_cycles(value) - 1
         self.reg_delay.set(n)
 
     @property
     def delay_min(self):
-        """ :return: Minimum possible delay. """
+        """:return: Minimum possible delay."""
         return self.__clock_cycles_to_duration(1)
 
     @property
     def delay_max(self):
-        """ :return: Maximum possible delay. """
+        """:return: Maximum possible delay."""
         return self.__clock_cycles_to_duration(self.reg_delay.max + 1)
 
     @property
@@ -836,17 +867,17 @@ class PulseGenerator(Module):
 
     @interval.setter
     def interval(self, value):
-        n = self.__duration_to_clock_cycles(value)-1
+        n = self.__duration_to_clock_cycles(value) - 1
         self.reg_interval.set(n)
 
     @property
     def interval_min(self):
-        """ :return: Minimum possible interval. """
+        """:return: Minimum possible interval."""
         return self.__clock_cycles_to_duration(1)
 
     @property
     def interval_max(self):
-        """ :return: Maximum possible interval. """
+        """:return: Maximum possible interval."""
         return self.__clock_cycles_to_duration(self.reg_interval.max + 1)
 
     @property
@@ -860,17 +891,17 @@ class PulseGenerator(Module):
 
     @width.setter
     def width(self, value):
-        n = self.__duration_to_clock_cycles(value)-1
+        n = self.__duration_to_clock_cycles(value) - 1
         self.reg_width.set(n)
 
     @property
     def width_min(self):
-        """ :return: Minimum possible pulse width. """
+        """:return: Minimum possible pulse width."""
         return self.__clock_cycles_to_duration(1)
 
     @property
     def width_max(self):
-        """ :return: Maximum possible pulse width. """
+        """:return: Maximum possible pulse width."""
         return self.__clock_cycles_to_duration(self.reg_width.max + 1)
 
     @property
@@ -885,18 +916,18 @@ class PulseGenerator(Module):
 
     @count.setter
     def count(self, value):
-        if value not in range(1, 2**16+1):
-            raise ValueError('Invalid pulse count')
-        self.reg_count.set(value-1)
+        if value not in range(1, 2**16 + 1):
+            raise ValueError("Invalid pulse count")
+        self.reg_count.set(value - 1)
 
     @property
     def count_min(self):
-        """ :return: Minimum possible pulse count. """
+        """:return: Minimum possible pulse count."""
         return 1
 
     @property
     def count_max(self):
-        """ :return: Maximum possible pulse count. """
+        """:return: Maximum possible pulse count."""
         return self.reg_count.max + 1
 
     @property
@@ -912,19 +943,20 @@ class PulseGenerator(Module):
     @polarity.setter
     def polarity(self, value):
         if value not in range(2):
-            raise ValueError('Invalid polarity value: must be 0 or 1')
+            raise ValueError("Invalid polarity value: must be 0 or 1")
         self.reg_config.set_bit(0, value)
 
 
 class Power(Module):
-    """ Controls the platform and DUT sockets power supplies. """
+    """Controls the platform and DUT sockets power supplies."""
+
     __ADDR_CONTROL = 0x0600
 
     def __init__(self, parent):
-        """ :param parent: The Scaffold instance owning the power module. """
-        super().__init__(parent, '/power')
-        self.add_register('control', 'rwv', self.__ADDR_CONTROL)
-        self.add_signals('dut_trigger', 'platform_trigger')
+        """:param parent: The Scaffold instance owning the power module."""
+        super().__init__(parent, "/power")
+        self.add_register("control", "rwv", self.__ADDR_CONTROL)
+        self.add_signals("dut_trigger", "platform_trigger")
 
     @property
     def all(self):
@@ -943,7 +975,7 @@ class Power(Module):
 
     @property
     def platform(self):
-        """ Platform power-supply state. int. """
+        """Platform power-supply state. int."""
         return self.reg_control.get_bit(1)
 
     @platform.setter
@@ -952,7 +984,7 @@ class Power(Module):
 
     @property
     def dut(self):
-        """ DUT power-supply state. int. """
+        """DUT power-supply state. int."""
         return self.reg_control.get_bit(0)
 
     @dut.setter
@@ -1020,6 +1052,7 @@ class ISO7816(Module):
     ISO7816 peripheral of Scaffold. Does not provide convention or protocol
     management. See :class:`scaffold.iso7816.Smartcard` for more features.
     """
+
     __REG_STATUS_BIT_READY = 0
     __REG_STATUS_BIT_PARITY_ERROR = 1
     __REG_STATUS_BIT_EMPTY = 2
@@ -1033,15 +1066,15 @@ class ISO7816(Module):
         """
         :param parent: The Scaffold instance owning the UART module.
         """
-        super().__init__(parent, '/iso7816')
-        self.add_signals('io_in', 'io_out', 'clk', 'trigger')
+        super().__init__(parent, "/iso7816")
+        self.add_signals("io_in", "io_out", "clk", "trigger")
         self.__addr_base = base = 0x0500
-        self.add_register('status', 'rv', base)
-        self.add_register('control', 'w', base + 1)
-        self.add_register('config', 'w', base + 2)
-        self.add_register('divisor', 'w', base + 3)
-        self.add_register('etu', 'w', base + 4, wideness=2)
-        self.add_register('data', 'rwv', base + 5)
+        self.add_register("status", "rv", base)
+        self.add_register("control", "w", base + 1)
+        self.add_register("config", "w", base + 2)
+        self.add_register("divisor", "w", base + 3)
+        self.add_register("etu", "w", base + 4, wideness=2)
+        self.add_register("data", "rwv", base + 5)
         # Accuracy parameter
         self.max_err = 0.01
 
@@ -1074,18 +1107,19 @@ class ISO7816(Module):
     def clock_frequency(self, value):
         d = round((0.5 * self.parent.sys_freq / value) - 1)
         # Check that the divisor fits one unsigned byte.
-        if d > 0xff:
-            raise ValueError('Target clock frequency is too low.')
+        if d > 0xFF:
+            raise ValueError("Target clock frequency is too low.")
         if d < 0:
-            raise ValueError('Target clock frequency is too high.')
+            raise ValueError("Target clock frequency is too high.")
         # Calculate error between target and effective clock frequency
         real = self.parent.sys_freq / ((d + 1) * 2)
         err = abs(real - value) / value
         max_err = self.max_err = 0.01
         if err > max_err:
             raise RuntimeError(
-                f'Cannot reach target clock frequency within {max_err*100}% '
-                'accuracy.')
+                f"Cannot reach target clock frequency within {max_err*100}% "
+                "accuracy."
+            )
         self.reg_divisor.set(d)
         self.__cache_clock_frequency = real
 
@@ -1100,11 +1134,11 @@ class ISO7816(Module):
     @etu.setter
     def etu(self, value):
         if value not in range(1, 2**11):
-            raise ValueError('Invalid ETU parameter')
+            raise ValueError("Invalid ETU parameter")
         self.reg_etu.set(value - 1)
 
     def flush(self):
-        """ Discard all the received bytes in the FIFO. """
+        """Discard all the received bytes in the FIFO."""
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
     def receive(self, n=1, timeout=None):
@@ -1116,8 +1150,11 @@ class ISO7816(Module):
         """
         with self.parent.timeout_section(timeout):
             return self.reg_data.read(
-                n, poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY), poll_value=0x00)
+                n,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY),
+                poll_value=0x00,
+            )
 
     def transmit(self, data: bytes, trigger: bool = False):
         """
@@ -1129,33 +1166,46 @@ class ISO7816(Module):
         # Polling on status.ready bit before sending each character
         if not trigger:
             self.reg_data.write(
-                data, poll=self.reg_status,
+                data,
+                poll=self.reg_status,
                 poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            )
         else:
             # We want to trig on the last sent character
             with self.parent.lazy_section():
                 self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX, 0, poll=self.reg_status,
+                    self.__REG_CONFIG_TRIGGER_TX,
+                    0,
+                    poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                )
                 self.reg_data.write(
-                    data[:-1], poll=self.reg_status,
+                    data[:-1],
+                    poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                )
                 self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX, 1, poll=self.reg_status,
+                    self.__REG_CONFIG_TRIGGER_TX,
+                    1,
+                    poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                )
                 self.reg_data.write(data[-1])
                 self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX, 0, poll=self.reg_status,
+                    self.__REG_CONFIG_TRIGGER_TX,
+                    0,
+                    poll=self.reg_status,
                     poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY))
+                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                )
 
     @property
     def empty(self):
-        """ True if reception FIFO is empty. """
+        """True if reception FIFO is empty."""
         return bool(self.reg_status.get() & (1 << self.__REG_STATUS_BIT_EMPTY))
 
     @property
@@ -1166,13 +1216,15 @@ class ISO7816(Module):
         :type: ISO7816ParityMode
         """
         return ISO7816ParityMode(
-            (self.reg_config.get() >> self.__REG_CONFIG_PARITY_MODE) & 0b11)
+            (self.reg_config.get() >> self.__REG_CONFIG_PARITY_MODE) & 0b11
+        )
 
     @parity_mode.setter
     def parity_mode(self, value):
         self.reg_config.set_mask(
             (value.value & 0b11) << self.__REG_CONFIG_PARITY_MODE,
-            0b11 << self.__REG_CONFIG_PARITY_MODE)
+            0b11 << self.__REG_CONFIG_PARITY_MODE,
+        )
 
     @property
     def trigger_tx(self):
@@ -1218,7 +1270,8 @@ class ISO7816(Module):
             value,
             poll=self.reg_status,
             poll_mask=1 << self.__REG_STATUS_BIT_READY,
-            poll_value=1 << self.__REG_STATUS_BIT_READY)
+            poll_value=1 << self.__REG_STATUS_BIT_READY,
+        )
 
 
 class I2CNackError(Exception):
@@ -1226,6 +1279,7 @@ class I2CNackError(Exception):
     This exception is thrown by I2C peripheral when a transaction received a
     NACK from the I2C slave.
     """
+
     def __init__(self, index):
         """
         :param index: NACKed byte index. If N, then the N-th byte has not been
@@ -1236,7 +1290,7 @@ class I2CNackError(Exception):
         self.index = index
 
     def __str__(self):
-        """ :return: Error details on the NACKed I2C transaction. """
+        """:return: Error details on the NACKed I2C transaction."""
         return f"Byte of index {self.index} NACKed during I2C transaction."
 
 
@@ -1244,6 +1298,7 @@ class I2C(Module):
     """
     I2C module of Scaffold.
     """
+
     __REG_STATUS_BIT_READY = 0
     __REG_STATUS_BIT_NACK = 1
     __REG_STATUS_BIT_DATA_AVAIL = 2
@@ -1258,19 +1313,19 @@ class I2C(Module):
         :param parent: The Scaffold instance owning the I2C module.
         :param index: I2C module index.
         """
-        super().__init__(parent, f'/i2c{index}')
+        super().__init__(parent, f"/i2c{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals('sda_in', 'sda_out', 'scl_in', 'scl_out', 'trigger')
+        self.add_signals("sda_in", "sda_out", "scl_in", "scl_out", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0700 + 0x0010 * index
-        self.add_register('status', 'rv', base)
-        self.add_register('control', 'w', base + 1)
-        self.add_register('config', 'w', base + 2)
-        self.add_register('divisor', 'w', base + 3, wideness=2, min_value=1)
-        self.add_register('data', 'rwv', base + 4)
-        self.add_register('size_h', 'rwv', base + 5)
-        self.add_register('size_l', 'rwv', base + 6)
+        self.add_register("status", "rv", base)
+        self.add_register("control", "w", base + 1)
+        self.add_register("config", "w", base + 2)
+        self.add_register("divisor", "w", base + 3, wideness=2, min_value=1)
+        self.add_register("data", "rwv", base + 4)
+        self.add_register("size_h", "rwv", base + 5)
+        self.add_register("size_l", "rwv", base + 6)
         self.address = None
         # Current I2C clock frequency
         self.__cache_frequency = None
@@ -1282,12 +1337,12 @@ class I2C(Module):
         self.reg_divisor = 1
         self.reg_size_h = 0
         self.reg_size_l = 0
-        self.reg_config = (
-            (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING) |
-            (1 << self.__REG_CONFIG_BIT_TRIGGER_START))
+        self.reg_config = (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING) | (
+            1 << self.__REG_CONFIG_BIT_TRIGGER_START
+        )
 
     def flush(self):
-        """ Discards all bytes in the transmission/reception FIFO. """
+        """Discards all bytes in the transmission/reception FIFO."""
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
     def raw_transaction(self, data, read_size, trigger=None):
@@ -1316,35 +1371,36 @@ class I2C(Module):
         t_end = False
         if type(trigger) is int:
             if trigger not in range(2):
-                raise ValueError('Invalid trigger parameter')
-            t_start = (trigger == 1)
+                raise ValueError("Invalid trigger parameter")
+            t_start = trigger == 1
         elif type(trigger) is str:
-            t_start = ('a' in trigger)
-            t_end = ('b' in trigger)
+            t_start = "a" in trigger
+            t_end = "b" in trigger
         else:
             if trigger is not None:
-                raise ValueError('Invalid trigger parameter')
+                raise ValueError("Invalid trigger parameter")
         # We are going to update many registers. We start a lazy section to
         # make the update faster: all the acknoledgements of bus write
         # operations are checked at the end.
         with self.parent.lazy_section():
             self.flush()
             self.reg_size_h = read_size >> 8
-            self.reg_size_l = read_size & 0xff
+            self.reg_size_l = read_size & 0xFF
             # Preload the FIFO
             self.reg_data.write(data)
             # Configure trigger for this transaction
             config_value = 0
             if t_start:
-                config_value |= (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
+                config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_START
             if t_end:
-                config_value |= (1 << self.__REG_CONFIG_BIT_TRIGGER_END)
+                config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_END
             # Write config with mask to avoid overwritting clock_stretching
             # option bit
             self.reg_config.set_mask(
                 config_value,
-                (1 << self.__REG_CONFIG_BIT_TRIGGER_START) |
-                (1 << self.__REG_CONFIG_BIT_TRIGGER_END))
+                (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
+                | (1 << self.__REG_CONFIG_BIT_TRIGGER_END),
+            )
             # Start the transaction
             self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
             # End of lazy section. Leaving the scope will automatically check
@@ -1353,20 +1409,21 @@ class I2C(Module):
         st = self.reg_status.read(
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY))[0]
+            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+        )[0]
         nacked = (st & (1 << self.__REG_STATUS_BIT_NACK)) != 0
         # Fetch all the bytes which are stored in the FIFO.
         if nacked:
             # Get the number of bytes remaining.
-            remaining = (
-                (self.reg_size_h.get() << 8) + self.reg_size_l.get())
+            remaining = (self.reg_size_h.get() << 8) + self.reg_size_l.get()
             raise I2CNackError(len(data) - remaining - 1)
         else:
             fifo = self.reg_data.read(
                 read_size,
                 poll=self.reg_status,
                 poll_mask=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
-                poll_value=(1 << self.__REG_STATUS_BIT_DATA_AVAIL))
+                poll_value=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
+            )
             # FIFO emptyness verification can be enabled below for debug
             # purpose. This shall always be the case, unless there is an
             # implementation bug. This check is not enabled by default because
@@ -1393,24 +1450,24 @@ class I2C(Module):
         if address is None:
             address = self.address
         if address is None:
-            raise ValueError('I2C transaction address is not defined')
+            raise ValueError("I2C transaction address is not defined")
         # Check address
         if address < 0:
-            raise ValueError('I2C address cannot be negative')
+            raise ValueError("I2C address cannot be negative")
         if address >= 2**11:  # R/W bit counted in address, so 11 bits max
-            raise ValueError('I2C address is too big')
+            raise ValueError("I2C address is too big")
         if address > 2**8:
             # 10 bits addressing mode
             # R/W bit is bit 8.
             if address & 0x10:
-                raise ValueError('I2C address bit 8 (R/W) must be 0')
-            result.append(0xf0 + (address >> 8) + rw)
-            result.append(address & 0x0f)
+                raise ValueError("I2C address bit 8 (R/W) must be 0")
+            result.append(0xF0 + (address >> 8) + rw)
+            result.append(address & 0x0F)
         else:
             # 7 bits addressing mode
             # R/W bit is bit 0.
             if address & 1:
-                raise ValueError('I2C address LSB (R/W) must be 0')
+                raise ValueError("I2C address LSB (R/W) must be 0")
             result.append(address + rw)
         return result
 
@@ -1475,10 +1532,10 @@ class I2C(Module):
     def frequency(self, value):
         d = round((self.parent.sys_freq / (4 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
-        if d > 0xffff:
-            raise ValueError('Target frequency is too low.')
+        if d > 0xFFFF:
+            raise ValueError("Target frequency is too low.")
         if d < 1:
-            raise ValueError('Target frequency is too high.')
+            raise ValueError("Target frequency is too high.")
         real = self.parent.sys_freq / (d + 1)
         self.reg_divisor.set(d)
         self.__cache_frequency = real
@@ -1493,6 +1550,7 @@ class SPI(Module):
     """
     SPI peripheral of Scaffold.
     """
+
     __REG_STATUS_BIT_READY = 0
     __REG_CONTROL_BIT_CLEAR = 6
     __REG_CONTROL_BIT_TRIGGER = 7
@@ -1505,18 +1563,19 @@ class SPI(Module):
         :param parent: The Scaffold instance owning the SPI module.
         :param index: SPI module index.
         """
-        super().__init__(parent, f'/spi{index}')
+        super().__init__(parent, f"/spi{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals('miso', 'sck', 'mosi', 'ss', 'trigger')
+        self.add_signals("miso", "sck", "mosi", "ss", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0800 + 0x0010 * index
-        self.add_register('status', 'rv', base)
-        self.add_register('control', 'w', base + 1)
-        self.add_register('config', 'w', base + 2, reset=0x00)
+        self.add_register("status", "rv", base)
+        self.add_register("control", "w", base + 1)
+        self.add_register("config", "w", base + 2, reset=0x00)
         self.add_register(
-            'divisor', 'w', base + 3, wideness=2, min_value=1, reset=0x1000)
-        self.add_register('data', 'rwv', base + 4)
+            "divisor", "w", base + 3, wideness=2, min_value=1, reset=0x1000
+        )
+        self.add_register("data", "rwv", base + 4)
         # Current SPI clock frequency
         self.__cache_frequency = None
 
@@ -1544,19 +1603,20 @@ class SPI(Module):
 
     @property
     def mode(self) -> SPIMode:
-        """ SPI mode """
-        if self.parent.version < '0.8':
+        """SPI mode"""
+        if self.parent.version < "0.8":
             return SPIMode.MASTER
         else:
             return SPIMode(self.reg_config.get_bit(self.__REG_CONFIG_BIT_MODE))
 
     @mode.setter
     def mode(self, value: SPIMode):
-        if self.parent.version < '0.8':
+        if self.parent.version < "0.8":
             if value != SPIMode.MASTER:
                 raise RuntimeError(
-                    'Current FPGA confware only supports master mode. '
-                    'Slave mode requires confware >= 0.8.')
+                    "Current FPGA confware only supports master mode. "
+                    "Slave mode requires confware >= 0.8."
+                )
         else:
             self.reg_config.set_bit(self.__REG_CONFIG_BIT_MODE, value.value)
 
@@ -1576,10 +1636,10 @@ class SPI(Module):
     def frequency(self, value):
         d = round((self.parent.sys_freq / (4 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
-        if d > 0xffff:
-            raise ValueError('Target frequency is too low.')
+        if d > 0xFFFF:
+            raise ValueError("Target frequency is too low.")
         if d < 1:
-            raise ValueError('Target frequency is too high.')
+            raise ValueError("Target frequency is too high.")
         real = self.parent.sys_freq / (d + 1)
         self.reg_divisor.set(d)
         self.__cache_frequency = real
@@ -1603,11 +1663,11 @@ class SPI(Module):
         :rtype: int
         """
         if size not in range(1, 33):
-            raise ValueError('Invalid size for SPI transaction')
+            raise ValueError("Invalid size for SPI transaction")
         if value < 0:
-            raise ValueError('value cannot be negative')
+            raise ValueError("value cannot be negative")
         if value >= (2**size):
-            raise ValueError('value is too high')
+            raise ValueError("value is too high")
         # The value to be transmitted must be loaded in the transmission
         # shift-register, less significant bit first. The buffer will transmit
         # its size most significant bits.
@@ -1617,7 +1677,7 @@ class SPI(Module):
             pad += 1
         remaining = size
         while remaining > 0:
-            self.reg_data.write(value & 0xff)
+            self.reg_data.write(value & 0xFF)
             value >>= 8
             remaining -= 8
         # Start transmission
@@ -1627,9 +1687,10 @@ class SPI(Module):
             (trigger << self.__REG_CONTROL_BIT_TRIGGER) + (size - 1),
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY))
+            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+        )
         if read:
-            res = self.read_data_buffer((size-1)//8 + 1)
+            res = self.read_data_buffer((size - 1) // 8 + 1)
             # Mask to discard garbage bits from previous operations
             res &= 2**size - 1
             return res
@@ -1649,8 +1710,9 @@ class SPI(Module):
             n,
             poll=self.reg_status,
             poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY))
-        return int.from_bytes(res, 'little')
+            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+        )
+        return int.from_bytes(res, "little")
 
     def append(self, data: Union[int, bytes]):
         """
@@ -1663,12 +1725,10 @@ class SPI(Module):
 
         :param data: Byte or bytes to be appended.
         """
-        if self.parent.version < '0.8':
-            raise RuntimeError(
-                'SPI slave support requires FPGA confware >= 0.8')
+        if self.parent.version < "0.8":
+            raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         if self.mode != SPIMode.SLAVE:
-            raise RuntimeError(
-                'Select slave mode first to append response data.')
+            raise RuntimeError("Select slave mode first to append response data.")
         self.reg_data.write(data)
 
     def clear(self):
@@ -1676,14 +1736,14 @@ class SPI(Module):
         Clear the FIFO memory of the data to be returned by the peripheral when
         configured as a slave.
         """
-        if self.parent.version < '0.8':
-            raise RuntimeError(
-                'SPI slave support requires FPGA confware >= 0.8')
+        if self.parent.version < "0.8":
+            raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_CLEAR)
 
 
 class Chain(Module):
-    """ Chain trigger module. """
+    """Chain trigger module."""
+
     __ADDR_CONTROL = 0x0900
 
     def __init__(self, parent, index, size):
@@ -1695,14 +1755,14 @@ class Chain(Module):
         :param size: Number of events in the chain.
         :type size: int
         """
-        super().__init__(parent, f'/chain{index}')
-        self.add_register('control', 'wv', self.__ADDR_CONTROL + index * 0x10)
+        super().__init__(parent, f"/chain{index}")
+        self.add_register("control", "wv", self.__ADDR_CONTROL + index * 0x10)
         for i in range(size):
-            self.add_signal(f'event{i}')
-        self.add_signal('trigger')
+            self.add_signal(f"event{i}")
+        self.add_signal("trigger")
 
     def rearm(self):
-        """ Reset the chain trigger to initial state. """
+        """Reset the chain trigger to initial state."""
         self.reg_control.set(1)
 
 
@@ -1713,10 +1773,11 @@ class Clock(Module):
     generated and enabled during a short period of time to override the first
     clock, generating clock glitches.
     """
-    __ADDR_CONFIG = 0x0a00
-    __ADDR_DIVISOR_A = 0x0a01
-    __ADDR_DIVISOR_B = 0x0a02
-    __ADDR_COUNT = 0x0a03
+
+    __ADDR_CONFIG = 0x0A00
+    __ADDR_DIVISOR_A = 0x0A01
+    __ADDR_DIVISOR_B = 0x0A02
+    __ADDR_COUNT = 0x0A03
 
     def __init__(self, parent, index):
         """
@@ -1725,19 +1786,19 @@ class Clock(Module):
         :param index: Module index.
         :type index: int
         """
-        super().__init__(parent, f'/clock{index}')
-        self.add_register('config', 'w', self.__ADDR_CONFIG + index * 0x10)
-        self.add_register(
-            'divisor_a', 'w', self.__ADDR_DIVISOR_A + index * 0x10)
-        self.add_register(
-            'divisor_b', 'w', self.__ADDR_DIVISOR_B + index * 0x10)
-        self.add_register('count', 'w', self.__ADDR_COUNT + index * 0x10)
-        self.add_signals('glitch', 'out')
+        super().__init__(parent, f"/clock{index}")
+        self.add_register("config", "w", self.__ADDR_CONFIG + index * 0x10)
+        self.add_register("divisor_a", "w", self.__ADDR_DIVISOR_A + index * 0x10)
+        self.add_register("divisor_b", "w", self.__ADDR_DIVISOR_B + index * 0x10)
+        self.add_register("count", "w", self.__ADDR_COUNT + index * 0x10)
+        self.add_signals("glitch", "out")
 
         self.__freq_helper_a = FreqRegisterHelper(
-            self.parent.sys_freq, self.reg_divisor_a)
+            self.parent.sys_freq, self.reg_divisor_a
+        )
         self.__freq_helper_b = FreqRegisterHelper(
-            self.parent.sys_freq, self.reg_divisor_b)
+            self.parent.sys_freq, self.reg_divisor_b
+        )
 
     @property
     def frequency(self):
@@ -1814,6 +1875,7 @@ class IO(Signal, Module):
     """
     Board I/O.
     """
+
     def __init__(self, parent, path, index, pullable=False):
         """
         :param parent: Scaffold instance which the signal belongs to.
@@ -1825,20 +1887,20 @@ class IO(Signal, Module):
         Module.__init__(self, parent)
         self.index = index
         self.__pullable = pullable
-        if parent.version == '0.2':
+        if parent.version == "0.2":
             # 0.2 only
             # Since I/O will have more options, it is not very convenient to
             # group them anymore.
             self.__group = index // 8
             self.__group_index = index % 8
-            base = 0xe000 + 0x10 * self.__group
-            self.add_register('value', 'rv', base + 0x00)
-            self.add_register('event', 'rwv', base + 0x01, reset=0)
+            base = 0xE000 + 0x10 * self.__group
+            self.add_register("value", "rv", base + 0x00)
+            self.add_register("event", "rwv", base + 0x01, reset=0)
         else:
             # 0.3
-            base = 0xe000 + 0x10 * self.index
-            self.add_register('value', 'rwv', base + 0x00, reset=0)
-            self.add_register('config', 'rw', base + 0x01, reset=0)
+            base = 0xE000 + 0x10 * self.index
+            self.add_register("value", "rwv", base + 0x00, reset=0)
+            self.add_register("config", "rw", base + 0x01, reset=0)
             # No more event register in 0.3. Events are in the value register
 
     @property
@@ -1851,7 +1913,7 @@ class IO(Signal, Module):
             will disconnect the I/O from any already connected internal
             peripheral. Same effect can be achieved using << operator.
         """
-        if self.parent.version == '0.2':
+        if self.parent.version == "0.2":
             return (self.reg_value.get() >> self.__group_index) & 1
         else:
             # 0.3
@@ -1866,7 +1928,7 @@ class IO(Signal, Module):
             otherwise.
         :setter: Writing 0 to clears the event flag. Writing 1 has no effect.
         """
-        if self.parent.version == '0.2':
+        if self.parent.version == "0.2":
             return (self.reg_event.get() >> self.__group_index) & 1
         else:
             # 0.3
@@ -1879,8 +1941,8 @@ class IO(Signal, Module):
         :warning: If an event is received during this call, it may be cleared
             without being took into account.
         """
-        if self.parent.version == '0.2':
-            self.reg_event.set(0xff ^ (1 << self.__group_index))
+        if self.parent.version == "0.2":
+            self.reg_event.set(0xFF ^ (1 << self.__group_index))
         else:
             # 0.3
             self.reg_value.set(0)
@@ -1893,14 +1955,14 @@ class IO(Signal, Module):
 
         :type: IOMode
         """
-        assert self.parent.version >= '0.3'
+        assert self.parent.version >= "0.3"
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
     def mode(self, value):
-        assert self.parent.version >= '0.3'
+        assert self.parent.version >= "0.3"
         if not isinstance(value, IOMode):
-            raise ValueError('mode must be an instance of IOMode enumeration')
+            raise ValueError("mode must be an instance of IOMode enumeration")
         self.reg_config.set_mask(value.value, 0b11)
 
     @property
@@ -1911,19 +1973,19 @@ class IO(Signal, Module):
 
         :type: Pull
         """
-        assert self.parent.version >= '0.3'
+        assert self.parent.version >= "0.3"
         if not self.__pullable:
             return Pull.NONE
         return Pull((self.reg_config.get() >> 2) & 0b11)
 
     @pull.setter
     def pull(self, value):
-        assert self.parent.version >= '0.3'
+        assert self.parent.version >= "0.3"
         # Accept None as value
         if value is None:
             value = Pull.NONE
         if (not self.__pullable) and (value != Pull.NONE):
-            raise RuntimeError('This I/O does not support pull resistor')
+            raise RuntimeError("This I/O does not support pull resistor")
         self.reg_config.set_mask(value.value << 2, 0b1100)
 
 
@@ -1931,6 +1993,7 @@ class ScaffoldBusLazySection:
     """
     Helper class to be sure the opened lazy sections are closed at some time.
     """
+
     def __init__(self, bus):
         self.bus = bus
 
@@ -1946,6 +2009,7 @@ class ScaffoldBusTimeoutSection:
     Helper class to be sure a pushed timeout configuration is poped at some
     time. This is to be used with the python 'with' statement.
     """
+
     def __init__(self, bus, timeout):
         """
         :param bus: Scaffold bus manager.
@@ -1967,6 +2031,7 @@ class ScaffoldBus:
     """
     Low level methods to drive the Scaffold device.
     """
+
     MAX_CHUNK = 255
     FIFO_SIZE = 512
 
@@ -1978,7 +2043,7 @@ class ScaffoldBus:
         self.__baudrate = baudrate
         self.sys_freq = sys_freq
         # How long in seconds one timeout unit is.
-        self.timeout_unit = (3.0/self.sys_freq)
+        self.timeout_unit = 3.0 / self.sys_freq
         self.ser = None
         self.__lazy_writes = []
         self.__lazy_fifo_total_size = 0
@@ -1998,8 +2063,7 @@ class ScaffoldBus:
         """
         self.ser = serial.Serial(dev, self.__baudrate)
 
-    def prepare_datagram(
-            self, rw, addr, size, poll, poll_mask, poll_value):
+    def prepare_datagram(self, rw, addr, size, poll, poll_mask, poll_value):
         """
         Helper function to build the datagrams to be sent to the Scaffold
         device. Also performs basic check on arguments.
@@ -2013,15 +2077,15 @@ class ScaffoldBus:
         :return: A bytearray.
         """
         if rw not in range(2):
-            raise ValueError('Invalid rw argument')
-        if size not in range(1, self.MAX_CHUNK+1):
-            raise ValueError('Invalid size')
+            raise ValueError("Invalid rw argument")
+        if size not in range(1, self.MAX_CHUNK + 1):
+            raise ValueError("Invalid size")
         if addr not in range(0x10000):
-            raise ValueError('Invalid address')
+            raise ValueError("Invalid address")
         if isinstance(poll, Register):
             poll = poll.address
         if (poll is not None) and (poll not in range(0x10000)):
-            raise ValueError('Invalid polling address')
+            raise ValueError("Invalid polling address")
         command = rw
         if size > 1:
             command |= 2
@@ -2030,18 +2094,17 @@ class ScaffoldBus:
         datagram = bytearray()
         datagram.append(command)
         datagram.append(addr >> 8)
-        datagram.append(addr & 0xff)
+        datagram.append(addr & 0xFF)
         if poll is not None:
             datagram.append(poll >> 8)
-            datagram.append(poll & 0xff)
+            datagram.append(poll & 0xFF)
             datagram.append(poll_mask)
             datagram.append(poll_value)
         if size > 1:
             datagram.append(size)
         return datagram
 
-    def write(
-            self, addr, data, poll=None, poll_mask=0xff, poll_value=0x00):
+    def write(self, addr, data, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Write data to a register.
         :param addr: Register address.
@@ -2052,7 +2115,7 @@ class ScaffoldBus:
         :param poll_value: Register polling value.
         """
         if self.ser is None:
-            raise RuntimeError('Not connected to board')
+            raise RuntimeError("Not connected to board")
 
         # If data is an int, convert it to bytes.
         if type(data) is int:
@@ -2063,8 +2126,9 @@ class ScaffoldBus:
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
             datagram = self.prepare_datagram(
-                1, addr, chunk_size, poll, poll_mask, poll_value)
-            datagram += data[offset:offset + chunk_size]
+                1, addr, chunk_size, poll, poll_mask, poll_value
+            )
+            datagram += data[offset : offset + chunk_size]
             assert len(datagram) < self.FIFO_SIZE
             if self.__lazy_stack == 0:
                 self.ser.write(datagram)
@@ -2073,8 +2137,7 @@ class ScaffoldBus:
                 if ack != chunk_size:
                     assert poll is not None
                     # Timeout error !
-                    raise TimeoutError(
-                        size=offset+ack, expected=offset+chunk_size)
+                    raise TimeoutError(size=offset + ack, expected=offset + chunk_size)
             else:
                 # Lazy-update section. The write result will be checked later,
                 # when all lazy-sections are closed.
@@ -2103,9 +2166,7 @@ class ScaffoldBus:
             remaining -= chunk_size
             offset += chunk_size
 
-    def read(
-            self, addr, size=1, poll=None, poll_mask=0xff,
-            poll_value=0x00):
+    def read(self, addr, size=1, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Read data from a register.
         :param addr: Register address.
@@ -2116,25 +2177,27 @@ class ScaffoldBus:
         :return: bytearray
         """
         if self.ser is None:
-            raise RuntimeError('Not connected to board')
+            raise RuntimeError("Not connected to board")
         # Read operation not permitted during lazy-update sections
         if self.__lazy_stack > 0:
             raise RuntimeError(
-                'Read operations not allowed during lazy-update section.')
+                "Read operations not allowed during lazy-update section."
+            )
         result = bytearray()
         remaining = size
         offset = 0
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
             datagram = self.prepare_datagram(
-                0, addr, chunk_size, poll, poll_mask, poll_value)
+                0, addr, chunk_size, poll, poll_mask, poll_value
+            )
             self.ser.write(datagram)
-            res = self.ser.read(chunk_size+1)
+            res = self.ser.read(chunk_size + 1)
             ack = res[-1]
             if ack != chunk_size:
                 assert poll is not None
                 result += res[:ack]
-                raise TimeoutError(data=result, expected=chunk_size+offset)
+                raise TimeoutError(data=result, expected=chunk_size + offset)
             result += res[:-1]
             remaining -= chunk_size
             offset += chunk_size
@@ -2147,11 +2210,11 @@ class ScaffoldBus:
         :param value: Timeout register value. If 0 the timeout is disabled. One
             unit corresponds to three FPGA system clock cycles.
         """
-        if (value < 0) or (value > 0xffffffff):
-            raise ValueError('Timeout value out of range')
+        if (value < 0) or (value > 0xFFFFFFFF):
+            raise ValueError("Timeout value out of range")
         datagram = bytearray()
         datagram.append(0x08)
-        datagram += value.to_bytes(4, 'big', signed=False)
+        datagram += value.to_bytes(4, "big", signed=False)
         self.ser.write(datagram)
         # No response expected from the board
 
@@ -2178,7 +2241,7 @@ class ScaffoldBus:
         thrown.
         """
         if self.__lazy_stack == 0:
-            raise RuntimeError('No lazy section started')
+            raise RuntimeError("No lazy section started")
         self.__lazy_stack -= 1
         last_error = None
         if self.__lazy_stack == 0:
@@ -2203,7 +2266,7 @@ class ScaffoldBus:
         is disabled.
         """
         if self.__cache_timeout is None:
-            return RuntimeError('Timeout not set yet')
+            return RuntimeError("Timeout not set yet")
         if self.__cache_timeout == 0:
             return None
         else:
@@ -2244,7 +2307,7 @@ class ScaffoldBus:
         :raises RuntimeError: if timeout stack is already empty.
         """
         if len(self.__timeout_stack) == 0:
-            raise RuntimeError('Timeout setting stack is empty')
+            raise RuntimeError("Timeout setting stack is empty")
         self.timeout = self.__timeout_stack.pop()
 
     def lazy_section(self):
@@ -2266,6 +2329,7 @@ class IODir(Enum):
     """
     I/O direction mode.
     """
+
     INPUT = 0
     OUTPUT = 1
 
@@ -2278,11 +2342,11 @@ class ArchBase:
     to create other boards than Scaffold sharing the same architecture
     principle.
     """
-    __ADDR_MTXR_BASE = 0xf100
-    __ADDR_MTXL_BASE = 0xf000
 
-    def __init__(self, sys_freq, board_name, supported_versions,
-                 baudrate=2000000):
+    __ADDR_MTXR_BASE = 0xF100
+    __ADDR_MTXL_BASE = 0xF000
+
+    def __init__(self, sys_freq, board_name, supported_versions, baudrate=2000000):
         """
         Defines basic parameters of the board.
 
@@ -2384,20 +2448,22 @@ class ArchBase:
             possible_ports = []
             for port in serial.tools.list_ports.comports():
                 # USB description string can be 'Scaffold', with uppercase 'S'.
-                if ((port.product is not None)
-                        and (port.product.lower() ==
-                             self.__expected_board_name)
-                        and ((sn is None) or (port.serial_number == sn))):
+                if (
+                    (port.product is not None)
+                    and (port.product.lower() == self.__expected_board_name)
+                    and ((sn is None) or (port.serial_number == sn))
+                ):
                     possible_ports.append(port)
             if len(possible_ports) > 1:
                 raise RuntimeError(
-                    'Multiple ' + self.__expected_board_name +
-                    ' devices found! I don\'t know which one to use.')
+                    "Multiple "
+                    + self.__expected_board_name
+                    + " devices found! I don't know which one to use."
+                )
             elif len(possible_ports) == 1:
                 dev = possible_ports[0].device
             else:
-                raise RuntimeError(
-                    'No ' + self.__expected_board_name + ' device found')
+                raise RuntimeError("No " + self.__expected_board_name + " device found")
         else:
             if sn is not None:
                 raise ValueError("dev and sn cannot be set together")
@@ -2406,18 +2472,17 @@ class ArchBase:
         # Check hardware responds and has the correct version.
         self.__version_string = self.__version_module.get_string()
         # Split board name and version string
-        tokens = self.__version_string.split('-')
+        tokens = self.__version_string.split("-")
         if len(tokens) != 2:
             raise RuntimeError(
-                'Failed to parse board version string \''
-                + self.__version_string + '\'')
+                "Failed to parse board version string '" + self.__version_string + "'"
+            )
         self.__board_name = tokens[0]
         self.__version = tokens[1]
         if self.__board_name != self.__expected_board_name:
-            raise RuntimeError('Invalid board name during version check')
+            raise RuntimeError("Invalid board name during version check")
         if self.__version not in self.__supported_versions:
-            raise RuntimeError(
-                'Hardware version ' + self.__version + ' not supported')
+            raise RuntimeError("Hardware version " + self.__version + " not supported")
 
     def __signal_to_path(self, signal):
         """
@@ -2428,18 +2493,18 @@ class ArchBase:
         """
         if isinstance(signal, Signal):
             if signal.parent != self:
-                raise ValueError('Signal belongs to another Scaffold instance')
+                raise ValueError("Signal belongs to another Scaffold instance")
             return signal.path
         elif type(signal) is int:
             if signal not in (0, 1):
-                raise ValueError('Invalid signal value')
+                raise ValueError("Invalid signal value")
             return str(signal)
         elif type(signal) is int:
             return str(signal)
         elif signal is None:
-            return 'z'  # High impedance
+            return "z"  # High impedance
         else:
-            raise ValueError('Invalid signal type')
+            raise ValueError("Invalid signal type")
 
     def sig_connect(self, a, b):
         """
@@ -2455,13 +2520,13 @@ class ArchBase:
         dest_path = self.__signal_to_path(a)
         src_path = self.__signal_to_path(b)
 
-        dest_in_mtxr_out = (dest_path in self.mtxr_out)
-        dest_in_mtxl_out = (dest_path in self.mtxl_out)
+        dest_in_mtxr_out = dest_path in self.mtxr_out
+        dest_in_mtxl_out = dest_path in self.mtxl_out
         if not (dest_in_mtxr_out or dest_in_mtxl_out):
             # Shall never happen unless there is a bug
-            raise RuntimeError(f'Invalid destination path \'{dest_path}\'')
-        src_in_mtxl_in = (src_path in self.mtxl_in)
-        src_in_mtxr_in = (src_path in self.mtxr_in)
+            raise RuntimeError(f"Invalid destination path '{dest_path}'")
+        src_in_mtxl_in = src_path in self.mtxl_in
+        src_in_mtxr_in = src_path in self.mtxr_in
         # Beware: we can have a dest signal with the same name in mtxr and
         # mtxl.
         if dest_in_mtxr_out and src_in_mtxr_in:
@@ -2469,8 +2534,8 @@ class ArchBase:
                 # Shall never happen unless a module output has the same name
                 # as one of its input.
                 raise RuntimeError(
-                    f'Connection ambiguity \'{dest_path}\' << '
-                    + f'\'{src_path}\'.')
+                    f"Connection ambiguity '{dest_path}' << " + f"'{src_path}'."
+                )
             # Connect a module output to an IO output
             src_index = self.mtxr_in.index(src_path)
             dst_index = self.mtxr_out.index(dest_path)
@@ -2483,7 +2548,8 @@ class ArchBase:
         else:
             # Shall never happen unless there is a bug
             raise RuntimeError(
-                f'Failed to connect \'{dest_path}\' << ' + f'\'{src_path}\'.')
+                f"Failed to connect '{dest_path}' << " + f"'{src_path}'."
+            )
 
     def sig_disconnect_all(self):
         """
@@ -2561,6 +2627,7 @@ class Scaffold(ArchBase):
         instances for connecting and controlling the corresponding I/Os of the
         board.
     """
+
     # Number of I/Os
     __IO_D_COUNT = 16
     __IO_P_COUNT = 16
@@ -2571,8 +2638,12 @@ class Scaffold(ArchBase):
     # Number of I2C modules
     __I2C_COUNT = 1
 
-    def __init__(self, dev: Optional[str] = None, init_ios: bool = False,
-                 sn: Optional[str] = None):
+    def __init__(
+        self,
+        dev: Optional[str] = None,
+        init_ios: bool = False,
+        sn: Optional[str] = None,
+    ):
         """
         Create Scaffold API instance.
 
@@ -2590,14 +2661,18 @@ class Scaffold(ArchBase):
         """
         super().__init__(
             100e6,  # System frequency: 100 MHz
-            'scaffold',  # board name
+            "scaffold",  # board name
             # Supported FPGA bitstream versions
-            ('0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.7.1', '0.7.2', '0.8')
+            ("0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.7.1", "0.7.2", "0.8"),
         )
         self.connect(dev, init_ios, sn)
 
-    def connect(self, dev: Optional[str] = None, init_ios: bool = False,
-                sn: Optional[str] = None):
+    def connect(
+        self,
+        dev: Optional[str] = None,
+        init_ios: bool = False,
+        sn: Optional[str] = None,
+    ):
         """
         Connect to Scaffold board using the given serial port.
 
@@ -2623,180 +2698,181 @@ class Scaffold(ArchBase):
         # Scaffold hardware v1 has FPGA arch version <= 0.3
         # Scaffold hardware v1.1 has FPGA arch version >= 0.4
         # The I/Os have changed between both versions.
-        self.a0 = IO(self, '/io/a0', 0)
-        self.a1 = IO(self, '/io/a1', 1)
-        if self.version <= '0.3':
-            self.b0 = IO(self, '/io/b0', 2)
-            self.b1 = IO(self, '/io/b1', 3)
-            self.c0 = IO(self, '/io/c0', 4)
-            self.c1 = IO(self, '/io/c1', 5)
+        self.a0 = IO(self, "/io/a0", 0)
+        self.a1 = IO(self, "/io/a1", 1)
+        if self.version <= "0.3":
+            self.b0 = IO(self, "/io/b0", 2)
+            self.b1 = IO(self, "/io/b1", 3)
+            self.c0 = IO(self, "/io/c0", 4)
+            self.c1 = IO(self, "/io/c1", 5)
             for i in range(self.__IO_D_COUNT):
-                self.__setattr__(f'd{i}', IO(self, f'/io/d{i}', i+6))
+                self.__setattr__(f"d{i}", IO(self, f"/io/d{i}", i + 6))
         else:
-            self.a2 = IO(self, '/io/a2', 1)
-            self.a3 = IO(self, '/io/a3', 1)
+            self.a2 = IO(self, "/io/a2", 1)
+            self.a3 = IO(self, "/io/a3", 1)
             for i in range(self.__IO_D_COUNT):
                 # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
                 self.__setattr__(
-                    f'd{i}', IO(self, f'/io/d{i}', i + 4, pullable=(i < 3)))
-            if self.version >= '0.6':
+                    f"d{i}", IO(self, f"/io/d{i}", i + 4, pullable=(i < 3))
+                )
+            if self.version >= "0.6":
                 for i in range(self.__IO_P_COUNT):
                     self.__setattr__(
-                        f'p{i}',
-                        IO(self, f'/io/p{i}', i + 4 + self.__IO_D_COUNT))
+                        f"p{i}", IO(self, f"/io/p{i}", i + 4 + self.__IO_D_COUNT)
+                    )
 
         # Create the UART modules
         self.uarts = []
         for i in range(self.__UART_COUNT):
             uart = UART(self, i)
             self.uarts.append(uart)
-            self.__setattr__(f'uart{i}', uart)
+            self.__setattr__(f"uart{i}", uart)
 
         # Create the pulse generator modules
         self.pgens = []
         for i in range(self.__PULSE_GENERATOR_COUNT):
-            pgen = PulseGenerator(self, f'/pgen{i}', 0x0300 + 0x10*i)
+            pgen = PulseGenerator(self, f"/pgen{i}", 0x0300 + 0x10 * i)
             self.pgens.append(pgen)
-            self.__setattr__(f'pgen{i}', pgen)
+            self.__setattr__(f"pgen{i}", pgen)
 
         # Declare the I2C peripherals
         self.i2cs = []
         for i in range(self.__I2C_COUNT):
             i2c = I2C(self, i)
             self.i2cs.append(i2c)
-            self.__setattr__(f'i2c{i}', i2c)
+            self.__setattr__(f"i2c{i}", i2c)
 
         # Declare the SPI peripherals
         self.spis = []
-        if self.version >= '0.7':
+        if self.version >= "0.7":
             for i in range(1):
                 spi = SPI(self, i)
                 self.spis.append(spi)
-                self.__setattr__(f'spi{i}', spi)
+                self.__setattr__(f"spi{i}", spi)
 
         # Declare the trigger chain modules
         self.chains = []
-        if self.version >= '0.7':
+        if self.version >= "0.7":
             for i in range(2):
                 chain = Chain(self, i, 3)
                 self.chains.append(chain)
-                self.__setattr__(f'chain{i}', chain)
+                self.__setattr__(f"chain{i}", chain)
 
         # Declare clock generation module
         self.clocks = []
-        if self.version >= '0.7':
+        if self.version >= "0.7":
             for i in range(1):
                 clock = Clock(self, i)
                 self.clocks.append(clock)
-                self.__setattr__(f'clock{i}', clock)
+                self.__setattr__(f"clock{i}", clock)
 
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
         # FPGA left matrix input signals
-        self.add_mtxl_in('0')
-        self.add_mtxl_in('1')
-        self.add_mtxl_in('/io/a0')
-        self.add_mtxl_in('/io/a1')
-        if self.version <= '0.3':
+        self.add_mtxl_in("0")
+        self.add_mtxl_in("1")
+        self.add_mtxl_in("/io/a0")
+        self.add_mtxl_in("/io/a1")
+        if self.version <= "0.3":
             # Scaffold hardware v1 only
-            self.add_mtxl_in('/io/b0')
-            self.add_mtxl_in('/io/b1')
-            self.add_mtxl_in('/io/c0')
-            self.add_mtxl_in('/io/c1')
+            self.add_mtxl_in("/io/b0")
+            self.add_mtxl_in("/io/b1")
+            self.add_mtxl_in("/io/c0")
+            self.add_mtxl_in("/io/c1")
         else:
             # Scaffold hardware v1.1
-            self.add_mtxl_in('/io/a2')
-            self.add_mtxl_in('/io/a3')
+            self.add_mtxl_in("/io/a2")
+            self.add_mtxl_in("/io/a3")
         for i in range(self.__IO_D_COUNT):
-            self.add_mtxl_in(f'/io/d{i}')
-        if self.version >= '0.6':
+            self.add_mtxl_in(f"/io/d{i}")
+        if self.version >= "0.6":
             for i in range(self.__IO_P_COUNT):
-                self.add_mtxl_in(f'/io/p{i}')
-        if self.version >= '0.7':
+                self.add_mtxl_in(f"/io/p{i}")
+        if self.version >= "0.7":
             # Feeback signals from module outputs (mostly triggers)
             for i in range(len(self.uarts)):
-                self.add_mtxl_in(f'/uart{i}/trigger')
-            self.add_mtxl_in('/iso7816/trigger')
+                self.add_mtxl_in(f"/uart{i}/trigger")
+            self.add_mtxl_in("/iso7816/trigger")
             for i in range(len(self.i2cs)):
-                self.add_mtxl_in(f'/i2c{i}/trigger')
+                self.add_mtxl_in(f"/i2c{i}/trigger")
             for i in range(len(self.spis)):
-                self.add_mtxl_in(f'/spi{i}/trigger')
+                self.add_mtxl_in(f"/spi{i}/trigger")
             for i in range(len(self.pgens)):
-                self.add_mtxl_in(f'/pgen{i}/out')
+                self.add_mtxl_in(f"/pgen{i}/out")
             for i in range(len(self.chains)):
-                self.add_mtxl_in(f'/chain{i}/trigger')
+                self.add_mtxl_in(f"/chain{i}/trigger")
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
         for i in range(self.__UART_COUNT):
-            self.add_mtxl_out(f'/uart{i}/rx')
-        self.add_mtxl_out('/iso7816/io_in')
+            self.add_mtxl_out(f"/uart{i}/rx")
+        self.add_mtxl_out("/iso7816/io_in")
         for i in range(self.__PULSE_GENERATOR_COUNT):
-            self.add_mtxl_out(f'/pgen{i}/start')
+            self.add_mtxl_out(f"/pgen{i}/start")
         for i in range(self.__I2C_COUNT):
-            self.add_mtxl_out(f'/i2c{i}/sda_in')
-            self.add_mtxl_out(f'/i2c{i}/scl_in')
+            self.add_mtxl_out(f"/i2c{i}/sda_in")
+            self.add_mtxl_out(f"/i2c{i}/scl_in")
         for i in range(len(self.spis)):
-            self.add_mtxl_out(f'/spi{i}/miso')
+            self.add_mtxl_out(f"/spi{i}/miso")
         for i in range(len(self.spis)):
-            self.add_mtxl_out(f'/spi{i}/sck')
-            self.add_mtxl_out(f'/spi{i}/ss')
+            self.add_mtxl_out(f"/spi{i}/sck")
+            self.add_mtxl_out(f"/spi{i}/ss")
         for i in range(len(self.chains)):
             for j in range(3):  # 3 is the number of chain events
-                self.add_mtxl_out(f'/chain{i}/event{j}')
+                self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
-            self.add_mtxl_out(f'/clock{i}/glitch')
+            self.add_mtxl_out(f"/clock{i}/glitch")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
-        self.add_mtxr_in('z')
-        self.add_mtxr_in('0')
-        self.add_mtxr_in('1')
-        self.add_mtxr_in('/power/dut_trigger')
-        self.add_mtxr_in('/power/platform_trigger')
+        self.add_mtxr_in("z")
+        self.add_mtxr_in("0")
+        self.add_mtxr_in("1")
+        self.add_mtxr_in("/power/dut_trigger")
+        self.add_mtxr_in("/power/platform_trigger")
         for i in range(self.__UART_COUNT):
-            self.add_mtxr_in(f'/uart{i}/tx')
-            self.add_mtxr_in(f'/uart{i}/trigger')
-        self.add_mtxr_in('/iso7816/io_out')
-        self.add_mtxr_in('/iso7816/clk')
-        self.add_mtxr_in('/iso7816/trigger')
+            self.add_mtxr_in(f"/uart{i}/tx")
+            self.add_mtxr_in(f"/uart{i}/trigger")
+        self.add_mtxr_in("/iso7816/io_out")
+        self.add_mtxr_in("/iso7816/clk")
+        self.add_mtxr_in("/iso7816/trigger")
         for i in range(self.__PULSE_GENERATOR_COUNT):
-            self.add_mtxr_in(f'/pgen{i}/out')
+            self.add_mtxr_in(f"/pgen{i}/out")
         for i in range(self.__I2C_COUNT):
-            self.add_mtxr_in(f'/i2c{i}/sda_out')
-            self.add_mtxr_in(f'/i2c{i}/scl_out')
-            self.add_mtxr_in(f'/i2c{i}/trigger')
+            self.add_mtxr_in(f"/i2c{i}/sda_out")
+            self.add_mtxr_in(f"/i2c{i}/scl_out")
+            self.add_mtxr_in(f"/i2c{i}/trigger")
         for i in range(len(self.spis)):
-            self.add_mtxr_in(f'/spi{i}/sck')
-            self.add_mtxr_in(f'/spi{i}/mosi')
-            self.add_mtxr_in(f'/spi{i}/ss')
-            self.add_mtxr_in(f'/spi{i}/trigger')
+            self.add_mtxr_in(f"/spi{i}/sck")
+            self.add_mtxr_in(f"/spi{i}/mosi")
+            self.add_mtxr_in(f"/spi{i}/ss")
+            self.add_mtxr_in(f"/spi{i}/trigger")
         for i in range(len(self.spis)):
-            self.add_mtxr_in(f'/spi{i}/miso')
+            self.add_mtxr_in(f"/spi{i}/miso")
         for i in range(len(self.chains)):
-            self.add_mtxr_in(f'/chain{i}/trigger')
+            self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
-            self.add_mtxr_in(f'/clock{i}/out')
+            self.add_mtxr_in(f"/clock{i}/out")
 
         # FPGA right matrix output signals
-        self.add_mtxr_out('/io/a0')
-        self.add_mtxr_out('/io/a1')
-        if self.version <= '0.3':
+        self.add_mtxr_out("/io/a0")
+        self.add_mtxr_out("/io/a1")
+        if self.version <= "0.3":
             # Scaffold hardware v1 only
-            self.add_mtxr_out('/io/b0')
-            self.add_mtxr_out('/io/b1')
-            self.add_mtxr_out('/io/c0')
-            self.add_mtxr_out('/io/c1')
+            self.add_mtxr_out("/io/b0")
+            self.add_mtxr_out("/io/b1")
+            self.add_mtxr_out("/io/c0")
+            self.add_mtxr_out("/io/c1")
         else:
             # Scaffold hardware v1.1
-            self.add_mtxr_out('/io/a2')
-            self.add_mtxr_out('/io/a3')
+            self.add_mtxr_out("/io/a2")
+            self.add_mtxr_out("/io/a3")
         for i in range(self.__IO_D_COUNT):
-            self.add_mtxr_out(f'/io/d{i}')
-        if self.version >= '0.6':
+            self.add_mtxr_out(f"/io/d{i}")
+        if self.version >= "0.6":
             for i in range(self.__IO_P_COUNT):
-                self.add_mtxr_out(f'/io/p{i}')
+                self.add_mtxr_out(f"/io/p{i}")
 
         self.reset_config(init_ios=init_ios)
 
@@ -2821,7 +2897,7 @@ class Scaffold(ArchBase):
                 self.sig_disconnect_all()
                 self.a0.reset_registers()
                 self.a1.reset_registers()
-                if self.version <= '0.3':
+                if self.version <= "0.3":
                     # Scaffold hardware v1 only
                     self.b0.reset_registers()
                     self.b1.reset_registers()
@@ -2832,10 +2908,10 @@ class Scaffold(ArchBase):
                     self.a2.reset_registers()
                     self.a3.reset_registers()
                 for i in range(self.__IO_D_COUNT):
-                    self.__getattribute__(f'd{i}').reset_registers()
-                if self.version >= '0.6':
+                    self.__getattribute__(f"d{i}").reset_registers()
+                if self.version >= "0.6":
                     for i in range(self.__IO_P_COUNT):
-                        self.__getattribute__(f'p{i}').reset_registers()
+                        self.__getattribute__(f"p{i}").reset_registers()
             for uart in self.uarts:
                 uart.reset()
             for pgen in self.pgens:

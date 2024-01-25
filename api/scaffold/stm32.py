@@ -26,13 +26,15 @@ class NACKError(Exception):
     This error is thrown when a STM32 devices responds with NACK byte to a
     command.
     """
+
     def __init__(self, tag=None):
-        super().__init__('Device returned NACK to a command')
+        super().__init__("Device returned NACK to a command")
         self.tag = tag
 
 
 class MemorySection:
-    """ Describes a memory section of a device. """
+    """Describes a memory section of a device."""
+
     def __init__(self, start, end):
         """
         :param start: First address of the section.
@@ -40,18 +42,19 @@ class MemorySection:
             of next section).
         """
         if end < start:
-            raise ValueError('Invalid section addresses')
+            raise ValueError("Invalid section addresses")
         self.start = start
         self.end = end
 
     @property
     def size(self):
-        """ Size in bytes of the section. """
+        """Size in bytes of the section."""
         return self.end - self.start
 
 
 class STM32Device:
-    """ Possible name and product ID tuple. """
+    """Possible name and product ID tuple."""
+
     def __init__(self, name, pid, memory_mapping, offset_rdp=0):
         self.name = name
         self.pid = pid
@@ -80,52 +83,56 @@ class STM32:
     # Acknoledge byte returned by STM32 bootloader.
     ACK = 0x79
     # Error byte returned by STM32 bootloader.
-    NACK = 0x1f
+    NACK = 0x1F
 
     # Memory layout for STM32F20xxx
     map_f20xxx = {
-        'option_bytes': MemorySection(0x1fffc000, 0x1fffc008),
-        'system': MemorySection(0x1fff0000, 0x1fff7a10),
-        'flash': MemorySection(0x08000000, 0x08100000)}
+        "option_bytes": MemorySection(0x1FFFC000, 0x1FFFC008),
+        "system": MemorySection(0x1FFF0000, 0x1FFF7A10),
+        "flash": MemorySection(0x08000000, 0x08100000),
+    }
 
     # Memory layout for STM32F100xx written by Hugo LE GUEN, intern at IETR
     map_f100xx = {
-        'option_bytes': MemorySection(0x1ffff800, 0x1ffff80f),
-        'system': MemorySection(0x1ffff000, 0x1ffff7ff),
-        'flash': MemorySection(0x08000000, 0x0801ffff)}
+        "option_bytes": MemorySection(0x1FFFF800, 0x1FFFF80F),
+        "system": MemorySection(0x1FFFF000, 0x1FFFF7FF),
+        "flash": MemorySection(0x08000000, 0x0801FFFF),
+    }
 
     # Memory layout for STM32F4xxx
     map_f40xxx = map_f20xxx
 
     # Memory layout for STM32L431xx
     map_l431xx = {
-        'option_bytes': MemorySection(0x1fff7800, 0x1fff7810),
-        'otp': MemorySection(0x1fff7000, 0x1fff7400),
-        'system': MemorySection(0x1fff0000, 0x1fff7000),
-        'flash': MemorySection(0x08000000, 0x08040000)}
+        "option_bytes": MemorySection(0x1FFF7800, 0x1FFF7810),
+        "otp": MemorySection(0x1FFF7000, 0x1FFF7400),
+        "system": MemorySection(0x1FFF0000, 0x1FFF7000),
+        "flash": MemorySection(0x08000000, 0x08040000),
+    }
 
     # Memory layout for STM32U5A9
     map_u5 = {
-        'otp': MemorySection(0x0bfa0000, 0x0bfa0200),
-        'system': MemorySection(0x0bf90000, 0x0bf98000),
-        'flash': MemorySection(0x08000000, 0x08080000)
+        "otp": MemorySection(0x0BFA0000, 0x0BFA0200),
+        "system": MemorySection(0x0BF90000, 0x0BF98000),
+        "flash": MemorySection(0x08000000, 0x08080000),
     }
 
     # See AN2606 for PID values
     PIDS = [
-        STM32Device('STM32F05xxx', 0x440, {}),
-        STM32Device('STM32F030x8', 0x440, {}),
-        STM32Device('STM32F03xx4/6', 0x444, {}),
-        STM32Device('STM32F100xx', 0x420, map_f100xx),
-        STM32Device('STM32F2xxxx', 0x411, map_f20xxx, offset_rdp=1),
-        STM32Device('STM32F40xxx/41xxx', 0x413, map_f40xxx, offset_rdp=1),
-        STM32Device('STM32F42xxx/43xxx', 0x419, map_f40xxx, offset_rdp=1),
-        STM32Device('STM32L43xxx/44xxx', 0x435, map_l431xx),
-        STM32Device('STM32L45xxx/46xxx', 0x462, {}),
-        STM32Device('STM32L47xxx/48xxx', 0x415, {}),
-        STM32Device('STM32L496xx/4A6xx', 0x461, {}),
-        STM32Device('STM32L4Rxx/4Sxx', 0x470, {}),
-        STM32Device('STM32U59x/5Ax', 0x481, map_u5)]
+        STM32Device("STM32F05xxx", 0x440, {}),
+        STM32Device("STM32F030x8", 0x440, {}),
+        STM32Device("STM32F03xx4/6", 0x444, {}),
+        STM32Device("STM32F100xx", 0x420, map_f100xx),
+        STM32Device("STM32F2xxxx", 0x411, map_f20xxx, offset_rdp=1),
+        STM32Device("STM32F40xxx/41xxx", 0x413, map_f40xxx, offset_rdp=1),
+        STM32Device("STM32F42xxx/43xxx", 0x419, map_f40xxx, offset_rdp=1),
+        STM32Device("STM32L43xxx/44xxx", 0x435, map_l431xx),
+        STM32Device("STM32L45xxx/46xxx", 0x462, {}),
+        STM32Device("STM32L47xxx/48xxx", 0x415, {}),
+        STM32Device("STM32L496xx/4A6xx", 0x461, {}),
+        STM32Device("STM32L4Rxx/4Sxx", 0x470, {}),
+        STM32Device("STM32U59x/5Ax", 0x481, map_u5),
+    ]
 
     def __init__(self, scaffold):
         """
@@ -177,7 +184,7 @@ class STM32:
         sleep(0.1)
         # Send 0x7f byte for initiating communication
         self.uart.flush()
-        self.uart.transmit(b'\x7f')
+        self.uart.transmit(b"\x7f")
         self.wait_ack()
 
     def startup_flash(self):
@@ -201,10 +208,10 @@ class STM32:
         :param index: Command index.
         :return: Response bytes.
         """
-        self.uart.transmit(bytes([index, 0xff ^ index]))
+        self.uart.transmit(bytes([index, 0xFF ^ index]))
         res = self.uart.receive(2)
         assert res[0] == self.ACK
-        data = self.uart.receive(res[1]+2)
+        data = self.uart.receive(res[1] + 2)
         assert data[-1] == self.ACK
         return data[0:-1]
 
@@ -219,7 +226,7 @@ class STM32:
         if b == self.NACK:
             raise NACKError(tag)
         if b != self.ACK:
-            raise Exception(f'Received 0x{b:02x} byte instead of ACK or NACK.')
+            raise Exception(f"Received 0x{b:02x} byte instead of ACK or NACK.")
 
     def wait_ack_or_nack(self):
         """
@@ -247,14 +254,14 @@ class STM32:
         """
         self.device = None
         response = self.command(0x02)
-        pid = int.from_bytes(response, 'big', signed=False)
+        pid = int.from_bytes(response, "big", signed=False)
         for dev in self.PIDS:
             if dev.pid == pid:
                 self.device = dev
         return pid
 
     def get_version_and_read_protection_status(self):
-        self.uart.transmit(b'\x01\xfe')
+        self.uart.transmit(b"\x01\xfe")
         response = self.uart.receive(5)
         assert response[0] == self.ACK
         assert response[-1] == self.ACK
@@ -273,15 +280,15 @@ class STM32:
         remaining = length
         while remaining > 0:
             chunk_size = min(256, remaining)
-            self.uart.transmit(b'\x11\xee', trigger=trigger)
+            self.uart.transmit(b"\x11\xee", trigger=trigger)
             self.wait_ack()
-            buf = bytearray(address.to_bytes(4, 'big', signed=False))
+            buf = bytearray(address.to_bytes(4, "big", signed=False))
             buf.append(self.checksum(buf))
             self.uart.transmit(buf)
             self.wait_ack()
             buf = bytearray()
-            buf.append(chunk_size-1)
-            buf.append((chunk_size-1) ^ 0xff)
+            buf.append(chunk_size - 1)
+            buf.append((chunk_size - 1) ^ 0xFF)
             self.uart.transmit(buf)
             self.wait_ack()
             result += self.uart.receive(chunk_size)
@@ -303,16 +310,15 @@ class STM32:
         offset = 0
         while remaining > 0:
             chunk_size = min(256, remaining)
-            self.uart.transmit(b'\x31\xce', trigger=trigger)
+            self.uart.transmit(b"\x31\xce", trigger=trigger)
             self.wait_ack(0)
-            buf = bytearray(
-                (address + offset).to_bytes(4, 'big', signed=False))
+            buf = bytearray((address + offset).to_bytes(4, "big", signed=False))
             buf.append(self.checksum(buf))
             self.uart.transmit(buf)
             self.wait_ack(1)
             buf = bytearray()
             buf.append(chunk_size - 1)
-            buf += data[offset:offset + chunk_size]
+            buf += data[offset : offset + chunk_size]
             buf.append(self.checksum(buf))
             self.uart.transmit(buf)
             self.wait_ack(2)
@@ -320,11 +326,12 @@ class STM32:
             remaining -= chunk_size
 
     def assert_device(self):
-        """ Raise a RuntimeError is device is unknown (None). """
+        """Raise a RuntimeError is device is unknown (None)."""
         if self.device is None:
             raise RuntimeError(
-                'Unknown device or not discovered yet. Call get_id or set the '
-                'device attribute.')
+                "Unknown device or not discovered yet. Call get_id or set the "
+                "device attribute."
+            )
 
     def read_option_bytes(self):
         """
@@ -334,14 +341,14 @@ class STM32:
         :return: Memory content of 'option_bytes' section.
         """
         self.assert_device()  # We need the memory mapping
-        section = self.device.memory_mapping['option_bytes']
+        section = self.device.memory_mapping["option_bytes"]
         return self.read_memory(section.start, section.size)
 
     def readout_protect(self):
         """
         Execute the Readout Unprotect command.
         """
-        self.uart.transmit(b'\x82\x7d', 1)
+        self.uart.transmit(b"\x82\x7d", 1)
         self.wait_ack()
         self.wait_ack()
 
@@ -350,7 +357,7 @@ class STM32:
         Execute the Readout Unprotect command. If the device is locked, it will
         perform mass flash erase, which can be very very long.
         """
-        self.uart.transmit(b'\x92\x6d', 1)
+        self.uart.transmit(b"\x92\x6d", 1)
         self.wait_ack()
         # When the chip is in RDP1 it will perform mass flash erase. This can
         # take a lot of time, so we must change the timeout setting.
@@ -370,10 +377,10 @@ class STM32:
         """
         if len(sectors) not in range(1, 0x100):
             raise ValueError("Invalid sector count")
-        self.uart.transmit(b'\x63\x9c')
+        self.uart.transmit(b"\x63\x9c")
         self.wait_ack()
         buf = bytearray()
-        buf.append(len(sectors)-1)
+        buf.append(len(sectors) - 1)
         buf += bytes(sectors)
         buf.append(self.checksum(buf))
         self.uart.transmit(buf)
@@ -383,7 +390,7 @@ class STM32:
         """
         Execute Write Unprotect command.
         """
-        self.uart.transmit(b'\x73\x8c')
+        self.uart.transmit(b"\x73\x8c")
         self.wait_ack()
         self.wait_ack()
 
@@ -392,9 +399,9 @@ class STM32:
         Execute the Extended Erase command to erase all the Flash memory of the
         device.
         """
-        self.uart.transmit(b'\x44\xbb')
+        self.uart.transmit(b"\x44\xbb")
         self.wait_ack()
-        buf = bytearray(b'\xff\xff')
+        buf = bytearray(b"\xff\xff")
         buf.append(self.checksum(buf))
         self.uart.transmit(buf, 1)
         previous_timeout = self.scaffold.timeout
@@ -415,10 +422,10 @@ class STM32:
         the category "Erase Memory command: host side".
         Written by Hugo LE GUEN, intern at IETR.
         """
-        self.uart.transmit(b'\x43\xbc')
+        self.uart.transmit(b"\x43\xbc")
         self.wait_ack()
-        self.uart.transmit(b'\xff')
-        self.uart.transmit(b'\x00')
+        self.uart.transmit(b"\xff")
+        self.uart.transmit(b"\x00")
         self.wait_ack()
 
     def go(self, address, trigger=0):
@@ -428,9 +435,9 @@ class STM32:
         :param address: Jump address.
         :param trigger: 1 to enable trigger on command transmission.
         """
-        self.uart.transmit(b'\x21\xde', trigger=trigger)
+        self.uart.transmit(b"\x21\xde", trigger=trigger)
         self.wait_ack()
-        buf = bytearray(address.to_bytes(4, 'big', signed=False))
+        buf = bytearray(address.to_bytes(4, "big", signed=False))
         buf.append(self.checksum(buf))
         self.uart.transmit(buf)
         self.wait_ack()
