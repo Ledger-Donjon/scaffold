@@ -91,7 +91,7 @@ begin
     end process;
 
     -- Loopback of D0 to D1
-    io(1) <= io(0);
+    io(5) <= io(4);
 
     p_0: process is
         -- Emulate UART bit transmission
@@ -235,9 +235,9 @@ begin
         write_register(x"0403", x"01");
         write_register(x"0403", x"00");
         -- Connect UART0 TX to IO D0
-        write_register(x"f100", x"05");
+        write_register(x"f104", x"05");
         -- Connect IO D1 to UART0 RX
-        write_register(x"f000", x"03");
+        write_register(x"f000", x"07");
         -- Flush UART because it may have received a zero byte when it was
         -- unconnected.
         write_register(x"0401", x"01");
@@ -341,7 +341,7 @@ begin
         wait_byte(x"2d"); -- -
         wait_byte(x"30"); -- 0
         wait_byte(x"2e"); -- .
-        wait_byte(x"37"); -- 7
+        wait_byte(x"39"); -- 9
         wait_byte(x"00");
         wait_byte(x"73"); -- s
         wait_byte(x"63"); -- c
@@ -354,7 +354,7 @@ begin
         wait_byte(x"2d"); -- -
         wait_byte(x"30"); -- 0
         wait_byte(x"2e"); -- .
-        wait_byte(x"37"); -- 7
+        wait_byte(x"39"); -- 9
         wait_byte(x"00");
         wait_byte(x"1b");
 
