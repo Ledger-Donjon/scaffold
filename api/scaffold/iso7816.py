@@ -23,6 +23,7 @@ from typing import Tuple, List, Union, Optional
 from . import Scaffold
 import requests
 import crcmod
+from time import sleep
 
 
 class ProtocolError(Exception):
@@ -320,6 +321,7 @@ class Smartcard:
         :raises ProtocolError: if the ATR is not valid.
         """
         self.sig_nrst << 0
+        sleep(0.05)
         self.iso7816.flush()
         self.sig_nrst << 1
         info = parse_atr(ScaffoldISO7816ByteReader(self.iso7816))

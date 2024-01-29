@@ -718,9 +718,7 @@ class UART(Module):
         else:
             buf = data
         # Polling on status.ready bit before sending each character.
-        self.reg_data.write(
-            buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
-        )
+        self.reg_data.write(buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
         if trigger:
             config = self.reg_config.get()
             # Enable trigger as soon as previous transmission ends
@@ -2268,7 +2266,7 @@ class ScaffoldBus:
         remaining = len(data)
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
-            op = self.operation_write(
+            self.operation_write(
                 addr, data[offset : offset + chunk_size], poll, poll_mask, poll_value
             )
             remaining -= chunk_size
@@ -2640,7 +2638,6 @@ class ArchBase:
         :param cycles: Delay duration in seconds.
         """
         cycles = round(duration * self.sys_freq)
-        print(cycles)
         self.bus.operation_delay(cycles)
 
 
