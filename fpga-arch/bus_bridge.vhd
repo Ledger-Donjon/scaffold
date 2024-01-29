@@ -60,6 +60,13 @@ architecture behavior of bus_bridge is
         st_timeout_conf_2,
         st_timeout_conf_3,
         st_timeout_conf_4,
+        st_delay_conf_1,
+        st_delay_conf_2,
+        st_delay_conf_3,
+        st_delay,
+        st_buf_wait_conf_1,
+        st_buf_wait_conf_2,
+        st_buf_wait,
         st_addr_high,
         st_addr_low,
         st_poll_addr_high,
@@ -106,6 +113,8 @@ architecture behavior of bus_bridge is
     -- FIFO read request. When high, the FIFO will drop a byte at next clock
     -- cycle.
     signal fifo_rdreq: std_logic;
+    -- Size of the FIFO
+    signal fifo_use: std_logic_vector(8 downto 0);
     -- When high, the FSM is waiting from a byte to be available from the FIFO.
     -- This signal is used to perform read requests.
     signal need_byte: std_logic;
@@ -161,7 +170,12 @@ architecture behavior of bus_bridge is
     signal polling_counter_en: std_logic;
     -- High when loading initial value in the polling counter.
     signal polling_counter_load: std_logic;
-
+    -- Counter for the delay operation.
+    -- 24 bits allows a maximum delay of ~0.168 seconds, which should be enough.
+    signal delay_counter: std_logic_vector(23 downto 0);
+    -- Expected size of the command buffer when a wait buffer operation is
+    -- performed. This is configured during st_buf_wait_conf_x states.
+    signal buf_wait_size: std_logic_vector(8 downto 0);
     -- Register for pipelining the incoming data from the bus.
     signal bus_read_data_pipelined: byte_t;
 
@@ -194,7 +208,8 @@ begin
         wrreq => uart_has_data,
         q => fifo_q,
         empty => fifo_empty,
-        rdreq => fifo_rdreq );
+        rdreq => fifo_rdreq,
+        usedw => fifo_use );
 
     -- Fetch FIFO byte when possible and requested.
     fifo_rdreq <= (not fifo_empty) and need_byte and not (byte_available);
@@ -241,7 +256,7 @@ begin
     p_next_state: process (current_state, byte_available, valid_rw_command,
         command_has_polling, command_has_size, command_is_write, size,
         polling_ok, uart_ready, fifo_q, polling_counter_is_zero,
-        polling_timeout_enabled)
+        polling_timeout_enabled, delay_counter)
     begin
         case current_state is
             -- Waiting for command byte from UART.
@@ -253,6 +268,14 @@ begin
                     elsif fifo_q = x"08" then
                         -- Timeout register configuration command.
                         next_state <= st_timeout_conf_1;
+                    elsif fifo_q = x"09" then
+                        -- Wait operation. Next three bytes will tell how many
+                        -- clock cycles to wait.
+                        next_state <= st_delay_conf_1;
+                    elsif fifo_q = x"0a" then
+                        -- Buffer wait operation. Next two bytes will tell the
+                        -- expected size of the buffer.
+                        next_state <= st_buf_wait_conf_1;
                     else
                         -- Unknown command. Enter error state.
                         next_state <= st_error;
@@ -292,6 +315,70 @@ begin
                     next_state <= st_command;
                 else
                     next_state <= st_timeout_conf_4;
+                end if;
+
+            -- Delay operation configuration.
+            -- Waiting for first byte of the delay value.
+            when st_delay_conf_1 =>
+                if byte_available = '1' then
+                    next_state <= st_delay_conf_2;
+                else
+                    next_state <= st_delay_conf_1;
+                end if;
+
+            -- Delay operation configuration
+            -- Waiting for second byte of the delay value.
+            when st_delay_conf_2 =>
+                if byte_available = '1' then
+                    next_state <= st_delay_conf_3;
+                else
+                    next_state <= st_delay_conf_2;
+                end if;
+
+            -- Delay operation configuration
+            -- Waiting for third byte of the delay value.
+            when st_delay_conf_3 =>
+                if byte_available = '1' then
+                    next_state <= st_delay;
+                else
+                    next_state <= st_delay_conf_3;
+                end if;
+
+            -- Delay operation
+            -- delay_counter is decremented until it reaches 0.
+            when st_delay =>
+                if unsigned(delay_counter) = 0 then
+                    next_state <= st_ack_wait;
+                else
+                    next_state <= st_delay;
+                end if;
+
+            -- Buffer wait operation configuration.
+            -- Next byte to be received will configure the size of the buffer.
+            when st_buf_wait_conf_1 =>
+                if byte_available = '1' then
+                    next_state <= st_buf_wait_conf_2;
+                else
+                    next_state <= st_buf_wait_conf_1;
+                end if;
+
+            -- Buffer wait operation configuration.
+            -- Next byte to be received will configure the size of the buffer.
+            when st_buf_wait_conf_2 =>
+                if byte_available = '1' then
+                    next_state <= st_buf_wait;
+                else
+                    next_state <= st_buf_wait_conf_2;
+                end if;
+
+            -- Buffer wait operation.
+            -- Expected buffer size has been received. Exit this state when the
+            -- buffer size reaches this value.
+            when st_buf_wait =>
+                if unsigned(fifo_use) >= unsigned(buf_wait_size) then
+                    next_state <= st_ack_wait;
+                else
+                    next_state <= st_buf_wait;
                 end if;
 
             -- Waiting for address high byte from UART.
@@ -514,7 +601,9 @@ begin
             when st_command | st_addr_high | st_addr_low | st_poll_addr_high |
                 st_poll_addr_low | st_poll_mask | st_poll_value | st_value |
                 st_timeout_conf_1 | st_timeout_conf_2 | st_timeout_conf_3 |
-                st_timeout_conf_4 | st_timeout_flush =>
+                st_timeout_conf_4 | st_timeout_flush | st_delay_conf_1 |
+		st_delay_conf_2 | st_delay_conf_3 | st_buf_wait_conf_1 |
+		st_buf_wait_conf_2 =>
                 need_byte <= '1';
             when st_size =>
                 need_byte <= command_has_size;
@@ -713,6 +802,50 @@ begin
     polling_counter_is_zero <= '1' when unsigned(polling_counter) = 0 else '0';
     polling_counter_en <= '1' when (current_state = st_poll_3) else '0';
     polling_counter_load <= '1' when (current_state = st_loop) else '0';
+
+    -- Delay counter management
+    -- This counter is used for creating precise delay in command buffers.
+    p_delay_counter: process (clock, reset_n)
+    begin
+        if reset_n = '0' then
+            delay_counter <= (others => '0');
+        elsif rising_edge(clock) then
+            case current_state is
+                when st_delay_conf_1 | st_delay_conf_2 | st_delay_conf_3 =>
+                    if byte_available = '1' then
+                        -- Shift-load from the right
+                        delay_counter <= delay_counter(15 downto 0) & fifo_q;
+                    else
+                        delay_counter <= delay_counter;
+                    end if;
+                when st_delay =>
+                    -- Decrement by 1
+                    delay_counter <= std_logic_vector(unsigned(delay_counter) - 1);
+                when others =>
+                    delay_counter <= delay_counter;
+            end case;
+        end if;
+    end process;
+
+    -- Buffer size loading for the buffer wait operations
+    p_buf_wait_size: process (clock, reset_n)
+    begin
+        if reset_n = '0' then
+            buf_wait_size <= (others => '0');
+        elsif rising_edge(clock) then
+            case current_state is
+                when st_buf_wait_conf_1 | st_buf_wait_conf_2 =>
+                    if byte_available = '1' then
+                        -- Shift-load from the right
+                        buf_wait_size <= buf_wait_size(0) & fifo_q;
+                    else
+                        buf_wait_size <= buf_wait_size;
+                    end if;
+                when others =>
+                    buf_wait_size <= buf_wait_size;
+            end case;
+        end if;
+    end process;
 
     -- size_done counts the number of processed bytes (read or written). At the
     -- end of a command, this number is returned as the acknoledgment byte. If a

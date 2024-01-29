@@ -21,7 +21,8 @@ from enum import Enum
 import serial
 from time import sleep
 import serial.tools.list_ports
-from typing import Optional, Union
+from typing import Optional, Union, List
+from .bus import Operation, OperationKind
 
 
 class TimeoutError(Exception):
@@ -2054,6 +2055,13 @@ class ScaffoldBus:
         self.__cache_timeout = None
         # Timeout stack for push_timeout and pop_timeout methods.
         self.__timeout_stack = []
+        self.__operations: List[Operation] = []
+        self.__fifo_size = 0
+
+    def __del__(self):
+        while len(self.__operations):
+            self.fetch_oldest_operation_result()
+        del self.__operations
 
     def connect(self, dev):
         """
@@ -2104,6 +2112,170 @@ class ScaffoldBus:
             datagram.append(size)
         return datagram
 
+    def fetch_oldest_operation_result(self):
+        """
+        Reads the response from the oldest :class:`Operation` in the pipe. This will
+        block until it has been processed by the board.
+        """
+        op = self.__operations[0]
+        print("DEBUG FETCH", op.kind)
+        if op.kind == OperationKind.WRITE:
+            ack = self.ser.read(1)[0]
+            op.resolve(ack)
+        elif op.kind == OperationKind.READ:
+            ack = self.ser.read(op.size + 1)
+            data = ack[: ack[-1]]  # Last byte of ACK is size of read data
+            op.resolve(data)
+        elif op.kind in (OperationKind.BUFFER_WAIT, OperationKind.DELAY):
+            ack = self.ser.read(1)[0]
+            assert ack == 0
+            op.resolve()
+        elif op.kind == OperationKind.TIMEOUT:
+            # Processing the TIMEOUT command takes a single clock cycle, it much faster
+            # than receiving a byte so this can be considered non blocking. This is why
+            # we don't wait for an aknowledge here.
+            op.resolve()
+
+        # Remove operation from the queue.
+        # If operation has not been copied, this will trigger checks and raise
+        # TimeoutError if the operation timed out.
+        self.__fifo_size -= op.fifo_size
+        del self.__operations[0]
+        if len(self.__operations) == 0:
+            assert self.__fifo_size == 0
+
+    def __require_fifo_space(self, size: int):
+        """
+        Wait for pending operations to complete until there is `size` bytes
+        available in the FIFO.
+        """
+        while self.FIFO_SIZE - self.__fifo_size < size:
+            assert len(self.__operations) > 0
+            self.fetch_oldest_operation_result()
+
+    def operation_write(
+        self,
+        addr: int,
+        data: bytes,
+        poll: Optional[int] = None,
+        poll_mask: int = 0xFF,
+        poll_value: int = 0x00,
+    ) -> Operation:
+        """
+        Write data to a register.
+
+        :param addr: Register address.
+        :param data: Data to be written.
+        :param poll: Register instance or address, if polling is required.
+        :param poll_mask: Register polling mask.
+        :param poll_value: Register polling value.
+        :return: Write pending operation.
+        """
+        if self.ser is None:
+            raise RuntimeError("Not connected to board")
+
+        assert len(data) <= self.MAX_CHUNK
+        datagram = self.prepare_datagram(
+            1, addr, len(data), poll, poll_mask, poll_value
+        )
+        datagram += data
+        assert len(datagram) < self.FIFO_SIZE
+        self.__require_fifo_space(len(datagram))
+        self.ser.write(datagram)  # Send as early as possible
+        op = Operation(self, OperationKind.WRITE, len(data), len(datagram))
+        self.__operations.append(op)
+        self.__fifo_size += len(datagram)
+        # If this operation can timeout, we want to block until having the result, to
+        # eventually throw a TimeoutException.
+        if (poll is not None) and (poll_mask != 0):
+            op.sync()
+        return op
+
+    def operation_read(
+        self,
+        addr: int,
+        size: int = 1,
+        poll: Optional[int] = None,
+        poll_mask: int = 0xFF,
+        poll_value: int = 0x00,
+    ) -> Operation:
+        """
+        Read data from a register.
+
+        :param addr: Register address.
+        :param poll: Register instance or address, if polling is required.
+        :param poll_mask: Register polling mask.
+        :param poll_value: Register polling value.
+        :return: Read pending operation.
+        """
+        if self.ser is None:
+            raise RuntimeError("Not connected to board")
+        assert size <= self.MAX_CHUNK
+        datagram = self.prepare_datagram(0, addr, size, poll, poll_mask, poll_value)
+        self.__require_fifo_space(len(datagram))
+        self.ser.write(datagram)
+        op = Operation(self, OperationKind.READ, size, len(datagram))
+        self.__operations.append(op)
+        self.__fifo_size += len(datagram)
+        # If this operation can timeout, we want to block until having the result, to
+        # eventually throw a TimeoutException.
+        if (poll is not None) and (poll_mask != 0):
+            op.sync()
+        return op
+
+    def operation_timeout(self, value: int):
+        """
+        Configure the polling timeout register.
+
+        :param value: Timeout register value. If 0 the timeout is disabled. One
+            unit corresponds to three FPGA system clock cycles.
+        """
+        if self.ser is None:
+            raise RuntimeError("Not connected to board")
+        if (value < 0) or (value > 0xFFFFFFFF):
+            raise ValueError("Timeout value out of range")
+        datagram = b"\x08" + value.to_bytes(4, "big")
+        self.__require_fifo_space(len(datagram))
+        self.ser.write(datagram)
+        op = Operation(self, OperationKind.TIMEOUT, None, len(datagram))
+        self.__operations.append(op)
+        self.__fifo_size += len(datagram)
+
+    def operation_delay(self, cycles: int):
+        """
+        Execute a delay operation.
+
+        :param cycles: Number of clock cycles for the delay.
+        """
+        print("DEBUG OP DELAY")
+        if self.ser is None:
+            raise RuntimeError("Not connected to board")
+        if cycles not in range(0x1000000):
+            raise ValueError("Delay out of range")
+        datagram = b"\x09" + cycles.to_bytes(3, "big")
+        self.__require_fifo_space(len(datagram))
+        self.ser.write(datagram)
+        op = Operation(self, OperationKind.DELAY, None, len(datagram))
+        self.__operations.append(op)
+        self.__fifo_size += len(datagram)
+
+    def operation_buffer_wait(self, size: int):
+        """
+        Execute a buffer wait operation.
+
+        :param size: Requested buffer size for starting processing.
+        """
+        if self.ser is None:
+            raise RuntimeError("Not connected to board")
+        if size not in range(512):
+            raise RuntimeError("Buffer size out of range")
+        datagram = b"\x0a" + size.to_bytes(2, "big")
+        self.__require_fifo_space(len(datagram))
+        self.ser.write(datagram)
+        op = Operation(self, OperationKind.DELAY, None, len(datagram))
+        self.__operations.append(op)
+        self.__fifo_size += len(datagram)
+
     def write(self, addr, data, poll=None, poll_mask=0xFF, poll_value=0x00):
         """
         Write data to a register.
@@ -2114,9 +2286,6 @@ class ScaffoldBus:
         :param poll_mask: Register polling mask.
         :param poll_value: Register polling value.
         """
-        if self.ser is None:
-            raise RuntimeError("Not connected to board")
-
         # If data is an int, convert it to bytes.
         if type(data) is int:
             data = bytes([data])
@@ -2125,44 +2294,11 @@ class ScaffoldBus:
         remaining = len(data)
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
-            datagram = self.prepare_datagram(
-                1, addr, chunk_size, poll, poll_mask, poll_value
+            op = self.operation_write(
+                addr, data[offset : offset + chunk_size], poll, poll_mask, poll_value
             )
-            datagram += data[offset : offset + chunk_size]
-            assert len(datagram) < self.FIFO_SIZE
             if self.__lazy_stack == 0:
-                self.ser.write(datagram)
-                # Check immediately the result of the write operation.
-                ack = self.ser.read(1)[0]
-                if ack != chunk_size:
-                    assert poll is not None
-                    # Timeout error !
-                    raise TimeoutError(size=offset + ack, expected=offset + chunk_size)
-            else:
-                # Lazy-update section. The write result will be checked later,
-                # when all lazy-sections are closed.
-                dg_len = len(datagram)
-                # We don't know how many write datagram have been processed
-                # until we don't fetch the responses. It is possible to
-                # overflow the hardware FIFO if a polling operation is
-                # blocking. We have to check for those potential troubles.
-                while self.__lazy_fifo_total_size + dg_len > self.FIFO_SIZE:
-                    # FIFO might be full. We must process some responses to get
-                    # some guaranteed FIFO space
-                    expected_size = self.__lazy_writes[0]
-                    # Following read will block if first operation in the FIFO
-                    # is still pending.
-                    ack = self.ser.read(1)[0]
-                    del self.__lazy_writes[0]
-                    self.__lazy_fifo_total_size -= self.__lazy_fifo_sizes[0]
-                    del self.__lazy_fifo_sizes[0]
-                    if ack != expected_size:
-                        # Timeout error !
-                        raise TimeoutError(size=ack, expected=expected_size)
-                self.__lazy_fifo_total_size += dg_len
-                self.__lazy_fifo_sizes.append(dg_len)
-                self.ser.write(datagram)
-                self.__lazy_writes.append(chunk_size)
+                _ = op.result
             remaining -= chunk_size
             offset += chunk_size
 
@@ -2176,8 +2312,6 @@ class ScaffoldBus:
         :param poll_value: Register polling value.
         :return: bytearray
         """
-        if self.ser is None:
-            raise RuntimeError("Not connected to board")
         # Read operation not permitted during lazy-update sections
         if self.__lazy_stack > 0:
             raise RuntimeError(
@@ -2188,35 +2322,11 @@ class ScaffoldBus:
         offset = 0
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
-            datagram = self.prepare_datagram(
-                0, addr, chunk_size, poll, poll_mask, poll_value
-            )
-            self.ser.write(datagram)
-            res = self.ser.read(chunk_size + 1)
-            ack = res[-1]
-            if ack != chunk_size:
-                assert poll is not None
-                result += res[:ack]
-                raise TimeoutError(data=result, expected=chunk_size + offset)
-            result += res[:-1]
+            op = self.operation_read(addr, chunk_size, poll, poll_mask, poll_value)
+            result += op.result
             remaining -= chunk_size
             offset += chunk_size
         return result
-
-    def __set_timeout_raw(self, value):
-        """
-        Configure the polling timeout register.
-
-        :param value: Timeout register value. If 0 the timeout is disabled. One
-            unit corresponds to three FPGA system clock cycles.
-        """
-        if (value < 0) or (value > 0xFFFFFFFF):
-            raise ValueError("Timeout value out of range")
-        datagram = bytearray()
-        datagram.append(0x08)
-        datagram += value.to_bytes(4, "big", signed=False)
-        self.ser.write(datagram)
-        # No response expected from the board
 
     @property
     def is_connected(self):
@@ -2243,21 +2353,6 @@ class ScaffoldBus:
         if self.__lazy_stack == 0:
             raise RuntimeError("No lazy section started")
         self.__lazy_stack -= 1
-        last_error = None
-        if self.__lazy_stack == 0:
-            # We closes all update blocks, we must now check all responses of
-            # write requests.
-            for expected_size in self.__lazy_writes:
-                ack = self.ser.read(1)[0]
-                if ack != expected_size:
-                    # Timeout error !
-                    last_error = TimeoutError(size=ack, expected=expected_size)
-            self.__lazy_writes.clear()
-            # All writes have been processed, we know the FIFO buffer is empty.
-            self.__lazy_fifo_total_size = 0
-            self.__lazy_fifo_sizes.clear()
-            if last_error is not None:
-                raise last_error
 
     @property
     def timeout(self) -> Optional[float]:
@@ -2279,7 +2374,7 @@ class ScaffoldBus:
         else:
             n = max(1, int(value / self.timeout_unit))
         if n != self.__cache_timeout:
-            self.__set_timeout_raw(n)  # May throw is n out of range.
+            self.operation_timeout(n)  # May throw if n out of range.
             self.__cache_timeout = n  # Must be after set_timeout
 
     def push_timeout(self, value):
@@ -2605,6 +2700,14 @@ class ArchBase:
         """
         return self.bus.timeout_section(timeout)
 
+    def delay(self, cycles: int):
+        """
+        Performs a delay operation.
+
+        :param cycles: Delay duration in clock cycles.
+        """
+        self.bus.operation_delay(cycles)
+
 
 class Scaffold(ArchBase):
     """
@@ -2663,7 +2766,7 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             "scaffold",  # board name
             # Supported FPGA bitstream versions
-            ("0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.7.1", "0.7.2", "0.8"),
+            ("0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.7.1", "0.7.2", "0.8", "0.9"),
         )
         self.connect(dev, init_ios, sn)
 

@@ -69,6 +69,26 @@ digraph {
   TOC3 -> TOC4 [label = " data"]
   TOC4 -> CMD
 
+  BWC1 [group = g10]
+  BWC2 [group = g10]
+  CMD -> BWC1 [label = " data & buf_wait_command"]
+  BW [group = g10]
+  BWC1 -> BWC2 [label = " data"]
+  BWC2 -> BW [label = " data"]
+  BW -> BW
+  BW -> WAIT2
+
+  DC1 [group = g11]
+  DC2 [group = g11]
+  DC3 [group = g11]
+  D [group = g11]
+  CMD -> DC1 [label = " data & delay_command"]
+  DC1 -> DC2 [label = " data"]
+  DC2 -> DC3 [label = " data"]
+  DC3 -> D [label = " data"]
+  D -> D
+  D -> WAIT2
+
   TO [group=g8]
   P3 -> TO [label = " timeout"]
   WAIT3[label="WAIT", group=g8]
