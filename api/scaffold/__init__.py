@@ -21,36 +21,7 @@ from enum import Enum
 from time import sleep
 import serial.tools.list_ports
 from typing import Optional, Union
-from .bus import ScaffoldBus, Register
-
-
-class TimeoutError(Exception):
-    """Thrown when a polling read or write command timed out."""
-
-    def __init__(self, data=None, size=None, expected=None):
-        """
-        :param data: The received data until timeout. None if timeout occured
-        during a write operation.
-        :param size: The number of successfully proceeded bytes.
-        :param expected: The expected number of bytes to be proceeded.
-        """
-        self.data = data
-        self.expected = expected
-        if self.data is not None:
-            assert size is None
-            self.size = len(data)
-        else:
-            self.size = size
-
-    def __str__(self):
-        if self.data is not None:
-            if len(self.data):
-                h = self.data.hex()
-                return f"Read timeout: partially received {len(self.data)} bytes {h}."
-            else:
-                return "Read timeout: no data received."
-        else:
-            return f"Write timeout. Only {self.size}/{self.expected} bytes written."
+from .bus import ScaffoldBus, Register, TimeoutError
 
 
 class Signal:
