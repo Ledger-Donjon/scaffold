@@ -414,15 +414,13 @@ class Smartcard:
                 in_data_len = 256
         # Transmit the header
         if "a" in trigger:
-            with self.scaffold.lazy_section():
-                self.iso7816.transmit(the_apdu[:4])
-                self.iso7816.trigger_long = 1
-                self.iso7816.transmit(the_apdu[4:5])
+            self.iso7816.transmit(the_apdu[:4])
+            self.iso7816.trigger_long = 1
+            self.iso7816.transmit(the_apdu[4:5])
         else:
             # Send all the header at once
-            with self.scaffold.lazy_section():
-                self.iso7816.trigger_long = 0
-                self.iso7816.transmit(the_apdu[:5])
+            self.iso7816.trigger_long = 0
+            self.iso7816.transmit(the_apdu[:5])
         # Receive procedure byte
         procedure_byte = self.iso7816.receive(1)[0]
         if "a" in trigger:  # Disable only if enabled previously
@@ -684,14 +682,13 @@ class Smartcard:
             raise ValueError(f"info field is too long ({len(info)} > 254)")
         data = bytearray([nad, pcb, len(info)]) + info
         data += self.calculate_edc(data)
-        with self.scaffold.lazy_section():
-            if trigger:
-                self.iso7816.transmit(data[:-1])
-                self.iso7816.trigger_long = 1
-                self.iso7816.transmit(data[-1:])
-            else:
-                self.iso7816.trigger_long = 0
-                self.iso7816.transmit(data)
+        if trigger:
+            self.iso7816.transmit(data[:-1])
+            self.iso7816.trigger_long = 1
+            self.iso7816.transmit(data[-1:])
+        else:
+            self.iso7816.trigger_long = 0
+            self.iso7816.transmit(data)
 
     def receive_block(self) -> bytes:
         """

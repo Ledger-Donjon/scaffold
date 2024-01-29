@@ -41,25 +41,23 @@ spi.polarity = 1
 while True:
     print("Booting")
     s.power.dut = 0
-    with s.lazy_section():
-        sig_nrst << 0
-        sig_boot << 1
+    sig_nrst << 0
+    sig_boot << 1
     sleep(0.1)
-    with s.lazy_section():
-        spi.clear()
-        spi.append(bytes.fromhex("0000000015"))
-        spi.append(
-            bytes.fromhex(
-                "00000000bd56f3bff668db0480ae0e9006a45de91eab0f5b7628399ecf5d40ae"
-                "b3bf96b5"
-            )
+    spi.clear()
+    spi.append(bytes.fromhex("0000000015"))
+    spi.append(
+        bytes.fromhex(
+            "00000000bd56f3bff668db0480ae0e9006a45de91eab0f5b7628399ecf5d40ae"
+            "b3bf96b5"
         )
-        spi.append(
-            bytes.fromhex(
-                "00000000bd56f3bff668db0480ae0e9006a45de91eab0f5b7628399ecf5d40ae"
-                "b3bf96b5"
-            )
+    )
+    spi.append(
+        bytes.fromhex(
+            "00000000bd56f3bff668db0480ae0e9006a45de91eab0f5b7628399ecf5d40ae"
+            "b3bf96b5"
         )
+    )
     s.power.dut = 1
     uart.flush()
     sleep(0.05)
