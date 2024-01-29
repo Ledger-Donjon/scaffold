@@ -56,6 +56,17 @@ Details on states:
   (write operation) or returned as zeros (read operation).
 - ``POP``: Cycle used to discard a byte from the input FIFO during a write
   operation which has timed out.
+- ``TOC1``: Awaiting for timeout configuration first byte.
+- ``TOC2``: Awaiting for timeout configuration second byte.
+- ``TOC3``: Awaiting for timeout configuration third byte.
+- ``TOC4``: Awaiting for timeout configuration fourth byte.
+- ``BWC1``: Awaiting for buffer wait configuration first byte.
+- ``BWC2``: Awaiting for buffer wait configuration second byte.
+- ``BW``: Awaiting for command buffer to be complete.
+- ``DC1``: Awaiting for delay first byte.
+- ``DC2``: Awaiting for delay second byte.
+- ``DC3``: Awaiting for delay third byte.
+- ``D``: Delay operation. Exits when the delay counter reaches 0.
 
 Details on transition conditions:
 
@@ -67,6 +78,10 @@ Details on transition conditions:
   cycle command.
 - ``write_command``: True when the fetched command byte corresponds to a bus
   write cycle command.
+- ``buf_wait_command``: True when the fetched command byte corresponds to a bus
+  buffer wait command.
+- ``delay_command``: True when the fetched command byte corresponds to a bus
+  delay command.
 
 Polling timeout configuration
 *****************************

@@ -216,6 +216,13 @@ begin
         send_byte(x"00");
         wait for 25 us;
 
+        -- Test delay operation
+        send_byte(x"09");
+        send_byte(x"00");
+        send_byte(x"02");
+        send_byte(x"00");
+        wait until next_test = '1';
+
         -- Test timeout
 --        read_register_poll(x"0100", x"1234", x"ff", x"55", 5);
 --        wait for 100 us;
@@ -240,8 +247,8 @@ begin
         write_register(x"f000", x"07");
         -- Flush UART because it may have received a zero byte when it was
         -- unconnected.
+        wait for 35 us;
         write_register(x"0401", x"01");
-        wait for 25 us;
 
         -- Send 'Hello'
         write_n_register_poll(x"0404", x"0400", x"01", x"01", 5);
@@ -325,6 +332,14 @@ begin
             debug_tx <= unsigned(buf);
             assert buf = value report "Unexpected response";
         end;
+
+        -- Make a pulse on the next_test signal
+        procedure go_next_test is
+        begin
+            next_test <= '1';
+            wait for clock_period;
+            next_test <= '0';
+        end;
     begin
         wait until reset_n = '1';
         next_test <= '0';
@@ -358,6 +373,10 @@ begin
         wait_byte(x"00");
         wait_byte(x"1b");
 
+        -- Delay operation test
+        wait_byte(x"00"); -- ACK
+        go_next_test;
+
         -- UART testing
         wait_byte(x"01"); -- UART configuration
         wait_byte(x"01"); -- UART configuration
@@ -372,9 +391,7 @@ begin
         wait_byte(x"6f"); -- o
         wait_byte(x"05"); -- Number of received bytes
 
-        next_test <= '1';
-        wait for clock_period;
-        next_test <= '0';
+        go_next_test;
 
         wait_byte(x"01"); -- IO configuration
         wait_byte(x"01"); -- IO configuration
@@ -387,9 +404,7 @@ begin
         wait_byte(x"01"); -- I2C size configuration
         wait_byte(x"01"); -- I2C transaction start
 
-        next_test <= '1';
-        wait for clock_period;
-        next_test <= '0';
+        go_next_test;
 
         -- SPI
         wait_byte(x"01");
