@@ -2030,6 +2030,7 @@ class ScaffoldBus:
         self.__timeout_stack = []
         self.__operations: List[Operation] = []
         self.__fifo_size = 0
+        self.version = None
 
     def __del__(self):
         while len(self.__operations):
@@ -2091,7 +2092,6 @@ class ScaffoldBus:
         block until it has been processed by the board.
         """
         op = self.__operations[0]
-        print("DEBUG FETCH", op.kind)
         if op.kind == OperationKind.WRITE:
             ack = self.ser.read(1)[0]
             op.resolve(ack)
@@ -2216,7 +2216,9 @@ class ScaffoldBus:
 
         :param cycles: Number of clock cycles for the delay.
         """
-        print("DEBUG OP DELAY")
+        assert self.version is not None
+        if self.version < "0.9":
+            raise RuntimeError("Delays requires hardware >= 0.9")
         if self.ser is None:
             raise RuntimeError("Not connected to board")
         if cycles not in range(0x1000000):
@@ -2234,6 +2236,9 @@ class ScaffoldBus:
 
         :param size: Requested buffer size for starting processing.
         """
+        assert self.version is not None
+        if self.version < "0.9":
+            raise RuntimeError("Buffer wait requires hardware >= 0.9")
         if self.ser is None:
             raise RuntimeError("Not connected to board")
         if size not in range(512):
@@ -2511,6 +2516,9 @@ class ArchBase:
             raise RuntimeError("Invalid board name during version check")
         if self.__version not in self.__supported_versions:
             raise RuntimeError("Hardware version " + self.__version + " not supported")
+        # Tell ScaffoldBus the current version. If version is >= 0.9, delays and buffer
+        # wait operations will be enabled.
+        self.bus.version = self.__version
 
     def __signal_to_path(self, signal):
         """
@@ -2625,12 +2633,14 @@ class ArchBase:
         """
         return self.bus.timeout_section(timeout)
 
-    def delay(self, cycles: int):
+    def delay(self, duration: float):
         """
         Performs a delay operation.
 
-        :param cycles: Delay duration in clock cycles.
+        :param cycles: Delay duration in seconds.
         """
+        cycles = round(duration * self.sys_freq)
+        print(cycles)
         self.bus.operation_delay(cycles)
 
 
