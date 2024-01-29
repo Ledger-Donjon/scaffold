@@ -718,26 +718,25 @@ class UART(Module):
         else:
             buf = data
         # Polling on status.ready bit before sending each character.
-        with self.parent.lazy_section():
-            self.reg_data.write(
-                buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
+        self.reg_data.write(
+            buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
+        )
+        if trigger:
+            config = self.reg_config.get()
+            # Enable trigger as soon as previous transmission ends
+            self.reg_config.write(
+                config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
+                poll=self.reg_status,
+                poll_mask=0x01,
+                poll_value=0x01,
             )
-            if trigger:
-                config = self.reg_config.get()
-                # Enable trigger as soon as previous transmission ends
-                self.reg_config.write(
-                    config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
-                    poll=self.reg_status,
-                    poll_mask=0x01,
-                    poll_value=0x01,
-                )
-                # Send the last byte. No need for polling here, because it has
-                # already been done when enabling trigger.
-                self.reg_data.write(data[-1])
-                # Disable trigger
-                self.reg_config.write(
-                    config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
-                )
+            # Send the last byte. No need for polling here, because it has
+            # already been done when enabling trigger.
+            self.reg_data.write(data[-1])
+            # Disable trigger
+            self.reg_config.write(
+                config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
+            )
 
     def receive(self, n=1):
         """
@@ -1174,35 +1173,34 @@ class ISO7816(Module):
             )
         else:
             # We want to trig on the last sent character
-            with self.parent.lazy_section():
-                self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX,
-                    0,
-                    poll=self.reg_status,
-                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
-                )
-                self.reg_data.write(
-                    data[:-1],
-                    poll=self.reg_status,
-                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
-                )
-                self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX,
-                    1,
-                    poll=self.reg_status,
-                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
-                )
-                self.reg_data.write(data[-1])
-                self.reg_config.set_bit(
-                    self.__REG_CONFIG_TRIGGER_TX,
-                    0,
-                    poll=self.reg_status,
-                    poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                    poll_value=(1 << self.__REG_STATUS_BIT_READY),
-                )
+            self.reg_config.set_bit(
+                self.__REG_CONFIG_TRIGGER_TX,
+                0,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            )
+            self.reg_data.write(
+                data[:-1],
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            )
+            self.reg_config.set_bit(
+                self.__REG_CONFIG_TRIGGER_TX,
+                1,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            )
+            self.reg_data.write(data[-1])
+            self.reg_config.set_bit(
+                self.__REG_CONFIG_TRIGGER_TX,
+                0,
+                poll=self.reg_status,
+                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
+                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            )
 
     @property
     def empty(self):
@@ -1380,32 +1378,26 @@ class I2C(Module):
         else:
             if trigger is not None:
                 raise ValueError("Invalid trigger parameter")
-        # We are going to update many registers. We start a lazy section to
-        # make the update faster: all the acknoledgements of bus write
-        # operations are checked at the end.
-        with self.parent.lazy_section():
-            self.flush()
-            self.reg_size_h = read_size >> 8
-            self.reg_size_l = read_size & 0xFF
-            # Preload the FIFO
-            self.reg_data.write(data)
-            # Configure trigger for this transaction
-            config_value = 0
-            if t_start:
-                config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_START
-            if t_end:
-                config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_END
-            # Write config with mask to avoid overwritting clock_stretching
-            # option bit
-            self.reg_config.set_mask(
-                config_value,
-                (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
-                | (1 << self.__REG_CONFIG_BIT_TRIGGER_END),
-            )
-            # Start the transaction
-            self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
-            # End of lazy section. Leaving the scope will automatically check
-            # the responses of the Scaffold write operations.
+        self.flush()
+        self.reg_size_h = read_size >> 8
+        self.reg_size_l = read_size & 0xFF
+        # Preload the FIFO
+        self.reg_data.write(data)
+        # Configure trigger for this transaction
+        config_value = 0
+        if t_start:
+            config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_START
+        if t_end:
+            config_value |= 1 << self.__REG_CONFIG_BIT_TRIGGER_END
+        # Write config with mask to avoid overwritting clock_stretching
+        # option bit
+        self.reg_config.set_mask(
+            config_value,
+            (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
+            | (1 << self.__REG_CONFIG_BIT_TRIGGER_END),
+        )
+        # Start the transaction
+        self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
         # Wait until end of transaction and read NACK flag
         st = self.reg_status.read(
             poll=self.reg_status,
@@ -1990,21 +1982,6 @@ class IO(Signal, Module):
         self.reg_config.set_mask(value.value << 2, 0b1100)
 
 
-class ScaffoldBusLazySection:
-    """
-    Helper class to be sure the opened lazy sections are closed at some time.
-    """
-
-    def __init__(self, bus):
-        self.bus = bus
-
-    def __enter__(self):
-        self.bus.lazy_start()
-
-    def __exit__(self, type, value, traceback):
-        self.bus.lazy_end()
-
-
 class ScaffoldBusTimeoutSection:
     """
     Helper class to be sure a pushed timeout configuration is poped at some
@@ -2046,10 +2023,6 @@ class ScaffoldBus:
         # How long in seconds one timeout unit is.
         self.timeout_unit = 3.0 / self.sys_freq
         self.ser = None
-        self.__lazy_writes = []
-        self.__lazy_fifo_total_size = 0
-        self.__lazy_fifo_sizes = []
-        self.__lazy_stack = 0
         # Timeout value. This value can't be read from the board, so we cache
         # it there once set.
         self.__cache_timeout = None
@@ -2185,10 +2158,6 @@ class ScaffoldBus:
         op = Operation(self, OperationKind.WRITE, len(data), len(datagram))
         self.__operations.append(op)
         self.__fifo_size += len(datagram)
-        # If this operation can timeout, we want to block until having the result, to
-        # eventually throw a TimeoutException.
-        if (poll is not None) and (poll_mask != 0):
-            op.sync()
         return op
 
     def operation_read(
@@ -2297,8 +2266,6 @@ class ScaffoldBus:
             op = self.operation_write(
                 addr, data[offset : offset + chunk_size], poll, poll_mask, poll_value
             )
-            if self.__lazy_stack == 0:
-                _ = op.result
             remaining -= chunk_size
             offset += chunk_size
 
@@ -2312,11 +2279,6 @@ class ScaffoldBus:
         :param poll_value: Register polling value.
         :return: bytearray
         """
-        # Read operation not permitted during lazy-update sections
-        if self.__lazy_stack > 0:
-            raise RuntimeError(
-                "Read operations not allowed during lazy-update section."
-            )
         result = bytearray()
         remaining = size
         offset = 0
@@ -2331,28 +2293,6 @@ class ScaffoldBus:
     @property
     def is_connected(self):
         return self.set is not None
-
-    def lazy_start(self):
-        """
-        Enters lazy-check update block, or add a block level if already in
-        lazy-check mode. When lazy-check is enabled, the result of write
-        operations on Scaffold bus are not checked immediately, but only when
-        leaving all blocks. This allows updating many different registers
-        without the serial latency because all the responses will be checked at
-        once.
-        """
-        self.__lazy_stack += 1
-
-    def lazy_end(self):
-        """
-        Close current lazy-update block. If this was the last lazy section,
-        fetch all responses from Scaffold and check that all write operations
-        went good. If any write-operation timed-out, the last TimeoutError is
-        thrown.
-        """
-        if self.__lazy_stack == 0:
-            raise RuntimeError("No lazy section started")
-        self.__lazy_stack -= 1
 
     @property
     def timeout(self) -> Optional[float]:
@@ -2404,13 +2344,6 @@ class ScaffoldBus:
         if len(self.__timeout_stack) == 0:
             raise RuntimeError("Timeout setting stack is empty")
         self.timeout = self.__timeout_stack.pop()
-
-    def lazy_section(self):
-        """
-        :return: ScaffoldBusLazySection to be used with the python 'with'
-            tatement to start and close a lazy update section.
-        """
-        return ScaffoldBusLazySection(self)
 
     def timeout_section(self, timeout):
         """
@@ -2651,11 +2584,10 @@ class ArchBase:
         Disconnects all input and output signals. This is called during
         initialization to reset the board in a known state.
         """
-        with self.lazy_section():
-            for i in range(len(self.mtxl_out)):
-                self.bus.write(self.__ADDR_MTXL_BASE + i, 0)
-            for i in range(len(self.mtxr_out)):
-                self.bus.write(self.__ADDR_MTXR_BASE + i, 0)
+        for i in range(len(self.mtxl_out)):
+            self.bus.write(self.__ADDR_MTXL_BASE + i, 0)
+        for i in range(len(self.mtxr_out)):
+            self.bus.write(self.__ADDR_MTXR_BASE + i, 0)
 
     @property
     def timeout(self):
@@ -2685,13 +2617,6 @@ class ArchBase:
         :raises RuntimeError: if timeout stack is already empty.
         """
         self.bus.pop_timeout()
-
-    def lazy_section(self):
-        """
-        :return: ScaffoldBusLazySection to be used with the python 'with'
-            statement to start and close a lazy update section.
-        """
-        return self.bus.lazy_section()
 
     def timeout_section(self, timeout):
         """
@@ -2989,39 +2914,36 @@ class Scaffold(ArchBase):
             sessions.
         """
         # Reset to a default configuration
-        # This will perform many writes to registers, so we start a lazy
-        # section for maximum speed! (about 7 times faster)
-        with self.lazy_section():
-            self.timeout = None
-            # Sometime we don't want the I/Os to be changed, since it may
-            # generate pulses and triggering stuff... Reseting the I/Os is an
-            # option.
-            if init_ios:
-                self.sig_disconnect_all()
-                self.a0.reset_registers()
-                self.a1.reset_registers()
-                if self.version <= "0.3":
-                    # Scaffold hardware v1 only
-                    self.b0.reset_registers()
-                    self.b1.reset_registers()
-                    self.c0.reset_registers()
-                    self.c1.reset_registers()
-                else:
-                    # Scaffold hardware v1.1
-                    self.a2.reset_registers()
-                    self.a3.reset_registers()
-                for i in range(self.__IO_D_COUNT):
-                    self.__getattribute__(f"d{i}").reset_registers()
-                if self.version >= "0.6":
-                    for i in range(self.__IO_P_COUNT):
-                        self.__getattribute__(f"p{i}").reset_registers()
-            for uart in self.uarts:
-                uart.reset()
-            for pgen in self.pgens:
-                pgen.reset_registers()
-            self.leds.reset()
-            self.iso7816.reset_config()
-            for i2c in self.i2cs:
-                i2c.reset_config()
-            for spi in self.spis:
-                spi.reset_registers()
+        self.timeout = None
+        # Sometime we don't want the I/Os to be changed, since it may
+        # generate pulses and triggering stuff... Reseting the I/Os is an
+        # option.
+        if init_ios:
+            self.sig_disconnect_all()
+            self.a0.reset_registers()
+            self.a1.reset_registers()
+            if self.version <= "0.3":
+                # Scaffold hardware v1 only
+                self.b0.reset_registers()
+                self.b1.reset_registers()
+                self.c0.reset_registers()
+                self.c1.reset_registers()
+            else:
+                # Scaffold hardware v1.1
+                self.a2.reset_registers()
+                self.a3.reset_registers()
+            for i in range(self.__IO_D_COUNT):
+                self.__getattribute__(f"d{i}").reset_registers()
+            if self.version >= "0.6":
+                for i in range(self.__IO_P_COUNT):
+                    self.__getattribute__(f"p{i}").reset_registers()
+        for uart in self.uarts:
+            uart.reset()
+        for pgen in self.pgens:
+            pgen.reset_registers()
+        self.leds.reset()
+        self.iso7816.reset_config()
+        for i2c in self.i2cs:
+            i2c.reset_config()
+        for spi in self.spis:
+            spi.reset_registers()
