@@ -181,7 +181,7 @@ architecture behavior of bus_bridge is
 
 begin
 
-    e_light_uart: entity work.light_uart
+    e_buffered_uart: entity work.buffered_uart
     generic map (
         system_frequency => system_frequency,
         baudrate => baudrate )
