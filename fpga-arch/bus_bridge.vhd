@@ -94,22 +94,17 @@ architecture behavior of bus_bridge is
         st_error );
 
     -- Data to be sent from the bridge to host.
-    signal uart_data_tx: std_logic_vector(7 downto 0);
+    signal uart_tx_data: std_logic_vector(7 downto 0);
     -- High during one clock cycle when a byte must be sent from the bridge to
     -- the host.
-    signal uart_start: std_logic;
+    signal uart_tx_start: std_logic;
     -- High when the UART is ready to send another byte.
-    signal uart_ready: std_logic;
-    -- High during one clock cycle when the UART receives a byte.
+    signal uart_tx_ready: std_logic;
+    -- High when there is some data in the reception UART buffer.
     signal uart_has_data: std_logic;
-    -- The data the UART receives. Valid when uart_has_data is asserted, until
-    -- the next received byte.
+    -- Incoming UART byte, valid after fifo_rdreq has been asserted.
     signal uart_data_rx: std_logic_vector(7 downto 0);
 
-    -- FIFO output data byte.
-    signal fifo_q: std_logic_vector(7 downto 0);
-    -- High when FIFO is empty
-    signal fifo_empty: std_logic;
     -- FIFO read request. When high, the FIFO will drop a byte at next clock
     -- cycle.
     signal fifo_rdreq: std_logic;
@@ -181,38 +176,42 @@ architecture behavior of bus_bridge is
 
 begin
 
-    e_buffered_uart: entity work.buffered_uart
+    -- UART for commands reception
+    -- Received bytes are stored in a FIFO of size 512. The board will execute
+    -- the commands one by one until the FIFO is empty.
+    -- For performance reason, there is no read ahead for that FIFO, so the data
+    -- is available one clock cycle after the signal read_request is asserted.
+    e_uart_rx: entity work.buffered_uart_rx
     generic map (
         system_frequency => system_frequency,
         baudrate => baudrate )
     port map (
         clock => clock,
         reset_n => reset_n,
-        data_tx => uart_data_tx,
-        start => uart_start,
-        ready => uart_ready,
-        has_data => uart_has_data,
-        data_rx => uart_data_rx,
         rx => uart_rx,
+        has_data => uart_has_data,
+        read_request => fifo_rdreq,
+        data => uart_data_rx,
+        size => fifo_use );
+
+    -- UART for responses transmission
+    -- Bytes to be transmitted are pushed in a FIFO of size 512, so the
+    -- responses transmission should not block too much the execution of the
+    -- next commands.
+    e_uart_tx: entity work.buffered_uart_tx
+    generic map (
+        system_frequency => system_frequency,
+        baudrate => baudrate )
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        data => uart_tx_data,
+        start => uart_tx_start,
+        ready => uart_tx_ready,
         tx => uart_tx );
 
-    -- FIFO used to store the received bytes awaiting for processing. This is
-    -- useful for polling-write operations.
-    -- Reading a byte from the FIFO takes one clock cycle (no read-ahead).
-    e_fifo512: entity work.fifo512
-    port map (
-        aclr => not reset_n,
-        sclr => '0',
-        clock => clock,
-        data => uart_data_rx,
-        wrreq => uart_has_data,
-        q => fifo_q,
-        empty => fifo_empty,
-        rdreq => fifo_rdreq,
-        usedw => fifo_use );
-
     -- Fetch FIFO byte when possible and requested.
-    fifo_rdreq <= (not fifo_empty) and need_byte and not (byte_available);
+    fifo_rdreq <= uart_has_data and need_byte and not (byte_available);
 
     -- Tell FSM when a byte is available on the output of the FIFO.
     p_byte_available: process (clock, reset_n)
@@ -255,7 +254,7 @@ begin
     -- Next state calculation
     p_next_state: process (current_state, byte_available, valid_rw_command,
         command_has_polling, command_has_size, command_is_write, size,
-        polling_ok, uart_ready, fifo_q, polling_counter_is_zero,
+        polling_ok, uart_tx_ready, uart_data_rx, polling_counter_is_zero,
         polling_timeout_enabled, delay_counter)
     begin
         case current_state is
@@ -265,14 +264,14 @@ begin
                     if valid_rw_command = '1' then
                         -- Register read or write command.
                         next_state <= st_addr_high;
-                    elsif fifo_q = x"08" then
+                    elsif uart_data_rx = x"08" then
                         -- Timeout register configuration command.
                         next_state <= st_timeout_conf_1;
-                    elsif fifo_q = x"09" then
+                    elsif uart_data_rx = x"09" then
                         -- Wait operation. Next three bytes will tell how many
                         -- clock cycles to wait.
                         next_state <= st_delay_conf_1;
-                    elsif fifo_q = x"0a" then
+                    elsif uart_data_rx = x"0a" then
                         -- Buffer wait operation. Next two bytes will tell the
                         -- expected size of the buffer.
                         next_state <= st_buf_wait_conf_1;
@@ -458,7 +457,7 @@ begin
 
             -- Wait for UART to be ready for transmitting acknoledge byte.
             when st_ack_wait =>
-                if uart_ready = '1' then
+                if uart_tx_ready = '1' then
                     next_state <= st_ack_send;
                 else
                     next_state <= st_ack_wait;
@@ -528,7 +527,7 @@ begin
 
             -- Waiting for UART to be ready to transmit.
             when st_read_wait =>
-                if uart_ready = '1' then
+                if uart_tx_ready = '1' then
                     next_state <= st_read_send;
                 else
                     next_state <= st_read_wait;
@@ -562,7 +561,7 @@ begin
             -- Wait for UART to be ready for transmission.
             when st_timeout_fill_wait =>
                 -- Some bytes must be sent. Wait for UART to be ready.
-                if uart_ready = '1' then
+                if uart_tx_ready = '1' then
                     next_state <= st_timeout_fill_send;
                 else
                     next_state <= st_timeout_fill_wait;
@@ -602,8 +601,8 @@ begin
                 st_poll_addr_low | st_poll_mask | st_poll_value | st_value |
                 st_timeout_conf_1 | st_timeout_conf_2 | st_timeout_conf_3 |
                 st_timeout_conf_4 | st_timeout_flush | st_delay_conf_1 |
-		st_delay_conf_2 | st_delay_conf_3 | st_buf_wait_conf_1 |
-		st_buf_wait_conf_2 =>
+                st_delay_conf_2 | st_delay_conf_3 | st_buf_wait_conf_1 |
+                st_buf_wait_conf_2 =>
                 need_byte <= '1';
             when st_size =>
                 need_byte <= command_has_size;
@@ -616,9 +615,9 @@ begin
     -- bit 1: size attribute
     -- bit 2: polling attribute
     -- Polling commands with size attribute are not allowed (for the moment).
-    p_valid_rw_command: process (fifo_q)
+    p_valid_rw_command: process (uart_data_rx)
     begin
-        case fifo_q is
+        case uart_data_rx is
             when x"00" | x"01" | x"02" | x"03" | x"04" | x"05" | x"06" | x"07"
                  => valid_rw_command <= '1';
             when others => valid_rw_command <= '0';
@@ -632,7 +631,7 @@ begin
             command <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_command) and (byte_available = '1') then
-                command <= fifo_q;
+                command <= uart_data_rx;
             else
                 command <= command;
             end if;
@@ -650,7 +649,7 @@ begin
             addr_high <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_addr_high) and (byte_available = '1') then
-                addr_high <= fifo_q;
+                addr_high <= uart_data_rx;
             else
                 addr_high <= addr_high;
             end if;
@@ -664,7 +663,7 @@ begin
             addr_low <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_addr_low) and (byte_available = '1') then
-                addr_low <= fifo_q;
+                addr_low <= uart_data_rx;
             else
                 addr_low <= addr_low;
             end if;
@@ -680,7 +679,7 @@ begin
             poll_addr_high <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_poll_addr_high) and (byte_available = '1') then
-                poll_addr_high <= fifo_q;
+                poll_addr_high <= uart_data_rx;
             else
                 poll_addr_high <= poll_addr_high;
             end if;
@@ -694,7 +693,7 @@ begin
             poll_addr_low <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_poll_addr_low) and (byte_available = '1') then
-                poll_addr_low <= fifo_q;
+                poll_addr_low <= uart_data_rx;
             else
                 poll_addr_low <= poll_addr_low;
             end if;
@@ -710,7 +709,7 @@ begin
             poll_mask <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_poll_mask) and (byte_available = '1') then
-                poll_mask <= fifo_q;
+                poll_mask <= uart_data_rx;
             else
                 poll_mask <= poll_mask;
             end if;
@@ -724,7 +723,7 @@ begin
             poll_value <= (others => '0');
         elsif rising_edge(clock) then
             if (current_state = st_poll_value) and (byte_available = '1') then
-                poll_value <= fifo_q;
+                poll_value <= uart_data_rx;
             else
                 poll_value <= poll_value;
             end if;
@@ -743,7 +742,7 @@ begin
                 -- parameter, otherwise set to 1 by default.
                 when st_size =>
                     if (command_has_size = '1') and (byte_available = '1') then
-                        size <= fifo_q;
+                        size <= uart_data_rx;
                     else
                         size <= "00000001";
                     end if;
@@ -777,7 +776,7 @@ begin
                     if byte_available = '1' then
                         -- Shift-load from the right
                         polling_counter_max <= polling_counter_max(23 downto 0)
-                            & fifo_q;
+                            & uart_data_rx;
                     else
                         polling_counter_max <= polling_counter_max;
                     end if;
@@ -814,7 +813,7 @@ begin
                 when st_delay_conf_1 | st_delay_conf_2 | st_delay_conf_3 =>
                     if byte_available = '1' then
                         -- Shift-load from the right
-                        delay_counter <= delay_counter(15 downto 0) & fifo_q;
+                        delay_counter <= delay_counter(15 downto 0) & uart_data_rx;
                     else
                         delay_counter <= delay_counter;
                     end if;
@@ -837,7 +836,7 @@ begin
                 when st_buf_wait_conf_1 | st_buf_wait_conf_2 =>
                     if byte_available = '1' then
                         -- Shift-load from the right
-                        buf_wait_size <= buf_wait_size(0) & fifo_q;
+                        buf_wait_size <= buf_wait_size(0) & uart_data_rx;
                     else
                         buf_wait_size <= buf_wait_size;
                     end if;
@@ -912,23 +911,23 @@ begin
     end process;
 
     -- UART transmission control
-    p_uart_start: process (current_state, bus_read_data_pipelined, size_done)
+    p_uart_tx_start: process (current_state, bus_read_data_pipelined, size_done)
     begin
         case current_state is
             when st_read_send =>
-                uart_start <= '1';
-                uart_data_tx <= bus_read_data_pipelined;
+                uart_tx_start <= '1';
+                uart_tx_data <= bus_read_data_pipelined;
             when st_timeout_fill_send =>
                 -- Sending dummy zeros when a timeout cancelled a read loop
                 -- operation.
-                uart_start <= '1';
-                uart_data_tx <= "00000000";
+                uart_tx_start <= '1';
+                uart_tx_data <= "00000000";
             when st_ack_send =>
-                uart_start <= '1';
-                uart_data_tx <= size_done;
+                uart_tx_start <= '1';
+                uart_tx_data <= size_done;
             when others =>
-                uart_start <= '0';
-                uart_data_tx <= "00000000";
+                uart_tx_start <= '0';
+                uart_tx_data <= "00000000";
         end case;
     end process;
 
@@ -936,6 +935,6 @@ begin
     err <= '1' when (current_state = st_error) else '0';
 
     -- Bus write data
-    bus_in.write_data <= fifo_q;
+    bus_in.write_data <= uart_data_rx;
 
 end;
