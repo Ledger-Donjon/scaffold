@@ -92,6 +92,8 @@ set_global_assignment -name LAST_QUARTUS_VERSION "21.1.1 Lite Edition"
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name VHDL_FILE buffered_uart_rx.vhd
+set_global_assignment -name VHDL_FILE buffered_uart_tx.vhd
 set_global_assignment -name VHDL_FILE spi_slave.vhd
 set_global_assignment -name VHDL_FILE clock_module.vhd
 set_global_assignment -name VHDL_FILE chain.vhd
@@ -110,7 +112,6 @@ set_global_assignment -name VHDL_FILE iso7816_module.vhd
 set_global_assignment -name VHDL_FILE led_blink.vhd
 set_global_assignment -name VHDL_FILE leds_module.vhd
 set_global_assignment -name VHDL_FILE left_matrix_module.vhd
-set_global_assignment -name VHDL_FILE light_uart.vhd
 set_global_assignment -name VHDL_FILE light_uart_rx.vhd
 set_global_assignment -name VHDL_FILE light_uart_tx.vhd
 set_global_assignment -name VHDL_FILE lpm_down_counter_24.vhd
