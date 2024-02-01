@@ -34,6 +34,21 @@ class TimeoutError(Exception):
         return f"Write timeout. Only {self.size}/{self.expected} bytes written."
 
 
+class Polling:
+    """Polling parameters for read or write operations."""
+
+    def __init__(self, address: int, mask: int, value: int):
+        if address not in range(0x10000):
+            raise ValueError("Polling address out of range")
+        if mask not in range(0x100):
+            raise ValueError("Polling mask out of range")
+        if value not in range(0x100):
+            raise ValueError("Polling value out of range")
+        self.address = address
+        self.mask = mask
+        self.value = value
+
+
 class OperationStatus(Enum):
     """Possible status of a Scaffold bus operation"""
 
@@ -85,33 +100,12 @@ class Operation(ABC):
 class ReadWriteOperation(Operation):
     """Base class for :class:`ReadOperation` and :class:`WriteOperation`."""
 
-    def __init__(self, addr: int):
+    def __init__(self, addr: int, poll: Optional[Polling] = None):
         super().__init__()
         if addr not in range(0x10000):
             raise ValueError("Invalid address")
         self.__addr = addr
-        self.__poll: Optional[int] = None
-        self.__poll_mask: int = 0xFF
-        self.__poll_value: int = 0
-
-    def set_polling(self, addr: int, mask: int, value: int):
-        """
-        Enable polling for this read or write operation: the operation will be executed
-        only when the given register gets a particular value.
-
-        :param addr: Polled register address.
-        :param mask: Mask applied to the register value before comparison with `value`.
-        :param value: Expected value for the masked register value.
-        """
-        if addr not in range(0x10000):
-            raise ValueError("Invalid polling address")
-        if mask not in range(0x100):
-            raise ValueError("Invalid polling mask")
-        if value not in range(0x100):
-            raise ValueError("Invalid polling value")
-        self.__poll = addr
-        self.__poll_mask = mask
-        self.__poll_value = value
+        self.__poll = poll
 
     def supported(self, _version: str) -> bool:
         return True
@@ -132,10 +126,10 @@ class ReadWriteOperation(Operation):
         if self.__poll is not None:
             datagram += bytes(
                 [
-                    self.__poll >> 8,
-                    self.__poll & 0xFF,
-                    self.__poll_mask,
-                    self.__poll_value,
+                    self.__poll.address >> 8,
+                    self.__poll.address & 0xFF,
+                    self.__poll.mask,
+                    self.__poll.value,
                 ]
             )
         if size > 1:
@@ -146,8 +140,8 @@ class ReadWriteOperation(Operation):
 class ReadOperation(ReadWriteOperation):
     """Scaffold register read operation"""
 
-    def __init__(self, addr: int, size: int = 1):
-        super().__init__(addr)
+    def __init__(self, addr: int, size: int = 1, poll: Optional[Polling] = None):
+        super().__init__(addr, poll)
         self.__size = size
         self.__result = None
 
@@ -184,8 +178,8 @@ class ReadOperation(ReadWriteOperation):
 class WriteOperation(ReadWriteOperation):
     """Scaffold register write operation"""
 
-    def __init__(self, addr: int, data: bytes):
-        super().__init__(addr)
+    def __init__(self, addr: int, data: bytes, poll: Optional[Polling] = None):
+        super().__init__(addr, poll)
         if len(data) == 0:
             raise ValueError("No data")
         if len(data) > 255:
@@ -402,9 +396,11 @@ class ScaffoldBus:
         """
         if not self.is_connected:
             raise RuntimeError("Not connected to board")
-        assert self.version is not None
-        if not op.supported(self.version):
-            raise RuntimeError("Operation not supported by current hardware version")
+        if self.version is not None:
+            if not op.supported(self.version):
+                raise RuntimeError(
+                    "Operation not supported by current hardware version"
+                )
         if self.__buffer_wait_stack == 0:
             datagram = op.datagram()
             op.bus = self
@@ -428,15 +424,12 @@ class ScaffoldBus:
         """
         self.operation(DelayOperation(cycles))
 
-    def write(self, addr, data, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def write(self, addr, data, poll: Optional[Polling] = None):
         """
         Write data to a register.
         :param addr: Register address.
         :param data: Data to be written. Can be a byte, bytes or bytearray.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         # If data is an int, convert it to bytes.
         if isinstance(data, int):
@@ -446,31 +439,24 @@ class ScaffoldBus:
         remaining = len(data)
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
-            op = WriteOperation(addr, data[offset : offset + chunk_size])
-            if poll is not None:
-                op.set_polling(poll, poll_mask, poll_value)
+            op = WriteOperation(addr, data[offset : offset + chunk_size], poll)
             self.operation(op)
             remaining -= chunk_size
             offset += chunk_size
 
-    def read(self, addr, size=1, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def read(self, addr, size=1, poll: Optional[Polling] = None) -> bytearray:
         """
         Read data from a register.
+
         :param addr: Register address.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
-        :return: bytearray
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         result = bytearray()
         remaining = size
         offset = 0
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
-            op = ReadOperation(addr, chunk_size)
-            if poll is not None:
-                op.set_polling(poll, poll_mask, poll_value)
+            op = ReadOperation(addr, chunk_size, poll)
             self.operation(op)
             result += op.result
             remaining -= chunk_size
@@ -650,7 +636,7 @@ class Register:
         self.__reset = reset
         self.__cache = None
 
-    def set(self, value, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def set(self, value, poll: Optional[Polling] = None):
         """
         Set a new value to the register. This method will check bounds against
         the minimum and maximum allowed values of the register. If polling is
@@ -658,10 +644,7 @@ class Register:
         the register.
 
         :param value: New value.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         if value < self.__min_value:
             raise ValueError("Value too low")
@@ -671,9 +654,7 @@ class Register:
             raise RuntimeError("Register cannot be written")
         # Handle wideness
         value_bytes = value.to_bytes(self.__wideness, "big", signed=False)
-        self.__parent.bus.write(
-            self.__address, value_bytes, poll, poll_mask, poll_value
-        )
+        self.__parent.bus.write(self.__address, value_bytes, poll)
         # Save as int
         self.__cache = value
 
@@ -705,22 +686,14 @@ class Register:
         """
         self.set(self.get() | value)
 
-    def set_bit(self, index, value, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def set_bit(self, index, value, poll: Optional[Polling] = None):
         """
         Sets the value of a single bit of the register.
         :param index: Bit index, in [0, 7].
         :param value: True, False, 0 or 1.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
+        :param poll: Register polling parameters, or None if polling is not required.
         """
-        self.set(
-            (self.get() & ~(1 << index)) | (int(bool(value)) << index),
-            poll,
-            poll_mask,
-            poll_value,
-        )
+        self.set((self.get() & ~(1 << index)) | (int(bool(value)) << index), poll)
 
     def get_bit(self, index):
         """
@@ -729,47 +702,37 @@ class Register:
         """
         return (self.get() >> index) & 1
 
-    def set_mask(self, value, mask, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def set_mask(self, value, mask, poll: Optional[Polling] = None):
         """
         Set selected bits value.
         :param value: Bits value.
         :param mask: A mask indicating which bits must be sets.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         # TODO: raise an exception is the register is declared as volatile ?
         current = self.get()
-        self.set((current & (~mask)) | (value & mask), poll, poll_mask, poll_value)
+        self.set((current & (~mask)) | (value & mask), poll)
 
-    def write(self, data, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def write(self, data, poll: Optional[Polling] = None):
         """
         Raw write in the register. This method raises a RuntimeError if the
         register cannot be written.
         :param data: Data to be written. Can be a byte, bytes or bytearray.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         if not self.__w:
             raise RuntimeError("Register cannot be written")
-        self.__parent.bus.write(self.__address, data, poll, poll_mask, poll_value)
+        self.__parent.bus.write(self.__address, data, poll)
 
-    def read(self, size=1, poll=None, poll_mask=0xFF, poll_value=0x00):
+    def read(self, size=1, poll: Optional[Polling] = None) -> bytearray:
         """
         Raw read the register. This method raises a RuntimeError if the
         register cannot be read.
-        :param poll: Register instance or address. None if polling is not
-            required.
-        :param poll_mask: Register polling mask.
-        :param poll_value: Register polling value.
-        :return: bytearray
+        :param poll: Register polling parameters, or None if polling is not required.
         """
         if not self.__r:
             raise RuntimeError("Register cannot be read")
-        return self.__parent.bus.read(self.__address, size, poll, poll_mask, poll_value)
+        return self.__parent.bus.read(self.__address, size, poll)
 
     def reset(self):
         """
@@ -778,6 +741,15 @@ class Register:
         """
         if self.__reset is not None:
             self.set(self.__reset)
+
+    def poll(self, mask: int, value: int) -> Polling:
+        """
+        Creates polling parameters for this register.
+
+        :param value: Expected value for the masked register value.
+        :param mask: Mask applied to the register value before comparison with `value`.
+        """
+        return Polling(self.__address, mask, value)
 
     @property
     def address(self):
