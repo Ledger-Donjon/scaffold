@@ -1999,6 +1999,9 @@ class ArchBase:
         """
         return self.bus.timeout_section(timeout)
 
+    def buffer_wait_section(self):
+        return self.bus.buffer_wait_section()
+
     def delay(self, duration: float):
         """
         Performs a delay operation.
@@ -2006,7 +2009,7 @@ class ArchBase:
         :param cycles: Delay duration in seconds.
         """
         cycles = round(duration * self.sys_freq)
-        self.bus.operation_delay(cycles)
+        self.bus.delay(cycles)
 
 
 class Scaffold(ArchBase):
