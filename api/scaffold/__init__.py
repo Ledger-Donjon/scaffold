@@ -24,6 +24,11 @@ from typing import Optional, Union
 from .bus import ScaffoldBus, Register, TimeoutError
 
 
+# Prevent flake8 from complaining about unused import. This class is actually
+# re-exported. This should be improved in the future.
+TimeoutError = TimeoutError
+
+
 class Signal:
     """
     Base class for all connectable signals in Scaffold. Every :class:`Signal`
