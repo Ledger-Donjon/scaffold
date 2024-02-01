@@ -462,32 +462,26 @@ class UART(Module):
         else:
             buf = data
         # Polling on status.ready bit before sending each character.
-        self.reg_data.write(buf, poll=self.reg_status, poll_mask=0x01, poll_value=0x01)
+        self.reg_data.write(buf, self.reg_status.poll(mask=0x01, value=0x01))
         if trigger:
             config = self.reg_config.get()
             # Enable trigger as soon as previous transmission ends
             self.reg_config.write(
                 config | (1 << self.__REG_CONFIG_BIT_TRIGGER),
-                poll=self.reg_status,
-                poll_mask=0x01,
-                poll_value=0x01,
+                self.reg_status.poll(mask=0x01, value=0x01),
             )
             # Send the last byte. No need for polling here, because it has
             # already been done when enabling trigger.
             self.reg_data.write(data[-1])
             # Disable trigger
-            self.reg_config.write(
-                config, poll=self.reg_status, poll_mask=0x01, poll_value=0x01
-            )
+            self.reg_config.write(config, self.reg_status.poll(mask=0x01, value=0x01))
 
     def receive(self, n=1):
         """
         Receive n bytes from the UART. This function blocks until all bytes
         have been received or the timeout expires and a TimeoutError is thrown.
         """
-        return self.reg_data.read(
-            n, poll=self.reg_status, poll_mask=0x04, poll_value=0x00
-        )
+        return self.reg_data.read(n, self.reg_status.poll(mask=0x04, value=0x00))
 
     def flush(self):
         """Discard all the received bytes in the FIFO."""
@@ -551,7 +545,7 @@ class PulseGenerator(Module):
         execution to the end of the pulse.
         """
         # Dummy write to the address 0 which is not mapped.
-        self.parent.bus.write(0, 0, poll=self.reg_status, poll_mask=1, poll_value=1)
+        self.parent.bus.write(0, 0, self.reg_status.poll(mask=1, value=1))
 
     def __duration_to_clock_cycles(self, t):
         """
@@ -893,9 +887,9 @@ class ISO7816(Module):
         with self.parent.timeout_section(timeout):
             return self.reg_data.read(
                 n,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_EMPTY),
-                poll_value=0x00,
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_EMPTY), value=0x00
+                ),
             )
 
     def transmit(self, data: bytes, trigger: bool = False):
@@ -909,39 +903,44 @@ class ISO7816(Module):
         if not trigger:
             self.reg_data.write(
                 data,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_READY),
+                    value=(1 << self.__REG_STATUS_BIT_READY),
+                ),
             )
         else:
             # We want to trig on the last sent character
             self.reg_config.set_bit(
                 self.__REG_CONFIG_TRIGGER_TX,
                 0,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_READY),
+                    value=(1 << self.__REG_STATUS_BIT_READY),
+                ),
             )
             self.reg_data.write(
                 data[:-1],
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_READY),
+                    value=(1 << self.__REG_STATUS_BIT_READY),
+                ),
             )
             self.reg_config.set_bit(
                 self.__REG_CONFIG_TRIGGER_TX,
                 1,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_READY),
+                    value=(1 << self.__REG_STATUS_BIT_READY),
+                ),
             )
             self.reg_data.write(data[-1])
             self.reg_config.set_bit(
                 self.__REG_CONFIG_TRIGGER_TX,
                 0,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-                poll_value=(1 << self.__REG_STATUS_BIT_READY),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_READY),
+                    value=(1 << self.__REG_STATUS_BIT_READY),
+                ),
             )
 
     @property
@@ -1009,9 +1008,10 @@ class ISO7816(Module):
         self.reg_config.set_bit(
             self.__REG_CONFIG_TRIGGER_LONG,
             value,
-            poll=self.reg_status,
-            poll_mask=1 << self.__REG_STATUS_BIT_READY,
-            poll_value=1 << self.__REG_STATUS_BIT_READY,
+            self.reg_status.poll(
+                mask=1 << self.__REG_STATUS_BIT_READY,
+                value=1 << self.__REG_STATUS_BIT_READY,
+            ),
         )
 
 
@@ -1142,9 +1142,10 @@ class I2C(Module):
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
         # Wait until end of transaction and read NACK flag
         st = self.reg_status.read(
-            poll=self.reg_status,
-            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            self.reg_status.poll(
+                mask=(1 << self.__REG_STATUS_BIT_READY),
+                value=(1 << self.__REG_STATUS_BIT_READY),
+            )
         )[0]
         nacked = (st & (1 << self.__REG_STATUS_BIT_NACK)) != 0
         # Fetch all the bytes which are stored in the FIFO.
@@ -1155,9 +1156,10 @@ class I2C(Module):
         else:
             fifo = self.reg_data.read(
                 read_size,
-                poll=self.reg_status,
-                poll_mask=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
-                poll_value=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
+                    value=(1 << self.__REG_STATUS_BIT_DATA_AVAIL),
+                ),
             )
             # FIFO emptyness verification can be enabled below for debug
             # purpose. This shall always be the case, unless there is an
@@ -1420,9 +1422,10 @@ class SPI(Module):
             trigger = 1
         self.reg_control.write(
             (trigger << self.__REG_CONTROL_BIT_TRIGGER) + (size - 1),
-            poll=self.reg_status,
-            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            self.reg_status.poll(
+                mask=(1 << self.__REG_STATUS_BIT_READY),
+                value=(1 << self.__REG_STATUS_BIT_READY),
+            ),
         )
         if read:
             res = self.read_data_buffer((size - 1) // 8 + 1)
@@ -1443,9 +1446,10 @@ class SPI(Module):
         # less significant byte.
         res = self.reg_data.read(
             n,
-            poll=self.reg_status,
-            poll_mask=(1 << self.__REG_STATUS_BIT_READY),
-            poll_value=(1 << self.__REG_STATUS_BIT_READY),
+            self.reg_status.poll(
+                mask=(1 << self.__REG_STATUS_BIT_READY),
+                value=(1 << self.__REG_STATUS_BIT_READY),
+            ),
         )
         return int.from_bytes(res, "little")
 
