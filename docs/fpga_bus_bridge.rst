@@ -23,8 +23,7 @@ State machine
 The following graph is the bus bridge finite state machine implemented in the
 FPGA. This document is an help for understanding FPGA internals.
 
-.. graphviz:: bus_bridge_fsm.dot
-    :align: center
+.. image:: fsm-diagram/fsm.png
 
 Details on states:
 
@@ -36,12 +35,14 @@ Details on states:
 - ``PMSK``: Awaiting for polling mask.
 - ``PVAL``: Awaiting for polling value.
 - ``SIZE``: Read/write size fetch. If the command does not require size
-  parameter, use 1. Otherwise, wait and store next byte received on UART.
+  parameter, use value 1 by default. Otherwise, wait and store next byte
+  received on UART.
 - ``LOOP``: Preload polling address on the bus for P1 and P2 states. Return to
   initial state if all bytes have been read or written.
-- ``WAIT``: Wait for UART to be ready to transmit a byte. This also acts as a
-  delay cycle required for data bus to be available (due to pipelining).
-- ``SEND``: Send result byte on UART (command acknowledge or register value).
+- ``ACKW``: Wait for UART to be ready to transmit an acknoledge byte. This also
+  acts as a delay cycle required for data bus to be available (due to
+  pipelining).
+- ``ACKS``: Send result byte on UART (command acknowledge or register value).
 - ``P1``: First polling state. Assert bus read signal. Due to pipelining, the
   data read from the bus is available to the rest of the logic at ``P2``.
 - ``P2``: Second polling state. Used for pipelining (registers the data read
@@ -49,13 +50,19 @@ Details on states:
 - ``P3``: Polling test. If polling value matches, leave polling by going to
   ``P4``. Otherwise, return to ``P1`` for a new polling read cycle.
 - ``P4``: End of polling. Load register address on the bus.
-- ``RD``: Register read cycle.
 - ``VAL``: Read from UART the byte to be written in register.
 - ``WR``: Register write cycle.
+- ``RD``: Register read cycle.
+- ``RLD``: Register load cycle, waits for the read data to be available on the
+  bus.
+- ``RDW``: Wait for UART to be ready to transmit the read byte.
+- ``RDS``: Send the read byte via UART.
 - ``TO``: Timeout state. Loops until all unprocessed bytes have been discarded
   (write operation) or returned as zeros (read operation).
-- ``POP``: Cycle used to discard a byte from the input FIFO during a write
+- ``FLUSH``: Cycle used to discard a byte from the input FIFO during a write
   operation which has timed out.
+- ``FILLW``: Wait for UART to be ready.
+- ``FILLS``: Transmit a filling byte to replace unread bytes.
 - ``TOC1``: Awaiting for timeout configuration first byte.
 - ``TOC2``: Awaiting for timeout configuration second byte.
 - ``TOC3``: Awaiting for timeout configuration third byte.
