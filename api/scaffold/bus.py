@@ -70,9 +70,6 @@ class Operation(ABC):
         self.bus = None
         self.status = OperationStatus.PENDING
 
-    def __del__(self):
-        assert self.status in (OperationStatus.COMPLETED, OperationStatus.TIMEOUT)
-
     def wait(self):
         """Wait until this operation has been processed."""
         if self.status == OperationStatus.PENDING:
@@ -354,10 +351,10 @@ class ScaffoldBus:
         self.__fifo_size = 0
         self.version = None
 
-    def __del__(self):
+    def wait(self):
+        """Wait for all pending operations to be completed."""
         while len(self.__operations) > 0:
             self.resolve_next_operation()
-        del self.__operations
 
     def connect(self, dev):
         """
