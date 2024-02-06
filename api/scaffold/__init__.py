@@ -2020,6 +2020,10 @@ class ArchBase:
         cycles = round(duration * self.sys_freq)
         self.bus.delay(cycles)
 
+    def wait(self):
+        """Wait for all pending operations to be completed."""
+        self.bus.wait()
+
 
 class Scaffold(ArchBase):
     """
