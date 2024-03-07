@@ -26,7 +26,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="donjon-scaffold",
-    version="0.8.0",
+    version="0.9.0b",
     author="Olivier Heriveaux",
     description="Python3 API for the Scaffold board",
     long_description=long_description,
@@ -34,4 +34,5 @@ setup(
     url="https://github.com/Ledger-Donjon/scaffold",
     install_requires=["pyserial", "crcmod", "requests"],
     packages=find_packages(),
-    python_requires=">=3.6")
+    python_requires=">=3.6",
+)
