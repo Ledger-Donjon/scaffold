@@ -1115,11 +1115,11 @@ class I2C(Module):
         # Verify trigger parameter before doing anything
         t_start = False
         t_end = False
-        if type(trigger) is int:
+        if isinstance(type(trigger), int):
             if trigger not in range(2):
                 raise ValueError("Invalid trigger parameter")
             t_start = trigger == 1
-        elif type(trigger) is str:
+        elif isinstance(type(trigger), str):
             t_start = "a" in trigger
             t_end = "b" in trigger
         else:
@@ -1147,7 +1147,7 @@ class I2C(Module):
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_START)
         # Wait until end of transaction and read NACK flag
         st = self.reg_status.read(
-            self.reg_status.poll(
+            poll=self.reg_status.poll(
                 mask=(1 << self.__REG_STATUS_BIT_READY),
                 value=(1 << self.__REG_STATUS_BIT_READY),
             )
