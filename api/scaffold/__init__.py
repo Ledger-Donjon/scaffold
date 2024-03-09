@@ -2173,13 +2173,13 @@ class Scaffold(ArchBase):
                 )
             ],
         )
-        self.connect(dev, init_ios, sn)
+        self.connect(dev, sn, init_ios)
 
     def connect(
         self,
         dev: Optional[str] = None,
-        init_ios: bool = False,
         sn: Optional[str] = None,
+        init_ios: bool = False,
     ):
         """
         Connect to Scaffold board using the given serial port.
