@@ -1148,7 +1148,9 @@ class I2C(Module):
         if isinstance(trigger, int):
             if trigger not in range(2):
                 raise ValueError(
-                    "Invalid trigger parameter. It should be 0, 1, a string containing 'a' or 'b'"
+                    "Invalid trigger parameter. "
+                    "It should be 0 or 1, a string containing 'a' or 'b', "
+                    "or a flag of type I2CTrigger"
                 )
             t_start = trigger == 1
         elif isinstance(trigger, str):
