@@ -537,7 +537,7 @@ class PulseGenerator(Module):
         :param path: Module path.
         :param base: Base address for all registers.
         """
-        super().__init__(parent, path)
+        super().__init__(parent, f"/pgen{index}")
         # Create the signals
         self.start, self.out = self.add_signals("start", "out")
         # Create the registers
