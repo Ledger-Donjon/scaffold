@@ -1104,11 +1104,12 @@ class I2C(Module):
         """
         Reset the I2C peripheral to a default configuration.
         """
-        self.reg_divisor = 1
-        self.reg_size_h = 0
-        self.reg_size_l = 0
-        self.reg_config = (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING) | (
-            1 << self.__REG_CONFIG_BIT_TRIGGER_START
+        self.reg_divisor.set(1)
+        self.reg_size_h.set(0)
+        self.reg_size_l.set(0)
+        self.reg_config.set(
+            (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING)
+            | (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
         )
 
     def flush(self):
