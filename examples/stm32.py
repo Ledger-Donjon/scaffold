@@ -101,7 +101,7 @@ if (args.load is not None) and (args.ram is None):
     while len(data) % 4:
         data.append(0xFF)
     print("Programming...")
-    stm.write_memory(0x08000000, data)
+    stm.write_memory(0x08000000, bytes(data))
     print("Verifying...")
     assert data == stm.read_memory(0x08000000, len(data))
     print("Flash memory written successfully!")
@@ -113,7 +113,7 @@ if (args.load is not None) and (args.ram is not None):
     while len(data) % 4:
         data.append(0xFF)
     print("Loading code in RAM...")
-    stm.write_memory(ram_addr, data)
+    stm.write_memory(ram_addr, bytes(data))
 
 if args.run:
     print("Rebooting from Flash memory...")
