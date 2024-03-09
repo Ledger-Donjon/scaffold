@@ -586,7 +586,7 @@ class Register:
 
     def __init__(
         self,
-        parent: Scaffold,
+        parent: "Scaffold",
         mode: str,
         address: int,
         wideness: int = 1,
