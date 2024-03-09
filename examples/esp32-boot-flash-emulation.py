@@ -70,4 +70,5 @@ while True:
         data = uart.receive(1000)
     except TimeoutError as e:
         data = e.data
-    print(data.decode())
+    if data is not None:
+        print(data.decode())

@@ -1,18 +1,25 @@
 """Core classes and methods for communicating with the Scaffold FPGA."""
 
-
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING, Union
 from abc import ABC, abstractmethod
 import serial
 import packaging.version
 from packaging.version import parse as parse_version
 
+if TYPE_CHECKING:
+    from . import Scaffold
+
 
 class TimeoutError(Exception):
     """Thrown when a polling read or write command timed out."""
 
-    def __init__(self, data=None, size=None, expected=None):
+    def __init__(
+        self,
+        data: Optional[bytes] = None,
+        size: Optional[int] = None,
+        expected: Optional[int] = None,
+    ):
         """
         :param data: The received data until timeout. None if timeout occured
         during a write operation.
@@ -21,7 +28,7 @@ class TimeoutError(Exception):
         """
         self.data = data
         self.expected = expected
-        if self.data is not None:
+        if data is not None:
             assert size is None
             self.size = len(data)
         else:
@@ -69,11 +76,12 @@ class Operation(ABC):
     """
 
     def __init__(self):
-        self.bus = None
+        self.bus: Optional[ScaffoldBus] = None
         self.status = OperationStatus.PENDING
 
     def wait(self):
         """Wait until this operation has been processed."""
+        assert self.bus is not None
         if self.status == OperationStatus.PENDING:
             raise RuntimeError("Cannot wait a pending operation")
         while self.status == OperationStatus.SENT:
@@ -142,7 +150,7 @@ class ReadOperation(ReadWriteOperation):
     def __init__(self, addr: int, size: int = 1, poll: Optional[Polling] = None):
         super().__init__(addr, poll)
         self.__size = size
-        self.__result = None
+        self.__result = bytes()
 
     def datagram(self) -> bytes:
         return bytes(self.datagram_head(0, self.__size))
@@ -150,7 +158,7 @@ class ReadOperation(ReadWriteOperation):
     def response_size(self) -> int:
         return 1 + self.__size
 
-    def resolve(self, data):
+    def resolve(self, data: bytes):
         size_completed = data[-1]
         self.__result = data[:size_completed]
         if size_completed == self.__size:
@@ -160,7 +168,7 @@ class ReadOperation(ReadWriteOperation):
             self.status = OperationStatus.TIMEOUT
 
     @property
-    def result(self):
+    def result(self) -> bytes:
         """
         Data returned by the board during the read operation.
 
@@ -282,7 +290,7 @@ class ScaffoldBusTimeoutSection:
     time. This is to be used with the python 'with' statement.
     """
 
-    def __init__(self, bus, timeout):
+    def __init__(self, bus: "ScaffoldBus", timeout: Optional[float]):
         """
         :param bus: Scaffold bus manager.
         :type bus: ScaffoldBus
@@ -295,20 +303,20 @@ class ScaffoldBusTimeoutSection:
     def __enter__(self):
         self.bus.push_timeout(self.timeout)
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):  # type: ignore
         self.bus.pop_timeout()
 
 
 class BufferWaitSection:
     """Helper class to enter and leave buffer wait sections."""
 
-    def __init__(self, bus):
+    def __init__(self, bus: "ScaffoldBus"):
         self.bus = bus
 
     def __enter__(self):
         self.bus.push_buffer_wait()
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):  # type: ignore
         self.bus.pop_buffer_wait()
 
 
@@ -320,7 +328,7 @@ class ScaffoldBus:
     MAX_CHUNK = 255
     FIFO_SIZE = 512
 
-    def __init__(self, sys_freq, baudrate):
+    def __init__(self, sys_freq: int, baudrate: int):
         """
         :param baudrate: UART baudrate
         :type baudrate: int
@@ -329,12 +337,12 @@ class ScaffoldBus:
         self.sys_freq = sys_freq
         # How long in seconds one timeout unit is.
         self.timeout_unit = 3.0 / self.sys_freq
-        self.ser = None
+        self.ser: Optional[serial.Serial] = None
         # Timeout value. This value can't be read from the board, so we cache
         # it there once set.
         self.__cache_timeout = None
         # Timeout stack for push_timeout and pop_timeout methods.
-        self.__timeout_stack = []
+        self.__timeout_stack: List[Optional[float]] = []
         # List of operations that has been sent to the board, and whose response has
         # not been fetched yet.
         self.__operations: List[Operation] = []
@@ -351,14 +359,14 @@ class ScaffoldBus:
         # pending operations in the list.
         self.__buffer_wait_stack = 0
         self.__fifo_size = 0
-        self.version = None
+        self.version: Optional[str] = None
 
     def wait(self):
         """Wait for all pending operations to be completed."""
         while len(self.__operations) > 0:
             self.resolve_next_operation()
 
-    def connect(self, dev):
+    def connect(self, dev: str):
         """
         Connect to Scaffold board using the given serial port.
         :param dev: Serial port device path. For instance '/dev/ttyUSB0' on
@@ -372,6 +380,7 @@ class ScaffoldBus:
         block until it has been processed by the board.
         """
         op = self.__operations[0]
+        assert self.ser is not None
         op.resolve(self.ser.read(op.response_size()))
         # Remove operation from the queue.
         # If operation has not been copied, this will trigger checks and raise
@@ -393,7 +402,7 @@ class ScaffoldBus:
         """
         Register a bus operation to be performed.
         """
-        if not self.is_connected:
+        if not self.is_connected or self.ser is None:
             raise RuntimeError("Not connected to board")
         if self.version is not None:
             if not op.supported(self.version):
@@ -423,9 +432,15 @@ class ScaffoldBus:
         """
         self.operation(DelayOperation(cycles))
 
-    def write(self, addr, data, poll: Optional[Polling] = None):
+    def write(
+        self,
+        addr: int,
+        data: Union[int, bytearray, bytes],
+        poll: Optional[Polling] = None,
+    ):
         """
         Write data to a register.
+
         :param addr: Register address.
         :param data: Data to be written. Can be a byte, bytes or bytearray.
         :param poll: Register polling parameters, or None if polling is not required.
@@ -433,6 +448,8 @@ class ScaffoldBus:
         # If data is an int, convert it to bytes.
         if isinstance(data, int):
             data = bytes([data])
+        elif isinstance(data, bytearray):
+            data = bytes(data)
 
         offset = 0
         remaining = len(data)
@@ -443,7 +460,7 @@ class ScaffoldBus:
             remaining -= chunk_size
             offset += chunk_size
 
-    def read(self, addr, size=1, poll: Optional[Polling] = None) -> bytearray:
+    def read(self, addr: int, size: int = 1, poll: Optional[Polling] = None) -> bytes:
         """
         Read data from a register.
 
@@ -460,7 +477,7 @@ class ScaffoldBus:
             result += op.result
             remaining -= chunk_size
             offset += chunk_size
-        return result
+        return bytes(result)
 
     @property
     def is_connected(self):
@@ -489,7 +506,7 @@ class ScaffoldBus:
             self.operation(TimeoutOperation(n))
             self.__cache_timeout = n  # Must be after set_timeout
 
-    def push_timeout(self, value):
+    def push_timeout(self, value: Optional[float]):
         """
         Save previous timeout setting in a stack, and set a new timeout value.
         Call to `pop_timeout` will restore previous timeout value.
@@ -517,7 +534,7 @@ class ScaffoldBus:
             raise RuntimeError("Timeout setting stack is empty")
         self.timeout = self.__timeout_stack.pop()
 
-    def timeout_section(self, timeout):
+    def timeout_section(self, timeout: Optional[float]):
         """
         :return: :class:`ScaffoldBusTimeoutSection` to be used with the python
             'with' statement to start and close a timeout section.
@@ -569,21 +586,21 @@ class Register:
 
     def __init__(
         self,
-        parent,
-        mode,
-        address,
-        wideness=1,
-        min_value=None,
-        max_value=None,
-        reset=None,
+        parent: Scaffold,
+        mode: str,
+        address: int,
+        wideness: int = 1,
+        min_value: Optional[int] = None,
+        max_value: Optional[int] = None,
+        reset: Optional[int] = None,
     ):
         """
         :param parent: The Scaffold instance owning the register.
-        :param address: 16-bits address of the register.
         :param mode: Access mode string. Can have the following characters: 'r'
             for read, 'w' for write, 'v' to indicate the register is volatile.
             When the register is not volatile, a cache is used for read
             accesses.
+        :param address: 16-bits address of the register.
         :param wideness: Number of bytes stored by the register. When this
             value is not 1, the register cannot be read.
         :parma min_value: Minimum allowed value. If None, minimum value will be
@@ -613,7 +630,7 @@ class Register:
             # Set default minimum value to 0.
             self.__min_value = 0
         else:
-            # Check maximum value.
+            # Check minimum value.
             if min_value not in range(2 ** (wideness * 8)):
                 raise ValueError("Invalid register minimum value")
             self.__min_value = min_value
@@ -635,7 +652,7 @@ class Register:
         self.__reset = reset
         self.__cache = None
 
-    def set(self, value, poll: Optional[Polling] = None):
+    def set(self, value: int, poll: Optional[Polling] = None):
         """
         Set a new value to the register. This method will check bounds against
         the minimum and maximum allowed values of the register. If polling is
@@ -657,7 +674,7 @@ class Register:
         # Save as int
         self.__cache = value
 
-    def get(self):
+    def get(self) -> int:
         """
         :return: Current register value.
         If the register is not volatile and the value has been cached, no
@@ -678,32 +695,39 @@ class Register:
                 raise RuntimeError("Register cannot be read")
         return self.__cache
 
-    def or_set(self, value):
+    def or_set(self, value: int):
         """
         Sets some bits to 1 in the register.
+
         :param value: An int.
         """
         self.set(self.get() | value)
 
-    def set_bit(self, index, value, poll: Optional[Polling] = None):
+    def set_bit(
+        self, index: int, value: Union[bool, int], poll: Optional[Polling] = None
+    ):
         """
         Sets the value of a single bit of the register.
+
         :param index: Bit index, in [0, 7].
         :param value: True, False, 0 or 1.
         :param poll: Register polling parameters, or None if polling is not required.
         """
         self.set((self.get() & ~(1 << index)) | (int(bool(value)) << index), poll)
 
-    def get_bit(self, index):
+    def get_bit(self, index: int):
         """
+        Gets the value of a single bit of the register.
+
         :return: Value of a given bit, 0 or 1.
         :param index: Bit index, in [0, 7].
         """
         return (self.get() >> index) & 1
 
-    def set_mask(self, value, mask, poll: Optional[Polling] = None):
+    def set_mask(self, value: int, mask: int, poll: Optional[Polling] = None):
         """
         Set selected bits value.
+
         :param value: Bits value.
         :param mask: A mask indicating which bits must be sets.
         :param poll: Register polling parameters, or None if polling is not required.
@@ -712,21 +736,23 @@ class Register:
         current = self.get()
         self.set((current & (~mask)) | (value & mask), poll)
 
-    def write(self, data, poll: Optional[Polling] = None):
+    def write(self, data: Union[int, bytearray, bytes], poll: Optional[Polling] = None):
         """
         Raw write in the register. This method raises a RuntimeError if the
         register cannot be written.
-        :param data: Data to be written. Can be a byte, bytes or bytearray.
+
+        :param data: Data to be written. Can be a int, bytes or bytearray.
         :param poll: Register polling parameters, or None if polling is not required.
         """
         if not self.__w:
             raise RuntimeError("Register cannot be written")
         self.__parent.bus.write(self.__address, data, poll)
 
-    def read(self, size=1, poll: Optional[Polling] = None) -> bytearray:
+    def read(self, size: int = 1, poll: Optional[Polling] = None) -> bytes:
         """
         Raw read the register. This method raises a RuntimeError if the
         register cannot be read.
+
         :param poll: Register polling parameters, or None if polling is not required.
         """
         if not self.__r:
