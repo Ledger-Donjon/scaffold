@@ -489,7 +489,7 @@ class ScaffoldBus:
         is disabled.
         """
         if self.__cache_timeout is None:
-            return RuntimeError("Timeout not set yet")
+            raise RuntimeError("Timeout not set yet")
         if self.__cache_timeout == 0:
             return None
         return self.__cache_timeout * self.timeout_unit
