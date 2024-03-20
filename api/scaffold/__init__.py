@@ -118,7 +118,7 @@ class Module:
         else:
             path = self.__path + "/" + name
         sig = Signal(self.__parent, path)
-        self.__dict__[name] = sig
+        # self.__dict__[name] = sig
         return sig
 
     def add_signals(self, *names: str):
@@ -140,9 +140,9 @@ class Module:
         :param args: Arguments passed to Register.__init__.
         :param kwargs: Keyword arguments passed to Register.__init__.
         """
-        attr_name = "reg_" + name
+        # attr_name = "reg_" + name
         reg = Register(self.__parent, *args, **kwargs)
-        self.__dict__[attr_name] = reg
+        # self.__dict__[attr_name] = reg
         # Keep track of the register for reset_registers method
         self.__registers.append(reg)
         return reg
