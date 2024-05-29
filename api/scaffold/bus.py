@@ -5,6 +5,8 @@ from enum import Enum
 from typing import Optional, List
 from abc import ABC, abstractmethod
 import serial
+import packaging.version
+from packaging.version import parse as parse_version
 
 
 class TimeoutError(Exception):
@@ -78,7 +80,7 @@ class Operation(ABC):
             self.bus.resolve_next_operation()
 
     @abstractmethod
-    def supported(self, version: str) -> bool:
+    def supported(self, version: packaging.version.Version) -> bool:
         """:return: True if the given hardware version supports this operation."""
 
     @abstractmethod
@@ -104,7 +106,7 @@ class ReadWriteOperation(Operation):
         self.__addr = addr
         self.__poll = poll
 
-    def supported(self, _version: str) -> bool:
+    def supported(self, _version: packaging.version.Version) -> bool:
         return True
 
     def datagram_head(self, rw: int, size: int) -> bytearray:
@@ -207,7 +209,7 @@ class TimeoutOperation(Operation):
             raise ValueError("Timeout value out of range")
         self.__value = value
 
-    def supported(self, _version: str) -> bool:
+    def supported(self, _version: packaging.version.Version) -> bool:
         return True
 
     def datagram(self) -> bytes:
@@ -233,8 +235,8 @@ class DelayOperation(Operation):
             raise ValueError("Delay out of range")
         self.__cycles = cycles
 
-    def supported(self, version: str) -> bool:
-        return version >= "0.9"
+    def supported(self, version: packaging.version.Version) -> bool:
+        return version >= parse_version("0.9")
 
     def datagram(self) -> bytes:
         return b"\x09" + self.__cycles.to_bytes(3, "big")
@@ -260,8 +262,8 @@ class BufferWaitOperation(Operation):
             raise ValueError("Buffer size out of range")
         self.__size = size
 
-    def supported(self, version: str) -> bool:
-        return version >= "0.9"
+    def supported(self, version: packaging.version.Version) -> bool:
+        return version >= parse_version("0.9")
 
     def datagram(self) -> bytes:
         return b"\x0a" + self.__size.to_bytes(2, "big")

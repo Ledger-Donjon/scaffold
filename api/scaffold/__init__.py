@@ -19,8 +19,10 @@
 
 from enum import Enum
 from time import sleep
+from typing import Optional, Union, List
 import serial.tools.list_ports
-from typing import Optional, Union
+import packaging.version
+from packaging.version import parse as parse_version
 from .bus import ScaffoldBus, Register, TimeoutError
 
 
@@ -301,7 +303,7 @@ class LEDs(Module):
         self.add_register("leds_1", "w", 0x0203)
         self.add_register("leds_2", "w", 0x0204)
         self.add_register("mode", "w", 0x0205, wideness=3)
-        if self.parent.version <= "0.3":
+        if self.parent.version <= parse_version("0.3"):
             # Scaffold hardware v1 only
             leds = [
                 "a0",
@@ -1346,14 +1348,14 @@ class SPI(Module):
     @property
     def mode(self) -> SPIMode:
         """SPI mode"""
-        if self.parent.version < "0.8":
+        if self.parent.version < parse_version("0.8"):
             return SPIMode.MASTER
         else:
             return SPIMode(self.reg_config.get_bit(self.__REG_CONFIG_BIT_MODE))
 
     @mode.setter
     def mode(self, value: SPIMode):
-        if self.parent.version < "0.8":
+        if self.parent.version < parse_version("0.8"):
             if value != SPIMode.MASTER:
                 raise RuntimeError(
                     "Current FPGA confware only supports master mode. "
@@ -1469,7 +1471,7 @@ class SPI(Module):
 
         :param data: Byte or bytes to be appended.
         """
-        if self.parent.version < "0.8":
+        if self.parent.version < parse_version("0.8"):
             raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         if self.mode != SPIMode.SLAVE:
             raise RuntimeError("Select slave mode first to append response data.")
@@ -1480,7 +1482,7 @@ class SPI(Module):
         Clear the FIFO memory of the data to be returned by the peripheral when
         configured as a slave.
         """
-        if self.parent.version < "0.8":
+        if self.parent.version < parse_version("0.8"):
             raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_CLEAR)
 
@@ -1631,7 +1633,7 @@ class IO(Signal, Module):
         Module.__init__(self, parent)
         self.index = index
         self.__pullable = pullable
-        if parent.version == "0.2":
+        if parent.version == parse_version("0.2"):
             # 0.2 only
             # Since I/O will have more options, it is not very convenient to
             # group them anymore.
@@ -1657,7 +1659,7 @@ class IO(Signal, Module):
             will disconnect the I/O from any already connected internal
             peripheral. Same effect can be achieved using << operator.
         """
-        if self.parent.version == "0.2":
+        if self.parent.version == parse_version("0.2"):
             return (self.reg_value.get() >> self.__group_index) & 1
         else:
             # 0.3
@@ -1672,7 +1674,7 @@ class IO(Signal, Module):
             otherwise.
         :setter: Writing 0 to clears the event flag. Writing 1 has no effect.
         """
-        if self.parent.version == "0.2":
+        if self.parent.version == parse_version("0.2"):
             return (self.reg_event.get() >> self.__group_index) & 1
         else:
             # 0.3
@@ -1685,7 +1687,7 @@ class IO(Signal, Module):
         :warning: If an event is received during this call, it may be cleared
             without being took into account.
         """
-        if self.parent.version == "0.2":
+        if self.parent.version == parse_version("0.2"):
             self.reg_event.set(0xFF ^ (1 << self.__group_index))
         else:
             # 0.3
@@ -1699,12 +1701,12 @@ class IO(Signal, Module):
 
         :type: IOMode
         """
-        assert self.parent.version >= "0.3"
+        assert self.parent.version >= parse_version("0.3")
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
     def mode(self, value):
-        assert self.parent.version >= "0.3"
+        assert self.parent.version >= parse_version("0.3")
         if not isinstance(value, IOMode):
             raise ValueError("mode must be an instance of IOMode enumeration")
         self.reg_config.set_mask(value.value, 0b11)
@@ -1717,14 +1719,14 @@ class IO(Signal, Module):
 
         :type: Pull
         """
-        assert self.parent.version >= "0.3"
+        assert self.parent.version >= parse_version("0.3")
         if not self.__pullable:
             return Pull.NONE
         return Pull((self.reg_config.get() >> 2) & 0b11)
 
     @pull.setter
     def pull(self, value):
-        assert self.parent.version >= "0.3"
+        assert self.parent.version >= parse_version("0.3")
         # Accept None as value
         if value is None:
             value = Pull.NONE
@@ -1754,7 +1756,13 @@ class ArchBase:
     __ADDR_MTXR_BASE = 0xF100
     __ADDR_MTXL_BASE = 0xF000
 
-    def __init__(self, sys_freq, board_name, supported_versions, baudrate=2000000):
+    def __init__(
+        self,
+        sys_freq,
+        board_name,
+        supported_versions: List[packaging.version.Version],
+        baudrate=2000000,
+    ):
         """
         Defines basic parameters of the board.
 
@@ -1762,9 +1770,7 @@ class ArchBase:
         :type sys_freq: int
         :param board_name: Expected board name during version string readout.
         :type board_name: str
-        :param supported_versions: A list of supported version strings. For
-            instance `[1.0, 2.0]`.
-        :type supported_versions: list or tuple of string.
+        :param supported_versions: A list of supported version.
         :param baudrate: UART baudrate. Default to 2 Mbps. Other hardware
             boards may have different speed.
         :type baudrate: int
@@ -1830,12 +1836,9 @@ class ArchBase:
         self.mtxr_out.append(name)
 
     @property
-    def version(self):
+    def version(self) -> Optional[packaging.version.Version]:
         """
-        :return: Hardware version string. This string is queried and checked
-            when connecting to the board. It is then cached and can be accessed
-            using this property. If the instance is not connected to a board,
-            None is returned.
+        :return: Hardware version.
         """
         return self.__version
 
@@ -1886,7 +1889,7 @@ class ArchBase:
                 "Failed to parse board version string '" + self.__version_string + "'"
             )
         self.__board_name = tokens[0]
-        self.__version = tokens[1]
+        self.__version = parse_version(tokens[1])
         if self.__board_name != self.__expected_board_name:
             raise RuntimeError("Invalid board name during version check")
         if self.__version not in self.__supported_versions:
@@ -2082,7 +2085,21 @@ class Scaffold(ArchBase):
             100e6,  # System frequency: 100 MHz
             "scaffold",  # board name
             # Supported FPGA bitstream versions
-            ("0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.7.1", "0.7.2", "0.8", "0.9"),
+            [
+                parse_version(v)
+                for v in (
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.7",
+                    "0.7.1",
+                    "0.7.2",
+                    "0.8",
+                    "0.9",
+                )
+            ],
         )
         self.connect(dev, init_ios, sn)
 
@@ -2119,7 +2136,7 @@ class Scaffold(ArchBase):
         # The I/Os have changed between both versions.
         self.a0 = IO(self, "/io/a0", 0)
         self.a1 = IO(self, "/io/a1", 1)
-        if self.version <= "0.3":
+        if self.version <= parse_version("0.3"):
             self.b0 = IO(self, "/io/b0", 2)
             self.b1 = IO(self, "/io/b1", 3)
             self.c0 = IO(self, "/io/c0", 4)
@@ -2134,7 +2151,7 @@ class Scaffold(ArchBase):
                 self.__setattr__(
                     f"d{i}", IO(self, f"/io/d{i}", i + 4, pullable=(i < 3))
                 )
-            if self.version >= "0.6":
+            if self.version >= parse_version("0.6"):
                 for i in range(self.__IO_P_COUNT):
                     self.__setattr__(
                         f"p{i}", IO(self, f"/io/p{i}", i + 4 + self.__IO_D_COUNT)
@@ -2163,7 +2180,7 @@ class Scaffold(ArchBase):
 
         # Declare the SPI peripherals
         self.spis = []
-        if self.version >= "0.7":
+        if self.version >= parse_version("0.7"):
             for i in range(1):
                 spi = SPI(self, i)
                 self.spis.append(spi)
@@ -2171,7 +2188,7 @@ class Scaffold(ArchBase):
 
         # Declare the trigger chain modules
         self.chains = []
-        if self.version >= "0.7":
+        if self.version >= parse_version("0.7"):
             for i in range(2):
                 chain = Chain(self, i, 3)
                 self.chains.append(chain)
@@ -2179,7 +2196,7 @@ class Scaffold(ArchBase):
 
         # Declare clock generation module
         self.clocks = []
-        if self.version >= "0.7":
+        if self.version >= parse_version("0.7"):
             for i in range(1):
                 clock = Clock(self, i)
                 self.clocks.append(clock)
@@ -2193,7 +2210,7 @@ class Scaffold(ArchBase):
         self.add_mtxl_in("1")
         self.add_mtxl_in("/io/a0")
         self.add_mtxl_in("/io/a1")
-        if self.version <= "0.3":
+        if self.version <= parse_version("0.3"):
             # Scaffold hardware v1 only
             self.add_mtxl_in("/io/b0")
             self.add_mtxl_in("/io/b1")
@@ -2205,10 +2222,10 @@ class Scaffold(ArchBase):
             self.add_mtxl_in("/io/a3")
         for i in range(self.__IO_D_COUNT):
             self.add_mtxl_in(f"/io/d{i}")
-        if self.version >= "0.6":
+        if self.version >= parse_version("0.6"):
             for i in range(self.__IO_P_COUNT):
                 self.add_mtxl_in(f"/io/p{i}")
-        if self.version >= "0.7":
+        if self.version >= parse_version("0.7"):
             # Feeback signals from module outputs (mostly triggers)
             for i in range(len(self.uarts)):
                 self.add_mtxl_in(f"/uart{i}/trigger")
@@ -2277,7 +2294,7 @@ class Scaffold(ArchBase):
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
         self.add_mtxr_out("/io/a1")
-        if self.version <= "0.3":
+        if self.version <= parse_version("0.3"):
             # Scaffold hardware v1 only
             self.add_mtxr_out("/io/b0")
             self.add_mtxr_out("/io/b1")
@@ -2289,7 +2306,7 @@ class Scaffold(ArchBase):
             self.add_mtxr_out("/io/a3")
         for i in range(self.__IO_D_COUNT):
             self.add_mtxr_out(f"/io/d{i}")
-        if self.version >= "0.6":
+        if self.version >= parse_version("0.6"):
             for i in range(self.__IO_P_COUNT):
                 self.add_mtxr_out(f"/io/p{i}")
 
@@ -2313,7 +2330,7 @@ class Scaffold(ArchBase):
             self.sig_disconnect_all()
             self.a0.reset_registers()
             self.a1.reset_registers()
-            if self.version <= "0.3":
+            if self.version <= parse_version("0.3"):
                 # Scaffold hardware v1 only
                 self.b0.reset_registers()
                 self.b1.reset_registers()
@@ -2325,7 +2342,7 @@ class Scaffold(ArchBase):
                 self.a3.reset_registers()
             for i in range(self.__IO_D_COUNT):
                 self.__getattribute__(f"d{i}").reset_registers()
-            if self.version >= "0.6":
+            if self.version >= parse_version("0.6"):
                 for i in range(self.__IO_P_COUNT):
                     self.__getattribute__(f"p{i}").reset_registers()
         for uart in self.uarts:
