@@ -1605,6 +1605,50 @@ class Clock(Module):
         self.reg_count.set(value)
 
 
+class SWD(Module):
+    """
+    SWD module. This peripheral allows using the Single Wire Debug protocol
+    to manipulate and introspect the dut.
+    """
+
+    __REG_STATUS_BIT_READY = 0
+
+    def __init__(self, parent):
+        """
+        :param parent: The Scaffold instance owning the SWD module.
+        """
+        super().__init__(parent, f"/swd")
+        # Declare the signals
+        self.add_signals("swclk", "swd_in", "swd_out")
+        # Declare the registers
+        self.__addr_base = base = 0x0b00 
+        self.add_register("rdata_0", "rv", base)
+        self.add_register("rdata_1", "rv", base + 1)
+        self.add_register("rdata_2", "rv", base + 2)
+        self.add_register("rdata_3", "rv", base + 3)
+        self.add_register("wdata_0", "w", base + 4, reset=0x00)
+        self.add_register("wdata_1", "w", base + 5, reset=0x00)
+        self.add_register("wdata_2", "w", base + 6, reset=0x00)
+        self.add_register("wdata_3", "w", base + 7, reset=0x00)
+        self.add_register("status", "rv", base + 0x10)
+        self.add_register("cmd", "w", base + 0x20, reset=0x00)
+        
+    def reset(self):
+        """
+        Trigger a full reset of the SWD interface, by transmitting
+        the JTAG-to-SWD select sequence framed between two reset sequences.
+        """
+        self.reg_cmd.write(0x80)
+
+    def status(self):
+        """
+        Read the SWD controller status. This reports whether the controller
+        is ready to receive a new command, and the status of the last SWD transaction
+        that has been emitted.
+        """
+        return self.reg_status.read()
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2098,6 +2142,7 @@ class Scaffold(ArchBase):
                     "0.7.2",
                     "0.8",
                     "0.9",
+                    "0.10",
                 )
             ],
         )
@@ -2202,6 +2247,11 @@ class Scaffold(ArchBase):
                 self.clocks.append(clock)
                 self.__setattr__(f"clock{i}", clock)
 
+        # Declare the swd module
+        if self.version >= parse_version("0.10"):
+            self.swd = swd = SWD(self)
+            self.__setattr__("swd", swd)
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2259,6 +2309,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxl_out("/swd/swd_in")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2290,6 +2342,9 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
             self.add_mtxr_in(f"/clock{i}/out")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxr_in("/swd/swclk")
+            self.add_mtxr_in("/swd/swd_out")
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
@@ -2355,3 +2410,5 @@ class Scaffold(ArchBase):
             i2c.reset_config()
         for spi in self.spis:
             spi.reset_registers()
+        if self.version >= parse_version("0.10"):
+            self.swd.reset_registers()

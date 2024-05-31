@@ -109,6 +109,38 @@ architecture behavior of system is
     --         |    |   |      |    |          |    |      |   |     |
     --         +----+   +------+    +----------+    +------+   +-----+
 
+    -- Declaration of Verilog module as a component
+    COMPONENT swd_module
+	PORT
+	(
+		CLK		:	 IN STD_LOGIC;
+		RST_N		:	 IN STD_LOGIC;
+		address		:	 IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+		write_data		:	 IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+		write		:	 IN STD_LOGIC;
+		read		:	 IN STD_LOGIC;
+		en_rdata_0		:	 IN STD_LOGIC;
+		en_rdata_1		:	 IN STD_LOGIC;
+		en_rdata_2		:	 IN STD_LOGIC;
+		en_rdata_3		:	 IN STD_LOGIC;
+		en_wdata_0		:	 IN STD_LOGIC;
+		en_wdata_1		:	 IN STD_LOGIC;
+		en_wdata_2		:	 IN STD_LOGIC;
+		en_wdata_3		:	 IN STD_LOGIC;
+		en_cmd		:	 IN STD_LOGIC;
+		en_status		:	 IN STD_LOGIC;
+		reg_rdata_0		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		reg_rdata_1		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		reg_rdata_2		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		reg_rdata_3		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		reg_status		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		swclk		:	 OUT STD_LOGIC;
+		swd_in		:	 IN STD_LOGIC;
+		swd_out		:	 OUT STD_LOGIC;
+		out_en		:	 OUT STD_LOGIC
+	);
+    END COMPONENT;
+
     -- Function for easier address decoding.
     function addr_en (
         bus_in: bus_in_t;
@@ -161,7 +193,8 @@ architecture behavior of system is
         + 2 -- I2C
         + 1 -- SPI
         + 2 -- SPI slave
-        + 1; -- Clock
+        + 1 -- Clock
+        + 1; -- SWD
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
@@ -172,6 +205,7 @@ architecture behavior of system is
     signal mtxl_out_spi_slave_sck: std_logic;
     signal mtxl_out_spi_slave_ss: std_logic;
     signal mtxl_out_clock_glitch_start: std_logic;
+    signal mtxl_out_swd_swdio: std_logic;
     signal mtxl_out_chain_events:
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
 
@@ -184,7 +218,8 @@ architecture behavior of system is
         + 3 -- I2C module
         + 4 -- SPI module
         + 1 -- SPI slave module
-        + 1; -- Clock
+        + 1 -- Clock
+        + 2; -- SWD
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
     signal mtxr_in_uart_trigger: std_logic_vector(uart_count-1 downto 0);
@@ -203,6 +238,9 @@ architecture behavior of system is
     signal mtxr_in_spi_trigger: std_logic;
     signal mtxr_in_spi_slave_miso: std_logic;
     signal mtxr_in_clock_out: std_logic;
+    signal mtxr_in_swd_swdio: std_logic;
+    signal mtxr_in_swd_swdio_en: std_logic;
+    signal mtxr_in_swd_swclk: std_logic;
     signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
 
     -- Output signals of the output matrix
@@ -258,6 +296,16 @@ architecture behavior of system is
     constant addr_clock_divisor_a: address_t := x"0a01";
     constant addr_clock_divisor_b: address_t := x"0a02";
     constant addr_clock_count: address_t := x"0a03";
+    constant addr_swd_rdata_0: address_t := x"0b00";
+    constant addr_swd_rdata_1: address_t := x"0b01";
+    constant addr_swd_rdata_2: address_t := x"0b02";
+    constant addr_swd_rdata_3: address_t := x"0b03";
+    constant addr_swd_wdata_0: address_t := x"0b04";
+    constant addr_swd_wdata_1: address_t := x"0b05";
+    constant addr_swd_wdata_2: address_t := x"0b06";
+    constant addr_swd_wdata_3: address_t := x"0b08";
+    constant addr_swd_status: address_t := x"0b10";
+    constant addr_swd_cmd: address_t := x"0b20";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -307,6 +355,16 @@ architecture behavior of system is
     signal en_clock_divisor_a: std_logic;
     signal en_clock_divisor_b: std_logic;
     signal en_clock_count: std_logic;
+    signal en_swd_rdata_0: std_logic;
+    signal en_swd_rdata_1: std_logic;
+    signal en_swd_rdata_2: std_logic;
+    signal en_swd_rdata_3: std_logic;
+    signal en_swd_wdata_0: std_logic;
+    signal en_swd_wdata_1: std_logic;
+    signal en_swd_wdata_2: std_logic;
+    signal en_swd_wdata_3: std_logic;
+    signal en_swd_cmd: std_logic;
+    signal en_swd_status: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -323,7 +381,8 @@ architecture behavior of system is
         + 1 -- Power control
         + 2 -- ISO7816 status and data
         + 4 -- I2C
-        + 2; -- SPI
+        + 2 -- SPI
+        + 5; -- SWD
     signal reg_io_value: std_logic_vector_array_t(io_count-1 downto 0)
         (7 downto 0);
     signal reg_version_data: byte_t;
@@ -335,6 +394,7 @@ architecture behavior of system is
     signal reg_power_control: byte_t;
     signal reg_i2c_status, reg_i2c_data, reg_i2c_size_h, reg_i2c_size_l: byte_t;
     signal reg_spi_status, reg_spi_data: byte_t;
+    signal reg_swd_status, reg_swd_rdata_0, reg_swd_rdata_1, reg_swd_rdata_2, reg_swd_rdata_3: byte_t;
 
     -- State of the LEDs (when override is disabled in LEDs module).
     signal leds: std_logic_vector(23 downto 0);
@@ -434,6 +494,16 @@ begin
     en_clock_divisor_a <= addr_en(bus_in, addr_clock_divisor_a);
     en_clock_divisor_b <= addr_en(bus_in, addr_clock_divisor_b);
     en_clock_count <= addr_en(bus_in, addr_clock_count);
+    en_swd_rdata_0 <= addr_en(bus_in, addr_swd_rdata_0);
+    en_swd_rdata_1 <= addr_en(bus_in, addr_swd_rdata_1);
+    en_swd_rdata_2 <= addr_en(bus_in, addr_swd_rdata_2);
+    en_swd_rdata_3 <= addr_en(bus_in, addr_swd_rdata_3);
+    en_swd_wdata_0 <= addr_en(bus_in, addr_swd_wdata_0);
+    en_swd_wdata_1 <= addr_en(bus_in, addr_swd_wdata_1);
+    en_swd_wdata_2 <= addr_en(bus_in, addr_swd_wdata_2);
+    en_swd_wdata_3 <= addr_en(bus_in, addr_swd_wdata_3);
+    en_swd_cmd <= addr_en(bus_in, addr_swd_cmd);
+    en_swd_status <= addr_en(bus_in, addr_swd_status);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -461,7 +531,12 @@ begin
             reg_iso7816_status &
             reg_iso7816_data &
             reg_spi_status &
-            reg_spi_data,
+            reg_spi_data &
+            reg_swd_rdata_0 &
+            reg_swd_rdata_1 &
+            reg_swd_rdata_2 &
+            reg_swd_rdata_3 &
+            reg_swd_status,
         enables =>
             en_io_value &
             en_pulse_gen_status &
@@ -476,7 +551,12 @@ begin
             en_iso7816_status &
             en_iso7816_data &
             en_spi_status &
-            en_spi_data,
+            en_spi_data &
+            en_swd_rdata_0 &
+            en_swd_rdata_1 &
+            en_swd_rdata_2 &
+            en_swd_rdata_3 &
+            en_swd_status,
         value => bus_out.read_data );
 
     -- I/O modules
@@ -520,7 +600,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.9")
+    generic map (version => "scaffold-0.10")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -694,6 +774,34 @@ begin
         output => mtxr_in_clock_out,
         glitch_start => mtxl_out_clock_glitch_start );
 
+    c_swd: component swd_module
+    port map (
+        CLK => clock,
+        RST_N => reset_n,
+        address => bus_in.address,
+        write_data => bus_in.write_data,
+        write => bus_in.write,
+        read => bus_in.read,
+        en_rdata_0 => en_swd_rdata_0,
+        en_rdata_1 => en_swd_rdata_1,
+        en_rdata_2 => en_swd_rdata_2,
+        en_rdata_3 => en_swd_rdata_3,
+        en_wdata_0 => en_swd_wdata_0,
+        en_wdata_1 => en_swd_wdata_1,
+        en_wdata_2 => en_swd_wdata_2,
+        en_wdata_3 => en_swd_wdata_3,
+        en_cmd => en_swd_cmd,
+        en_status => en_swd_status,
+        reg_rdata_0 => reg_swd_rdata_0,
+        reg_rdata_1 => reg_swd_rdata_1,
+        reg_rdata_2 => reg_swd_rdata_2,
+        reg_rdata_3 => reg_swd_rdata_3,
+        reg_status => reg_swd_status,
+        swclk => mtxr_in_swd_swclk,
+        swd_in => mtxl_out_swd_swdio,
+        swd_out => mtxr_in_swd_swdio,
+        out_en => mtxr_in_swd_swdio_en );
+
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module
     generic map (
@@ -732,6 +840,8 @@ begin
             i := i + chain_size;
         end loop;
         mtxl_out_clock_glitch_start <= mtxl_out(i);
+        i := i + 1;
+        mtxl_out_swd_swdio <= mtxl_out(i);
         i := i + 1;
         assert i = mtxl_out_count;
     end process;
@@ -783,7 +893,11 @@ begin
         mtxr_in_spi_trigger,
         mtxr_in_spi_slave_miso,
         mtxr_in_chain_out,
-        mtxr_in_clock_out )
+        mtxr_in_clock_out,
+        mtxr_in_swd_swclk,
+        mtxr_in_swd_swdio,
+        mtxr_in_swd_swdio_en
+        )
         variable i: integer;
     begin
         mtxr_in(0) <= "00"; -- Z
@@ -831,6 +945,9 @@ begin
         -- Clock module
         mtxr_in(i) <= "1" & mtxr_in_clock_out;
         i := i + 1;
+        mtxr_in(i) <= "1" & mtxr_in_swd_swclk;
+        mtxr_in(i+1) <= mtxr_in_swd_swdio_en & mtxr_in_swd_swdio;
+        i := i + 2;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;
