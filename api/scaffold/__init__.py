@@ -1617,11 +1617,11 @@ class SWD(Module):
         """
         :param parent: The Scaffold instance owning the SWD module.
         """
-        super().__init__(parent, f"/swd")
+        super().__init__(parent, "/swd")
         # Declare the signals
         self.add_signals("swclk", "swd_in", "swd_out")
         # Declare the registers
-        self.__addr_base = base = 0x0b00 
+        self.__addr_base = base = 0x0b00
         self.add_register("rdata_0", "rv", base)
         self.add_register("rdata_1", "rv", base + 1)
         self.add_register("rdata_2", "rv", base + 2)
@@ -1632,7 +1632,7 @@ class SWD(Module):
         self.add_register("wdata_3", "w", base + 7, reset=0x00)
         self.add_register("status", "rv", base + 0x10)
         self.add_register("cmd", "w", base + 0x20, reset=0x00)
-        
+
     def reset(self):
         """
         Trigger a full reset of the SWD interface, by transmitting
