@@ -379,7 +379,7 @@ module mkSWDController (SWDController#(clk_divider))
                     tagged Read .r_in : begin
                         let apndp = r_in.register.apndp;
                         let addr = r_in.register.addr;
-                        let p = apndp ^ 0 ^ addr[0] ^ addr[1];
+                        let p = apndp ^ 1 ^ addr[0] ^ addr[1];
                         packet <= unpack(pack(RequestPacket { 
                                     start: 1, 
                                     apndp: apndp, 
