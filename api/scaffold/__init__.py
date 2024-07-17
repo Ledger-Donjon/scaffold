@@ -2156,6 +2156,7 @@ class Scaffold(ArchBase):
                     "0.7.2",
                     "0.8",
                     "0.9",
+                    "0.10",
                 )
             ],
         )
@@ -2260,12 +2261,10 @@ class Scaffold(ArchBase):
                 self.clocks.append(clock)
                 self.__setattr__(f"clock{i}", clock)
 
-# CCHR
         # Declare the swd module
-        if self.version >= "0.9":
+        if self.version >= parse_version("0.10"):
             self.swd = swd = SWD(self)
             self.__setattr__("swd", swd)
-# CCHR
 
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
@@ -2324,10 +2323,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
-# CCHR
-        if self.version >= "0.9":
+        if self.version >= parse_version("0.10"):
             self.add_mtxl_out("/swd/swd_in")
-# CCHR
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2359,11 +2356,9 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
             self.add_mtxr_in(f"/clock{i}/out")
-# CCHR
-        if self.version >= "0.9":
+        if self.version >= parse_version("0.10"):
             self.add_mtxr_in("/swd/swclk")
             self.add_mtxr_in("/swd/swd_out")
-# CCHR
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
@@ -2429,8 +2424,5 @@ class Scaffold(ArchBase):
             i2c.reset_config()
         for spi in self.spis:
             spi.reset_registers()
-# CCHR
-        if self.version >= "0.9":
+        if self.version >= parse_version("0.10"):
             self.swd.reset_registers()
-# OHE I commented out            #self.swd.reset()
-# CCHR
