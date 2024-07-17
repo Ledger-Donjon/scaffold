@@ -1605,6 +1605,64 @@ class Clock(Module):
         self.reg_count.set(value)
 
 
+# CCHR
+class SWDStatus(Enum):
+    OK = 0
+    WAIT = 1
+    FAULT = 2
+    ERROR = 3
+
+
+class SWD(Module):
+    """
+    SWD peripheral of Scaffold.
+    """
+
+    __REG_STATUS_BIT_READY = 0
+
+    def __init__(self, parent):
+        """
+        :param parent: The Scaffold instance owning the SWD module.
+        """
+        super().__init__(parent, "/swd")
+        # Declare the signals
+        self.add_signals("swclk", "swd_in", "swd_out")
+        # Declare the registers
+        self.__addr_base = base = 0x0b00
+        self.add_register("rdata", "rv", base)
+        self.add_register("wdata", "w", base + 4, reset=0x00)
+        self.add_register("status", "rv", base + 0x10)
+        self.add_register("cmd", "w", base + 0x20)
+
+    def reset(self):
+        self.reg_cmd.write(0x80)
+        return self.status()
+
+    def read(self, apndp, addr):
+        val = 0b0000_0100 | ((apndp & 0b1) << 3) | (addr & 0b11)
+        self.reg_cmd.write(val)
+        return (self.status(), self.rdata())
+
+    def write(self, apndp, addr, wdata):
+        val = 0b0000_0000 | ((apndp & 0b1) << 3) | (addr & 0b11)
+        self.reg_wdata.write(wdata & 0xff)
+        self.reg_wdata.write((wdata >> 8) & 0xff)
+        self.reg_wdata.write((wdata >> 16) & 0xff)
+        self.reg_wdata.write((wdata >> 24) & 0xff)
+        self.reg_cmd.write(val)
+        return self.status()
+
+    def status(self):
+        return SWDStatus(int.from_bytes(self.reg_status.read(), 'little') & 0b11)
+
+    def rdata(self):
+        return int.from_bytes(self.reg_rdata.read(), 'little') | \
+               int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
+               int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
+               int.from_bytes(self.reg_rdata.read(), 'little') << 24
+# CCHR
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2202,6 +2260,13 @@ class Scaffold(ArchBase):
                 self.clocks.append(clock)
                 self.__setattr__(f"clock{i}", clock)
 
+# CCHR
+        # Declare the swd module
+        if self.version >= "0.9":
+            self.swd = swd = SWD(self)
+            self.__setattr__("swd", swd)
+# CCHR
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2259,6 +2324,10 @@ class Scaffold(ArchBase):
                 self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
+# CCHR
+        if self.version >= "0.9":
+            self.add_mtxl_out("/swd/swd_in")
+# CCHR
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2290,6 +2359,11 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
             self.add_mtxr_in(f"/clock{i}/out")
+# CCHR
+        if self.version >= "0.9":
+            self.add_mtxr_in("/swd/swclk")
+            self.add_mtxr_in("/swd/swd_out")
+# CCHR
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
@@ -2355,3 +2429,8 @@ class Scaffold(ArchBase):
             i2c.reset_config()
         for spi in self.spis:
             spi.reset_registers()
+# CCHR
+        if self.version >= "0.9":
+            self.swd.reset_registers()
+# OHE I commented out            #self.swd.reset()
+# CCHR
