@@ -1605,7 +1605,6 @@ class Clock(Module):
         self.reg_count.set(value)
 
 
-# CCHR
 class SWDStatus(Enum):
     OK = 0
     WAIT = 1
@@ -1660,7 +1659,6 @@ class SWD(Module):
                int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
                int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
                int.from_bytes(self.reg_rdata.read(), 'little') << 24
-# CCHR
 
 
 class IOMode(Enum):
