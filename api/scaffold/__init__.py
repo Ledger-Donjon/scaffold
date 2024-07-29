@@ -1635,6 +1635,7 @@ class SWD(Module):
 
     def reset(self):
         self.reg_cmd.write(0x80)
+        self.read(0, 0)
         return self.status()
 
     def read(self, apndp, addr):
@@ -1650,6 +1651,19 @@ class SWD(Module):
         self.reg_wdata.write((wdata >> 24) & 0xff)
         self.reg_cmd.write(val)
         return self.status()
+
+    def clear_errors(self):
+        self.write(0, 0, 0b11110)
+
+    def debug_power_up(self, retry=100):
+        self.clear_errors()
+        self.write(0, 0x4, (1 << 28) | (1 << 30))
+        for _ in range(retry):
+            (status, ctrl_stat) = self.read(0, 0x4)
+            print("{:032b}".format(ctrl_stat))
+            if ((ctrl_stat >> 29) & 0x1) == 1 and ((ctrl_stat >> 31) & 0x1) == 1:
+                return True
+        return False
 
     def status(self):
         return SWDStatus(int.from_bytes(self.reg_status.read(), 'little') & 0b11)
