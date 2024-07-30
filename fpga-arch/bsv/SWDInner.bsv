@@ -118,17 +118,17 @@ module mkSWDController (SWDController#(clk_divider))
     // When a request comes in, the packet (and data, in case of a write request)
     // are registered, and swclk is kicked-off.
     // We then move sequencially through the steps of the transaction, shifting out
-    // or in bits at a time, synchronously with the generated swclk rising/falling edges.
+    // or in bits at a time, synchronously with the generated swclk falling/rising edges.
     // When the transaction is done, the transaction status is updated and marked
     // as Valid, triggering the release of the Get interface of the R/W server.
     //
     // The tricky thing, however, is to coordinate the state changes with the rising
     // and falling edges of the SWD clock.
-    // Indeed we want to say that on the rising edge of swclk, meaning when it is zero
+    // Indeed we want to say that on the rising edge of the prescaler, meaning when it is zero
     // but will be one in the next cycle, we want to do a certain operation, that depends
     // on which step of the transaction we are in, i.e. which state.
     // Thus the state must have been updated *before*, on the cycle immediately preceding
-    // the cycle itself preceding swclk == 1. 
+    // the cycle itself preceding swclk == 0. 
     // This is what [prescaler.pre_rising] is for.
 
     Prescaler#(clk_divider) prescaler <- mkPrescaler();
@@ -158,6 +158,7 @@ module mkSWDController (SWDController#(clk_divider))
 
     // Generate the SWD clock, whenever there is an 
     // ongoing transaction.
+    // Note that the polarity is inverted (the peripheral samples the IO line on rising edges of swclk)
     rule do_swclk (state != IDLE);
         if (prescaler.rising) begin
             swclk <= 0;
@@ -234,7 +235,7 @@ module mkSWDController (SWDController#(clk_divider))
             end
 
             else begin 
-                // On every rising edge of the generated swclk, we need to shift out a
+                // On every falling edge of the generated swclk, we need to shift out a
                 // new bit of the packet
                 swd_out <= last(packet);
                 packet <= shiftInAt0(packet, 0);
@@ -243,11 +244,11 @@ module mkSWDController (SWDController#(clk_divider))
         end
         
         // If we have shifted out the last bit of the packet,
-        // and the next swclk rising edge is upcoming shortly,
+        // and the next swclk falling edge is upcoming shortly,
         // we need to pre-emptively transition to the next state (the TRN period)
         // so that the corresponding rule is enabled when prescaler.rising becomes true,
         // so that it can actually do something useful on the very same cycle
-        // where swclk is going to be high.
+        // where swclk is going to be low.
         else if (prescaler.pre_rising && (cnt == 0)) begin 
             state <= P_TRN; 
         end

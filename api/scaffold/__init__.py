@@ -1634,16 +1634,34 @@ class SWD(Module):
         self.add_register("cmd", "w", base + 0x20)
 
     def reset(self):
+        """
+        Reset the debug interface. This emits a reset sequence, followed by
+        the JTAG-to-SWD select sequence and a second reset sequence. The deviceid
+        register is then read.
+        """
         self.reg_cmd.write(0x80)
         self.read(0, 0)
         return self.status()
 
     def read(self, apndp, addr):
+        """
+        Emits a read command to a given debug register.
+
+        :param apndp: Address space of the register (0 for DP, 1 for AP).
+        :param addr: Address of the register.
+        """
         val = 0b0000_0100 | ((apndp & 0b1) << 3) | (addr & 0b11)
         self.reg_cmd.write(val)
         return (self.status(), self.rdata())
 
-    def write(self, apndp, addr, wdata):
+    def write(self, apndp, addr, wdata: int):
+        """
+        Emits a write command to a given debug register.
+
+        :param apndp: Address space of the register (0 for DP, 1 for AP).
+        :param addr: Address of the register.
+        :param wdata: 32-bit integer to write into the register.
+        """
         val = 0b0000_0000 | ((apndp & 0b1) << 3) | (addr & 0b11)
         self.reg_wdata.write(wdata & 0xff)
         self.reg_wdata.write((wdata >> 8) & 0xff)
@@ -1653,26 +1671,37 @@ class SWD(Module):
         return self.status()
 
     def clear_errors(self):
+        """
+        Clear any previous errors.
+        """
         self.write(0, 0, 0b11110)
 
-    def debug_power_up(self, retry=100):
+    def debug_power_up(self, retry=10):
+        """
+        Fully powers up the debug interface by writing to the CRTL/STAT register.
+        """
         self.clear_errors()
         self.write(0, 0x4, (1 << 28) | (1 << 30))
         for _ in range(retry):
             (status, ctrl_stat) = self.read(0, 0x4)
-            print("{:032b}".format(ctrl_stat))
             if ((ctrl_stat >> 29) & 0x1) == 1 and ((ctrl_stat >> 31) & 0x1) == 1:
                 return True
         return False
 
     def status(self):
+        """
+        Retrieve the status of the last emitted SWD transaction.
+        """
         return SWDStatus(int.from_bytes(self.reg_status.read(), 'little') & 0b11)
 
     def rdata(self):
+        """
+        Retrieve the data read by the last emitted Read transaction.
+        """
         return int.from_bytes(self.reg_rdata.read(), 'little') | \
-               int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
-               int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
-               int.from_bytes(self.reg_rdata.read(), 'little') << 24
+            int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
+            int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
+            int.from_bytes(self.reg_rdata.read(), 'little') << 24
 
 
 class IOMode(Enum):
