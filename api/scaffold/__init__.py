@@ -1650,7 +1650,8 @@ class SWD(Module):
         :param apndp: Address space of the register (0 for DP, 1 for AP).
         :param addr: Address of the register.
         """
-        val = 0b0000_0100 | ((apndp & 0b1) << 3) | (addr & 0b11)
+        val = 0b0000_0100 | ((apndp & 0b1) << 3) | (((addr >> 2) & 1) << 1) \
+            | ((addr >> 3) & 1)
         self.reg_cmd.write(val)
         return (self.status(), self.rdata())
 
@@ -1680,8 +1681,9 @@ class SWD(Module):
         """
         Fully powers up the debug interface by writing to the CRTL/STAT register.
         """
-        self.clear_errors()
         self.write(0, 0x4, (1 << 28) | (1 << 30))
+        self.clear_errors()
+        self.read(0, 0)
         for _ in range(retry):
             (status, ctrl_stat) = self.read(0, 0x4)
             if ((ctrl_stat >> 29) & 0x1) == 1 and ((ctrl_stat >> 31) & 0x1) == 1:
@@ -1698,7 +1700,7 @@ class SWD(Module):
         """
         Retrieve the data read by the last emitted Read transaction.
         """
-        return int.from_bytes(self.reg_rdata.read(), 'little') | \
+        return int.from_bytes(self.reg_rdata.read(), 'little') << 0 | \
             int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
             int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
             int.from_bytes(self.reg_rdata.read(), 'little') << 24
