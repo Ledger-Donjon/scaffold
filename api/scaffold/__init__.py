@@ -1663,11 +1663,14 @@ class SWD(Module):
         :param addr: Address of the register.
         :param wdata: 32-bit integer to write into the register.
         """
-        val = 0b0000_0000 | ((apndp & 0b1) << 3) | (addr & 0b11)
-        self.reg_wdata.write(wdata & 0xff)
-        self.reg_wdata.write((wdata >> 8) & 0xff)
-        self.reg_wdata.write((wdata >> 16) & 0xff)
-        self.reg_wdata.write((wdata >> 24) & 0xff)
+        val = 0b0000_0000 | ((apndp & 0b1) << 3) | (((addr >> 2) & 1) << 1) \
+            | ((addr >> 3) & 1)
+        wdata_bytes = [
+            wdata & 0xff,
+            (wdata >> 8) & 0xff,
+            (wdata >> 16) & 0xff,
+            (wdata >> 24) & 0xff]
+        self.reg_wdata.write(bytearray(wdata_bytes))
         self.reg_cmd.write(val)
         return self.status()
 
@@ -1694,16 +1697,13 @@ class SWD(Module):
         """
         Retrieve the status of the last emitted SWD transaction.
         """
-        return SWDStatus(int.from_bytes(self.reg_status.read(), 'little') & 0b11)
+        return SWDStatus(self.reg_status.read()[0] & 0b11)
 
     def rdata(self):
         """
         Retrieve the data read by the last emitted Read transaction.
         """
-        return int.from_bytes(self.reg_rdata.read(), 'little') << 0 | \
-            int.from_bytes(self.reg_rdata.read(), 'little') << 8 | \
-            int.from_bytes(self.reg_rdata.read(), 'little') << 16 | \
-            int.from_bytes(self.reg_rdata.read(), 'little') << 24
+        return int.from_bytes(self.reg_rdata.read(4), 'little')
 
 
 class IOMode(Enum):
@@ -2306,8 +2306,7 @@ class Scaffold(ArchBase):
 
         # Declare the swd module
         if self.version >= parse_version("0.10"):
-            self.swd = swd = SWD(self)
-            self.__setattr__("swd", swd)
+            self.swd = SWD(self)
 
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
