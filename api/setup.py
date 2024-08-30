@@ -32,7 +32,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Ledger-Donjon/scaffold",
-    install_requires=["pyserial", "crcmod", "requests"],
+    install_requires=["pyserial", "crcmod", "requests", "packaging"],
     packages=find_packages(),
     python_requires=">=3.6",
 )
