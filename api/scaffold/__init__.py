@@ -1117,11 +1117,11 @@ class I2C(Module):
         # Verify trigger parameter before doing anything
         t_start = False
         t_end = False
-        if isinstance(type(trigger), int):
+        if isinstance(trigger, int):
             if trigger not in range(2):
                 raise ValueError("Invalid trigger parameter")
             t_start = trigger == 1
-        elif isinstance(type(trigger), str):
+        elif isinstance(trigger, str):
             t_start = "a" in trigger
             t_end = "b" in trigger
         else:
