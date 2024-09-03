@@ -1665,12 +1665,8 @@ class SWD(Module):
         """
         val = 0b0000_0000 | ((apndp & 0b1) << 3) | (((addr >> 2) & 1) << 1) \
             | ((addr >> 3) & 1)
-        wdata_bytes = [
-            wdata & 0xff,
-            (wdata >> 8) & 0xff,
-            (wdata >> 16) & 0xff,
-            (wdata >> 24) & 0xff]
-        self.reg_wdata.write(bytearray(wdata_bytes))
+        wdata_bytes = wdata.to_bytes(4, "little")
+        self.reg_wdata.write(wdata_bytes)
         self.reg_cmd.write(val)
         return self.status()
 
