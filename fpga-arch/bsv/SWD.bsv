@@ -77,8 +77,6 @@ module swd_module (ScaffoldSWDModule);
     Reg#(Bit#(8)) bus_reg_rdata <- mkReg(0);
     Reg#(Bit#(8)) bus_reg_status <- mkReg(0);
 
-    Reg#(Bit#(2)) reg_rdata_cnt <- mkReg(0);
-
     Reg#(Vector#(4, Bit#(8))) rdata <- mkReg(unpack(0));
     Reg#(Status) status <- mkReg(unpack(0));
     Reg#(Vector#(4, Bit#(8))) wdata <- mkReg(unpack(0));
@@ -87,22 +85,23 @@ module swd_module (ScaffoldSWDModule);
     Reg#(Bool) ready <- mkReg(False);
     Reg#(State) state <- mkReg(IDLE);
 
-    rule do_bus_read (bus_read == 1);
-        case ({bus_en_rdata, bus_en_status}) matches
-            2'b10: 
-                begin 
-                    bus_reg_rdata <= rdata[reg_rdata_cnt];
-                    reg_rdata_cnt <= reg_rdata_cnt + 1;
-                end
-            2'b01: bus_reg_status <= {pack(state == IDLE), 5'b0, pack(status)};
-        endcase
+    rule do_bus_read_rdata ((bus_read == 1) && (bus_en_rdata == 1) && (state != RW));
+        bus_reg_rdata <= rdata[0];
+        rdata <= shiftInAtN(rdata, 0);
+    endrule
+
+    rule do_bus_read_status ((bus_read == 1) && (bus_en_status == 1));
+        bus_reg_status <= {pack(state == IDLE), 5'b0, pack(status)};
     endrule
 
     rule do_bus_write ((bus_write == 1) && (state == IDLE));
-        case ({bus_en_wdata, bus_en_cmd}) matches
-            2'b10: wdata <= shiftInAt0(wdata, bus_write_data);
-            2'b01: cmd <= tagged Valid(unpack(bus_write_data));
-        endcase
+        if (bus_en_wdata == 1) begin
+            wdata <= shiftInAt0(wdata, bus_write_data);
+        end
+        
+        if (bus_en_cmd == 1) begin
+            cmd <= tagged Valid(unpack(bus_write_data));
+        end
     endrule
 
     rule do_ready;
