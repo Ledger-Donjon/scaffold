@@ -134,17 +134,17 @@ module mkSWDController (SWDController#(clk_divider))
     Prescaler#(clk_divider) prescaler <- mkPrescaler();
 
     // Status and ACK of the current transaction.
-    Reg#(Maybe#(Status)) status <- mkReg(tagged Invalid);
-    Reg#(Vector#(3, Bit#(1))) ack <- mkReg(unpack(0));
+    Reg#(Maybe#(Status)) status <- mkRegA(tagged Invalid);
+    Reg#(Vector#(3, Bit#(1))) ack <- mkRegA(unpack(0));
 
     // Controller pins.
-    Reg#(Bit#(1)) swd_out <- mkReg(0);
+    Reg#(Bit#(1)) swd_out <- mkRegA(0);
     Wire#(Bit#(1)) swd_in <- mkDWire(0);
-    Reg#(Bool) out_en <- mkReg(True);
-    Reg#(Bit#(1)) swclk <- mkReg(0);
+    Reg#(Bool) out_en <- mkRegA(True);
+    Reg#(Bit#(1)) swclk <- mkRegA(0);
     
     // Inner state.
-    Reg#(State) state <- mkReg(IDLE);
+    Reg#(State) state <- mkRegA(IDLE);
     Reg#(Bool) rnw <- mkRegU;
     Reg#(Vector#(8, Bit#(1))) packet <- mkRegU;
     Reg#(Vector#(33, Bit#(1))) data <- mkRegU;

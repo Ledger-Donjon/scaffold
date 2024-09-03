@@ -74,16 +74,16 @@ module swd_module (ScaffoldSWDModule);
     Wire#(Bit#(1)) bus_en_cmd <- mkDWire(0);
     Wire#(Bit#(1)) bus_en_status <- mkDWire(0);
 
-    Reg#(Bit#(8)) bus_reg_rdata <- mkReg(0);
-    Reg#(Bit#(8)) bus_reg_status <- mkReg(0);
+    Reg#(Bit#(8)) bus_reg_rdata <- mkRegA(0);
+    Reg#(Bit#(8)) bus_reg_status <- mkRegA(0);
 
-    Reg#(Vector#(4, Bit#(8))) rdata <- mkReg(unpack(0));
-    Reg#(Status) status <- mkReg(unpack(0));
-    Reg#(Vector#(4, Bit#(8))) wdata <- mkReg(unpack(0));
-    Reg#(Maybe#(Cmd)) cmd <- mkReg(tagged Invalid);
+    Reg#(Vector#(4, Bit#(8))) rdata <- mkRegA(unpack(0));
+    Reg#(Status) status <- mkRegA(unpack(0));
+    Reg#(Vector#(4, Bit#(8))) wdata <- mkRegA(unpack(0));
+    Reg#(Maybe#(Cmd)) cmd <- mkRegA(tagged Invalid);
 
-    Reg#(Bool) ready <- mkReg(False);
-    Reg#(State) state <- mkReg(IDLE);
+    Reg#(Bool) ready <- mkRegA(False);
+    Reg#(State) state <- mkRegA(IDLE);
 
     rule do_bus_read_rdata ((bus_read == 1) && (bus_en_rdata == 1) && (state != RW));
         bus_reg_rdata <= rdata[0];
