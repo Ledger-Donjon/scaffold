@@ -20,7 +20,7 @@ package Prescaler;
 
 import Counter::*;
 
-(* always_ready, always_enabled *)
+(* always_enabled *)
 interface Prescaler#(numeric type n);
     method Bool rising;
     method Bool falling;

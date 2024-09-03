@@ -23,7 +23,7 @@ import Vector::*;
 import StmtFSM::*;
 import ClientServer::*;
 
-(* always_ready, always_enabled *)
+(* always_enabled *)
 interface ScaffoldBus;
     // bus_in_t
     (* prefix="" *) method Action address((* port="address" *) Bit#(16) a);

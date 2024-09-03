@@ -91,7 +91,7 @@ typedef union tagged {
 
 /// The peripheral-facing pins of the SWD controller,
 /// with swdio split into swd_in and swd_out.
-(* always_ready, always_enabled *)
+(* always_enabled *)
 interface SWDControllerPins;
     (* prefix="" *) method Bit#(1) swclk;
     (* prefix="" *) method Action swd_in((* port="swd_in" *) Bit#(1) b);
@@ -105,8 +105,8 @@ endinterface
 interface SWDController#(numeric type clk_divider);
     method Action reset;
     interface Server#(Request, Response) rw;
-    (* always_ready, always_enabled *) method Bool ready;
-    (* always_ready, always_enabled *) interface SWDControllerPins pins;
+    (* always_enabled *) method Bool ready;
+    (* always_enabled *) interface SWDControllerPins pins;
 endinterface
 
 module mkSWDController (SWDController#(clk_divider))
