@@ -156,6 +156,12 @@ module mkSWDController (SWDController#(clk_divider))
     PulseWire request_in <- mkPulseWire();
     PulseWire reset_in <- mkPulseWire();
 
+    rule do_prescaler;
+        if (request_in) begin
+            prescaler.reset();
+        end
+    endrule
+
     // Generate the SWD clock, whenever there is an 
     // ongoing transaction.
     // Note that the polarity is inverted (the peripheral samples the IO line on rising edges of swclk)
@@ -171,12 +177,7 @@ module mkSWDController (SWDController#(clk_divider))
     // SWDIO is treated as an input only when in
     // the ACK or RDATA phase.
     rule do_out_en;
-        if ((state == RESET) || (state == PACKET) || (state == WDATA)) begin
-            out_en <= True;
-        end
-        else begin
-            out_en <= False;
-        end
+        out_en <= ((state == RESET) || (state == PACKET) || (state == WDATA));
     endrule
 
     // Stop idling when a request has been received.
