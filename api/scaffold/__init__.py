@@ -2344,7 +2344,7 @@ class Scaffold(ArchBase):
             for i in range(len(self.chains)):
                 self.add_mtxl_in(f"/chain{i}/trigger")
         if self.version >= parse_version("0.10"):
-            self.add_mtxl_in(f"/swd/trigger")
+            self.add_mtxl_in("/swd/trigger")
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
