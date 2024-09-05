@@ -1625,7 +1625,7 @@ class SWD(Module):
         """
         super().__init__(parent, "/swd")
         # Declare the signals
-        self.add_signals("swclk", "swd_in", "swd_out")
+        self.add_signals("swclk", "swd_in", "swd_out", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0b00
         self.add_register("rdata", "rv", base)
@@ -1633,13 +1633,16 @@ class SWD(Module):
         self.add_register("status", "rv", base + 0x10)
         self.add_register("cmd", "w", base + 0x20)
 
-    def reset(self):
+    def reset(self, trigger=False):
         """
         Reset the debug interface. This emits a reset sequence, followed by
         the JTAG-to-SWD select sequence and a second reset sequence. The deviceid
         register is then read.
         """
-        self.reg_cmd.write(0x80)
+        val = 0x80
+        if trigger:
+            val = val | (1 << 6)
+        self.reg_cmd.write(val)
         self.read(0, 0)
         return self.status()
 
@@ -2340,6 +2343,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_in(f"/pgen{i}/out")
             for i in range(len(self.chains)):
                 self.add_mtxl_in(f"/chain{i}/trigger")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxl_in(f"/swd/trigger")
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
@@ -2397,6 +2402,7 @@ class Scaffold(ArchBase):
         if self.version >= parse_version("0.10"):
             self.add_mtxr_in("/swd/swclk")
             self.add_mtxr_in("/swd/swd_out")
+            self.add_mtxr_in("/swd/trigger")
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")

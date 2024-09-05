@@ -128,7 +128,8 @@ architecture behavior of system is
 		swclk		:	 OUT STD_LOGIC;
 		swd_in		:	 IN STD_LOGIC;
 		swd_out		:	 OUT STD_LOGIC;
-		out_en		:	 OUT STD_LOGIC
+		out_en		:	 OUT STD_LOGIC;
+        trigger     :    OUT STD_LOGIC
 	);
     END COMPONENT;
 
@@ -174,6 +175,7 @@ architecture behavior of system is
         + 1 -- ISO7816 trigger
         + 1 -- I2C trigger
         + 1 -- SPI trigger
+        + 1 -- SWD trigger
         + pulse_gen_count -- Pulse generator outputs
         + chain_count; -- Chain trigger
     signal mtxl_in: std_logic_vector(mtxl_in_count-1 downto 0);
@@ -211,7 +213,7 @@ architecture behavior of system is
         + 4 -- SPI module
         + 1 -- SPI slave module
         + 1 -- Clock
-        + 2; -- SWD
+        + 3; -- SWD
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
     signal mtxr_in_uart_trigger: std_logic_vector(uart_count-1 downto 0);
@@ -233,6 +235,7 @@ architecture behavior of system is
     signal mtxr_in_swd_swdio: std_logic;
     signal mtxr_in_swd_swdio_en: std_logic;
     signal mtxr_in_swd_swclk: std_logic;
+    signal mtxr_in_swd_trigger: std_logic;
     signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
 
     -- Output signals of the output matrix
@@ -742,6 +745,7 @@ begin
         output => mtxr_in_clock_out,
         glitch_start => mtxl_out_clock_glitch_start );
 
+    -- SWD module
     c_swd: component swd_module
     port map (
         CLK => clock,
@@ -759,7 +763,8 @@ begin
         swclk => mtxr_in_swd_swclk,
         swd_in => mtxl_out_swd_swdio,
         swd_out => mtxr_in_swd_swdio,
-        out_en => mtxr_in_swd_swdio_en );
+        out_en => mtxr_in_swd_swdio_en,
+        trigger => mtxr_in_swd_trigger );
 
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module
@@ -809,6 +814,7 @@ begin
     -- mtxr signals are feedback outputs of modules.
     -- Warning: signals order is inversed regarding Python API code.
     mtxl_in <=
+        mtxr_in_swd_trigger &
         mtxr_in_chain_out &
         mtxr_in_pulse_gen_out &
         mtxr_in_spi_trigger &
@@ -855,7 +861,8 @@ begin
         mtxr_in_clock_out,
         mtxr_in_swd_swclk,
         mtxr_in_swd_swdio,
-        mtxr_in_swd_swdio_en
+        mtxr_in_swd_swdio_en,
+        mtxr_in_swd_trigger
         )
         variable i: integer;
     begin
@@ -904,9 +911,11 @@ begin
         -- Clock module
         mtxr_in(i) <= "1" & mtxr_in_clock_out;
         i := i + 1;
+        -- SWD module
         mtxr_in(i) <= "1" & mtxr_in_swd_swclk;
         mtxr_in(i+1) <= mtxr_in_swd_swdio_en & mtxr_in_swd_swdio;
-        i := i + 2;
+        mtxr_in(i+2) <= "1" & mtxr_in_swd_trigger;
+        i := i + 3;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;

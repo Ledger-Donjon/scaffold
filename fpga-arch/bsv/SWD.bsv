@@ -45,11 +45,13 @@ endinterface
 interface ScaffoldSWDModule;
     (* prefix="" *) interface ScaffoldBus bus;
     (* prefix="" *) interface SWDControllerPins pins;
+    (* always_ready, prefix="" *) method Bit#(1) trigger;
 endinterface
 
 typedef struct {
     Bit#(1) reset;
-    Bit#(3) reserved;
+    Bit#(1) trigger;
+    Bit#(2) reserved;
     Bit#(1) apndp;
     Bit#(1) rnw;
     Bit#(2) addr;
@@ -76,6 +78,8 @@ module swd_module (ScaffoldSWDModule);
 
     Reg#(Bit#(8)) bus_reg_rdata <- mkRegA(0);
     Reg#(Bit#(8)) bus_reg_status <- mkRegA(0);
+
+    PulseWire trig <- mkPulseWire();
 
     Reg#(Vector#(4, Bit#(8))) rdata <- mkRegA(unpack(0));
     Reg#(Status) status <- mkRegA(unpack(0));
@@ -131,6 +135,10 @@ module swd_module (ScaffoldSWDModule);
             );
             state <= RW;
         end
+
+        if (new_cmd.trigger == 1) begin
+            trig.send();
+        end
     endrule
 
     rule do_reset (state == RESET);
@@ -184,4 +192,6 @@ module swd_module (ScaffoldSWDModule);
     endinterface
 
     interface SWDControllerPins pins = swd_controller.pins;
+
+    method Bit#(1) trigger = pack(trig);
 endmodule

@@ -157,7 +157,7 @@ module mkSWDController (SWDController#(clk_divider))
     PulseWire reset_in <- mkPulseWire();
 
     rule do_prescaler;
-        if (request_in) begin
+        if (request_in || reset_in) begin
             prescaler.reset();
         end
     endrule
