@@ -1605,6 +1605,106 @@ class Clock(Module):
         self.reg_count.set(value)
 
 
+class SWDStatus(Enum):
+    OK = 0
+    WAIT = 1
+    FAULT = 2
+    ERROR = 3
+
+
+class SWD(Module):
+    """
+    SWD peripheral of Scaffold.
+    """
+
+    __REG_STATUS_BIT_READY = 0
+
+    def __init__(self, parent):
+        """
+        :param parent: The Scaffold instance owning the SWD module.
+        """
+        super().__init__(parent, "/swd")
+        # Declare the signals
+        self.add_signals("swclk", "swd_in", "swd_out", "trigger")
+        # Declare the registers
+        self.__addr_base = base = 0x0b00
+        self.add_register("rdata", "rv", base)
+        self.add_register("wdata", "w", base + 4, reset=0x00)
+        self.add_register("status", "rv", base + 0x10)
+        self.add_register("cmd", "w", base + 0x20)
+
+    def reset(self, trigger=False):
+        """
+        Reset the debug interface. This emits a reset sequence, followed by
+        the JTAG-to-SWD select sequence and a second reset sequence. The deviceid
+        register is then read.
+        """
+        val = 0x80
+        if trigger:
+            val = val | (1 << 6)
+        self.reg_cmd.write(val)
+        self.read(0, 0)
+        return self.status()
+
+    def read(self, apndp, addr):
+        """
+        Emits a read command to a given debug register.
+
+        :param apndp: Address space of the register (0 for DP, 1 for AP).
+        :param addr: Address of the register.
+        """
+        val = 0b0000_0100 | ((apndp & 0b1) << 3) | (((addr >> 2) & 1) << 1) \
+            | ((addr >> 3) & 1)
+        self.reg_cmd.write(val)
+        return (self.status(), self.rdata())
+
+    def write(self, apndp, addr, wdata: int):
+        """
+        Emits a write command to a given debug register.
+
+        :param apndp: Address space of the register (0 for DP, 1 for AP).
+        :param addr: Address of the register.
+        :param wdata: 32-bit integer to write into the register.
+        """
+        val = 0b0000_0000 | ((apndp & 0b1) << 3) | (((addr >> 2) & 1) << 1) \
+            | ((addr >> 3) & 1)
+        wdata_bytes = wdata.to_bytes(4, "little")
+        self.reg_wdata.write(wdata_bytes)
+        self.reg_cmd.write(val)
+        return self.status()
+
+    def clear_errors(self):
+        """
+        Clear any previous errors.
+        """
+        self.write(0, 0, 0b11110)
+
+    def debug_power_up(self, retry=10):
+        """
+        Fully powers up the debug interface by writing to the CRTL/STAT register.
+        """
+        self.write(0, 0x4, (1 << 28) | (1 << 30))
+        self.clear_errors()
+        self.read(0, 0)
+        for _ in range(retry):
+            (status, ctrl_stat) = self.read(0, 0x4)
+            if ((ctrl_stat >> 29) & 0x1) == 1 and ((ctrl_stat >> 31) & 0x1) == 1:
+                return True
+        return False
+
+    def status(self):
+        """
+        Retrieve the status of the last emitted SWD transaction.
+        """
+        return SWDStatus(self.reg_status.read()[0] & 0b11)
+
+    def rdata(self):
+        """
+        Retrieve the data read by the last emitted Read transaction.
+        """
+        return int.from_bytes(self.reg_rdata.read(4), 'little')
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2098,6 +2198,7 @@ class Scaffold(ArchBase):
                     "0.7.2",
                     "0.8",
                     "0.9",
+                    "0.10",
                 )
             ],
         )
@@ -2202,6 +2303,10 @@ class Scaffold(ArchBase):
                 self.clocks.append(clock)
                 self.__setattr__(f"clock{i}", clock)
 
+        # Declare the swd module
+        if self.version >= parse_version("0.10"):
+            self.swd = SWD(self)
+
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
@@ -2238,6 +2343,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_in(f"/pgen{i}/out")
             for i in range(len(self.chains)):
                 self.add_mtxl_in(f"/chain{i}/trigger")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxl_in("/swd/trigger")
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
@@ -2259,6 +2366,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxl_out("/swd/swd_in")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2290,6 +2399,10 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
             self.add_mtxr_in(f"/clock{i}/out")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxr_in("/swd/swclk")
+            self.add_mtxr_in("/swd/swd_out")
+            self.add_mtxr_in("/swd/trigger")
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
@@ -2355,3 +2468,5 @@ class Scaffold(ArchBase):
             i2c.reset_config()
         for spi in self.spis:
             spi.reset_registers()
+        if self.version >= parse_version("0.10"):
+            self.swd.reset_registers()
