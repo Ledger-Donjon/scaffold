@@ -58,6 +58,7 @@ typedef struct {
 
 typedef enum {
     IDLE,
+    CMD_IN,
     RESET,
     RW
 } State deriving (Eq, Bits);
@@ -97,6 +98,7 @@ module swd_module (ScaffoldSWDModule);
         bus_reg_status <= {pack(state == IDLE), 5'b0, pack(status)};
     endrule
 
+    // Only register writes if we are currently idling
     rule do_bus_write ((bus_write == 1) && (state == IDLE));
         if (bus_en_wdata == 1) begin
             wdata <= shiftInAt0(wdata, bus_write_data);
@@ -104,6 +106,7 @@ module swd_module (ScaffoldSWDModule);
         
         if (bus_en_cmd == 1) begin
             cmd <= tagged Valid(unpack(bus_write_data));
+            state <= CMD_IN;
         end
     endrule
 
@@ -111,9 +114,7 @@ module swd_module (ScaffoldSWDModule);
         ready <= swd_controller.ready;
     endrule
 
-    // ONLY do something if there is a valid command registered, and if
-    // the user is not currently writing to some register.
-    rule do_idle ((state == IDLE) && (bus_write == 0) && isValid(cmd));
+    rule do_cmd ((state == CMD_IN) && isValid(cmd));
         let new_cmd = fromMaybe(?, cmd);
 
         if (new_cmd.reset == 1) begin
