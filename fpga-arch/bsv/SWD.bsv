@@ -20,7 +20,6 @@ import SWDInner::*;
 
 import GetPut::*;
 import Vector::*;
-import StmtFSM::*;
 import ClientServer::*;
 
 (* always_enabled *)

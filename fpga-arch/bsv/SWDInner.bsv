@@ -20,7 +20,6 @@ package SWDInner;
 
 import Prescaler::*;
 
-import StmtFSM::*;
 import GetPut::*;
 import Vector::*;
 import ClientServer::*;
@@ -222,7 +221,7 @@ module mkSWDController (SWDController#(clk_divider))
             end
         end
 
-        else if (prescaler.pre_rising && (cnt == 0)) begin
+        if (prescaler.pre_rising && (cnt == 0)) begin
             state <= IDLE;
         end
     endrule
