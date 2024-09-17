@@ -17,7 +17,7 @@
 # Copyright 2019 Ledger SAS, written by Olivier Hériveaux
 
 
-from enum import Enum
+from enum import Enum, Flag, auto
 from time import sleep
 from typing import Optional, Union, List
 import serial.tools.list_ports
@@ -1042,6 +1042,11 @@ class I2CNackError(Exception):
         return f"Byte of index {self.index} NACKed during I2C transaction."
 
 
+class I2CTrigger(Flag):
+    START = auto()
+    END = auto()
+
+
 class I2C(Module):
     """
     I2C module of Scaffold.
@@ -1110,8 +1115,10 @@ class I2C(Module):
         :param trigger: Trigger configuration. If int and value is 1, trigger
             is asserted when the transaction starts. If str, it may contain the
             letter 'a' and/or 'b', where 'a' asserts trigger on transaction
-            start and 'b' on transaction end.
-        :type trigger: int or str.
+            start and 'b' on transaction end. If I2CTrigger Flag, it may contain
+            the I2CTrigger.START and/or I2CTrigger.END values to asserts trigger
+            on transaction start and/or on transaction end.
+        :type trigger: int, str or I2CTrigger.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         # Verify trigger parameter before doing anything
@@ -1121,6 +1128,9 @@ class I2C(Module):
             if trigger not in range(2):
                 raise ValueError("Invalid trigger parameter")
             t_start = trigger == 1
+        elif isinstance(trigger, I2CTrigger):
+            t_start = I2CTrigger.START in trigger
+            t_end = I2CTrigger.END in trigger
         elif isinstance(trigger, str):
             t_start = "a" in trigger
             t_end = "b" in trigger
