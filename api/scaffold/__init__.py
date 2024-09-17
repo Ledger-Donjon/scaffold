@@ -1129,8 +1129,10 @@ class I2C(Module):
         :param trigger: Trigger configuration. If int and value is 1, trigger
             is asserted when the transaction starts. If str, it may contain the
             letter 'a' and/or 'b', where 'a' asserts trigger on transaction
-            start and 'b' on transaction end.
-        :type trigger: int, str or `I2CTrigger`.
+            start and 'b' on transaction end. If I2CTrigger Flag, it may contain
+            the I2CTrigger.START and/or I2CTrigger.END values to asserts trigger
+            on transaction start and/or on transaction end.
+        :type trigger: int, str or I2CTrigger.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         # Verify trigger parameter before doing anything
@@ -1144,6 +1146,9 @@ class I2C(Module):
                     "or a flag of type I2CTrigger"
                 )
             t_start = trigger == 1
+        elif isinstance(trigger, I2CTrigger):
+            t_start = I2CTrigger.START in trigger
+            t_end = I2CTrigger.END in trigger
         elif isinstance(trigger, str):
             t_start = "a" in trigger
             t_end = "b" in trigger
