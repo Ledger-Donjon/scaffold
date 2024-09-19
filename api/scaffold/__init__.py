@@ -734,7 +734,7 @@ class Power(Module):
     def dut(self, value):
         self.reg_control.set_bit(0, value)
 
-    def restart_dut(self, toff=0.05, ton=0):
+    def restart_dut(self, toff=0.05, ton=0.00):
         """
         Power-cycle the DUT socket.
 
@@ -1098,7 +1098,12 @@ class I2C(Module):
         """Discards all bytes in the transmission/reception FIFO."""
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
-    def raw_transaction(self, data, read_size, trigger=None):
+    def raw_transaction(
+        self,
+        data,
+        read_size: int,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ):
         """
         Executes an I2C transaction. This is a low-level function which does
         not manage I2C addressing nor read/write mode (those shall already be
@@ -1118,7 +1123,7 @@ class I2C(Module):
             start and 'b' on transaction end. If I2CTrigger Flag, it may contain
             the I2CTrigger.START and/or I2CTrigger.END values to asserts trigger
             on transaction start and/or on transaction end.
-        :type trigger: int, str or I2CTrigger.
+        :type trigger: None, int, str or I2CTrigger.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         # Verify trigger parameter before doing anything
@@ -1137,6 +1142,7 @@ class I2C(Module):
         else:
             if trigger is not None:
                 raise ValueError("Invalid trigger parameter")
+
         self.flush()
         self.reg_size_h = read_size >> 8
         self.reg_size_l = read_size & 0xFF
@@ -1225,7 +1231,9 @@ class I2C(Module):
             result.append(address + rw)
         return result
 
-    def read(self, size, address=None, trigger=None):
+    def read(
+        self, size, address=None, trigger: Optional[Union[bool, int, I2CTrigger]] = None
+    ):
         """
         Perform an I2C read transaction.
 
