@@ -19,18 +19,29 @@
 
 import pytest
 import types
-from scaffold.iso7816 import (
-    load_atr_info_db,
-    BasicByteReader,
-    parse_atr,
-    ProtocolError,
-    Smartcard,
-    T1RedundancyCode,
-)
+
+try:
+    from scaffold.iso7816 import (
+        load_atr_info_db,
+        BasicByteReader,
+        parse_atr,
+        ProtocolError,
+        Smartcard,
+        T1RedundancyCode,
+    )
+except ImportError:
+    from api.scaffold.iso7816 import (
+        load_atr_info_db,
+        BasicByteReader,
+        parse_atr,
+        ProtocolError,
+        Smartcard,
+        T1RedundancyCode,
+    )
 
 
 def test_parsing_ok():
-    tab = load_atr_info_db(True)
+    tab = load_atr_info_db(allow_web_download=True)
 
     # Some cards do not respect the norm correctly and have malformated ATR
     # Here are some list of invalid ATR in the database.
