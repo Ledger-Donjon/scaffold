@@ -19,12 +19,29 @@
 
 import pytest
 import types
-from scaffold.iso7816 import load_atr_info_db, BasicByteReader, parse_atr, \
-    ProtocolError, Smartcard, T1RedundancyCode
+
+try:
+    from scaffold.iso7816 import (
+        load_atr_info_db,
+        BasicByteReader,
+        parse_atr,
+        ProtocolError,
+        Smartcard,
+        T1RedundancyCode,
+    )
+except ImportError:
+    from api.scaffold.iso7816 import (
+        load_atr_info_db,
+        BasicByteReader,
+        parse_atr,
+        ProtocolError,
+        Smartcard,
+        T1RedundancyCode,
+    )
 
 
 def test_parsing_ok():
-    tab = load_atr_info_db()
+    tab = load_atr_info_db(allow_web_download=True)
 
     # Some cards do not respect the norm correctly and have malformated ATR
     # Here are some list of invalid ATR in the database.
@@ -67,7 +84,22 @@ def test_parsing_ok():
         "3fff9500ff918171fe4700444e41535032343120447368",
         "3b6f00008031e06b082e0502b9555555",
         "3b781400000073c8400000",
-        "3b9f978131fe458065544312210831c073f621808105"]
+        "3b9f978131fe458065544312210831c073f621808105",
+        "3b6b00000031c164086032060f90",
+        "3b6f00000031c173c8211064414d3347",
+        "3b7f960080318065b084413df612004c829000",
+        "3b8c8001502752318100000000007181",
+        "3b8f80018031806549544a3442120fff829000",
+        "3b9f95801fc78031a073b6a10067cf15ca9cd70920",
+        "3b9f96801fc78031e073fe2113574a338101330017",
+        "3bb89700813fe45ffff148230502300f",
+        "3bd81800801f078031c1640806920f",
+        "3bf01100ff01",
+        "3bf99600008031fe455343453720474e335e",
+        "3bfa1300008131fe454a434f50323156323331",
+        "3bfa1300008131fe54a434f503233191",
+        "3b6500002063cbbc",
+    ]
 
     # List of invalid ATR with too much bytes
     badlist_extra = [
@@ -88,7 +120,8 @@ def test_parsing_ok():
         "3bf711000140965430040e6cb6d69000",
         "3bf711000140967070070e6cb6d69000",
         "3bf7110001409670700a0e6cb6d69000",
-        "3bfe9600008131fe45803180664090a5102e03830190006e9000"]
+        "3bfe9600008131fe45803180664090a5102e03830190006e9000",
+    ]
 
     # List of ATR with invalid checksum
     badlist_checksum = [
@@ -110,11 +143,19 @@ def test_parsing_ok():
         "3bfe9100ff918171fe40004138002180818066b00701017707b7",
         "3bff0000ff8131fe458025a000000056575343363530000000",
         "3bff9500008031fe4380318067b0850201f3a3138301f83bff",
-        "3be6000080318066b1a30401110b83"]
+        "3be6000080318066b1a30401110b83",
+        "3b801fc78031e073fe211163407163830790009a",
+        "3b8580012063c8b880b4",
+        "3b96004121920000622433339000",
+        "3bde98ff8191fe1fc38031815448534d3173802140810792",
+        "3bdf960090103f07008031e0677377696363000073fe2100dc",
+        "3bfa00008131fe450031c173c840000090007a",
+        "3bff1300918131fe4141434f532046696f6e6131204c6336f4",
+    ]
 
     atrs = []
     for atr_pattern, _ in tab:
-        if ('.' not in atr_pattern) and ('[' not in atr_pattern):
+        if ("." not in atr_pattern) and ("[" not in atr_pattern):
             atrs.append(atr_pattern)
     for atr in atrs:
         reader = BasicByteReader(bytes.fromhex(atr))
@@ -136,10 +177,11 @@ def test_t1_lrc():
     dummy.t1_redundancy_code = T1RedundancyCode.LRC
     vectors = [
         ("", 0x00),
-        ("de0945b4298047029dd07a2b74975a86", 0xe9),
+        ("de0945b4298047029dd07a2b74975a86", 0xE9),
         ("7c5031c4ae356ce2cada16c6533eb9d9", 0x01),
-        ("89973440f0af5e0e892137a3c15933de", 0x2c),
-        ("181079e03db2992b423b61941a06a91c", 0x89)]
+        ("89973440f0af5e0e892137a3c15933de", 0x2C),
+        ("181079e03db2992b423b61941a06a91c", 0x89),
+    ]
     for data, lrc in vectors:
         expected = bytes([lrc])
         assert Smartcard.calculate_edc(dummy, bytes.fromhex(data)) == expected
@@ -153,7 +195,8 @@ def test_t1_crc():
         ("dbc4fc2ad285292881f66af0f5c2a77d", "0aeb"),
         ("9da60b24b6b6b9b82c5edc5e53162063", "daf0"),
         ("5c24dea73cb5c4f4f0ca11d2a3ec9f89", "11cc"),
-        ("c97124d4b54d8c427bfce6f3c6486518", "1f11")]
+        ("c97124d4b54d8c427bfce6f3c6486518", "1f11"),
+    ]
     for data, crc in vectors:
         expected = bytes.fromhex(crc)
         assert Smartcard.calculate_edc(dummy, bytes.fromhex(data)) == expected

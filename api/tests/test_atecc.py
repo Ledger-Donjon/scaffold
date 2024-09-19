@@ -15,8 +15,14 @@
 #
 #
 # Copyright 2023 Ledger SAS, written by Michael Mouchous
-from api.scaffold.atecc import crc16, crc16b
-from api.scaffold.atecc import ATECC, ATECCInterface, Scaffold
+import pytest
+
+try:
+    from api.scaffold.atecc import crc16, crc16b
+    from api.scaffold.atecc import ATECC, ATECCInterface, Scaffold
+except ImportError:
+    from scaffold.atecc import crc16, crc16b
+    from scaffold.atecc import ATECC, ATECCInterface, Scaffold
 
 
 def test_crc16_with_various_inputs():
@@ -54,7 +60,11 @@ def test_crc16b_with_edge_cases():
 
 
 def test_powerup_serial():
-    scaffold = Scaffold()
+    try:
+        scaffold = Scaffold()
+    except Exception:
+        # Raised when no Scaffold device is found
+        pytest.skip("Cannot be tested without a real device")
     atecc = ATECC(scaffold, interface=ATECCInterface.I2C)
     atecc.power_cycle()
     atecc.read_serial()
@@ -62,7 +72,11 @@ def test_powerup_serial():
 
 
 def test_powerup_read_config():
-    scaffold = Scaffold()
+    try:
+        scaffold = Scaffold()
+    except Exception:
+        # Raised when no Scaffold device is found
+        pytest.skip("Cannot be tested without a real device")
     atecc = ATECC(scaffold, interface=ATECCInterface.I2C)
     atecc.power_cycle()
     atecc.read_config()
@@ -70,7 +84,11 @@ def test_powerup_read_config():
 
 
 def test_nonce():
-    scaffold = Scaffold()
+    try:
+        scaffold = Scaffold()
+    except RuntimeError:
+        # Raised when no Scaffold device is found
+        pytest.skip("Cannot be tested without a real device")
     atecc = ATECC(scaffold, interface=ATECCInterface.I2C)
     atecc.power_cycle()
     atecc.wake_up()
