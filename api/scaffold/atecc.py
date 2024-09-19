@@ -934,7 +934,8 @@ class ATECC:
 
         if response[0] < 4:
             raise ProtocolError(
-                f"I/O group is too small ({response[0]} bytes). It should be at least 4 bytes."
+                f"I/O group is too small ({response[0]} bytes)."
+                " It should be at least 4 bytes."
             )
         if self.interface == ATECCInterface.I2C:
             response += bytes(self.i2c.read(response[0] - 1))
@@ -967,7 +968,8 @@ class ATECC:
         :param data: Command data.
         :param trigger: Enable or disable trigger signal for this command.
         :param wait: Wait time after sending the command.
-        :param skip_response: If enabled, don't fetch the response, only send the command.
+        :param skip_response: If enabled, don't fetch the response,
+            only send the command.
         :return: Command response.
         """
         if isinstance(opcode, ATECCOpCode):
@@ -1078,7 +1080,9 @@ class ATECC:
         assert data is not None
         return data
 
-    def encrypted_read(self, slot, key_id, key, trigger=0):
+    def encrypted_read(
+        self, slot, key_id, key, trigger: Optional[Union[bool, int, I2CTrigger]] = None
+    ):
         self.nonce()
         self.gen_dig(key_id, key)
         encrypted_data = self.read(
@@ -1166,7 +1170,7 @@ class ATECC:
         data: bytes,
         zone=ATECCZone.DATA,
         block=0,
-        slot=None,
+        slot: Optional[int] = None,
         offset=0,
         trigger=0,
         mac=None,
@@ -1177,13 +1181,9 @@ class ATECC:
         :param zone: Memory zone.
         :type zone: ATECCZone
         :param data: Data to be written. Size must be 4 or 32.
-        :type data: bytes
         :param slot: Slot index, for data memory only. None for other zones.
-        :type slot: int or None
         :param block: Block index in the selected slot or zone.
-        :type block: int
         :param offset: Read/write offset
-        :type offset: int
         """
         size = len(data)
         if size not in (4, 32):
@@ -1218,8 +1218,8 @@ class ATECC:
     def read_config(self):
         """
         Read all the configuration memory.
+
         :return: Parsed configuration memory.
-        :rtype: Config
         """
         data = bytearray()
         for i in range(4):
@@ -1250,6 +1250,7 @@ class ATECC:
     def lock_slot(self, slot: int):
         """
         Lock individual data slot.
+
         :param slot: Slot number.
         """
         if slot not in range(0x10):
@@ -1261,7 +1262,9 @@ class ATECC:
         mode = ((slot & 0b1111) << 2) + 0b10
         self.command(ATECCOpCode.LOCK, mode, 0)
 
-    def gen_priv_key(self, slot: int, trigger=0):
+    def gen_priv_key(
+        self, slot: int, trigger: Optional[Union[bool, int, I2CTrigger]] = None
+    ):
         """
         Call the GenKey command to generate a private key in a slot.
 
@@ -1271,7 +1274,11 @@ class ATECC:
         # Command execution is long. We must wait before querying the response.
         self.command(ATECCOpCode.GEN_KEY, 1 << 2, slot, trigger=trigger, wait=0.2)
 
-    def gen_pub_key(self, slot: int, trigger=0):
+    def gen_pub_key(
+        self,
+        slot: int,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ):
         """
         Call the GenKey command to generate a public key from a private key
         stored in a slot.
@@ -1316,14 +1323,20 @@ class ATECC:
         """
         return self.command(ATECCOpCode.NONCE, 0b11, 0, k)
 
-    def mac(self, key_id, challenge):
+    def mac(self, key_id: int):
         """
-        :param challenge: Input challenge, 32 bytes long.
-        :type challenge: bytes
+
+        :param key_id: Key data slot number.
         """
         return self.command(ATECCOpCode.MAC, (1 << 6), key_id)
 
-    def check_mac(self, key_id: int, key: bytes, trigger=None, use_tempkey=True):
+    def check_mac(
+        self,
+        key_id: int,
+        key: bytes,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+        use_tempkey=True,
+    ):
         """
         Calls CheckMac command to authenticate with a given key.
         The method `get_serial` and `nonce` must have been called prior to this
@@ -1367,7 +1380,12 @@ class ATECC:
 
         self.command(ATECCOpCode.CHECK_MAC, mode, key_id, data=data, trigger=trigger)
 
-    def gen_dig(self, key_id: int, key: bytes, trigger=None):
+    def gen_dig(
+        self,
+        key_id: int,
+        key: bytes,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ):
         """
         Calls GenDig command to derive a key from a data slot.
         The method `get_serial` and `nonce` must have been called prior to this
@@ -1402,7 +1420,7 @@ class ATECC:
         data_in: bytes,
         key_slot: Optional[int] = None,
         do_nonce=True,
-        trigger=None,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
     ) -> bytes:
         if key_slot is None:
             if do_nonce:
