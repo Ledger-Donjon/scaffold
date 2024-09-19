@@ -1,0 +1,6 @@
+pyserial
+crcmod
+requests
+packaging
+pytest
+pycrypto
