@@ -1019,7 +1019,10 @@ class ATECC:
             return g
 
     def reset(self):
-        """Reset the address counter. Next I2C will start with the beginning of IO buffer."""
+        """
+        Reset the address counter.
+        Next I2C will start with the beginning of IO buffer.
+        """
         if self.interface == ATECCInterface.I2C:
             self.i2c.write(bytes((ATECCWordAddress.RESET.value,)))
         elif self.interface == ATECCInterface.SWI:

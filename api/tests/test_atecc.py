@@ -15,9 +15,6 @@
 #
 #
 # Copyright 2023 Ledger SAS, written by Michael Mouchous
-
-
-import pytest
 from api.scaffold.atecc import crc16, crc16b
 from api.scaffold.atecc import ATECC, ATECCInterface, Scaffold
 
@@ -68,7 +65,7 @@ def test_powerup_read_config():
     scaffold = Scaffold()
     atecc = ATECC(scaffold, interface=ATECCInterface.I2C)
     atecc.power_cycle()
-    config = atecc.read_config()
+    atecc.read_config()
     assert atecc.serial is not None
 
 
