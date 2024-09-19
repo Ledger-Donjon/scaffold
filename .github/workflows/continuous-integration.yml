@@ -20,7 +20,7 @@ jobs:
       - name: Install apt packages
         run: sudo apt install pcsc-tools
       - name: Install pip packages
-        run: pip install flake8 pytest crcmod pycrytpo
+        run: pip install flake8 pytest crcmod pycrypto
       - name: Lint Python
         run: find . -type f -name '*.py' -exec flake8 '{}' '+'
       - name: Test Python
