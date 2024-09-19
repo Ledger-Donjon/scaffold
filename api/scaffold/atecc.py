@@ -15,12 +15,12 @@
 #
 #
 # Copyright 2023 Ledger SAS, written by Michael Mouchous
-# -*- coding: utf-8 -*-
+
 from time import sleep
 from enum import Enum
 from binascii import hexlify
 from ..scaffold import Pull, IOMode, Scaffold, I2CTrigger
-from typing import Optional, List, Union, cast
+from typing import Optional, Union, cast
 import crcmod
 from Crypto.Hash import SHA256
 
@@ -714,7 +714,8 @@ class Config:
 
         print("Serial: 0x" + hexlify(self.serial).decode())
         print(
-            "Revision: 0x" + hexlify(self.revision).decode(), f"({self.atecc_revision})"
+            "Revision: 0x" + hexlify(self.revision).decode(),
+            f"({self.atecc_revision})",
         )
         if self.atecc_revision.is_ATECC608:
             print("AES enable: " + ["no", "yes"][int(self.aes_enable)])
@@ -818,7 +819,11 @@ class Config:
             print("    Req random: " + yes_no(kc.req_random))
             print("    Lockable: " + yes_no(kc.lockable))
             if self.revision[2] > 0x05:
-                d = {4: "P256 NIST ECC key", 6: "AES key", 7: "SHA key or other data"}
+                d = {
+                    4: "P256 NIST ECC key",
+                    6: "AES key",
+                    7: "SHA key or other data",
+                }
             else:
                 d = {4: "P256 NIST ECC key", 7: "Not an ECC key"}
             print("    Key type: " + d.get(kc.key_type, f"0x{kc.key_type}"))
@@ -1090,7 +1095,8 @@ class ATECC:
         assert self.temp_key is not None
         # Encrypt the data with temp key (XOR)
         encrypted_data = bytes([a ^ b for a, b in zip(self.temp_key, data)])
-        # SHA-256(TempKey, Opcode, Param1, Param2, SN[8], SN[0:1], <25 bytes of zeros>, PlainTextData)
+        # SHA-256(TempKey, Opcode, Param1, Param2, SN[8],
+        # SN[0:1], <25 bytes of zeros>, PlainTextData)
         param1 = ({4: 0, 32: 1}[len(data)] << 7) | ATECCZone.DATA.value
         param2 = self.__make_addr(ATECCZone.DATA, 0, slot, 0).to_bytes(2, "little")
         sn = self.serial
@@ -1111,7 +1117,11 @@ class ATECC:
         )
 
     def __make_addr(
-        self, zone: ATECCZone, block: int, slot: Optional[int] = None, offset: int = 0
+        self,
+        zone: ATECCZone,
+        block: int,
+        slot: Optional[int] = None,
+        offset: int = 0,
     ) -> int:
         """
         Generate address for use in write and read commands.
