@@ -739,7 +739,7 @@ class Power(Module):
     def dut(self, value: int):
         self.reg_control.set_bit(0, value)
 
-    def restart_dut(self, toff: float = 0.05, ton: float = 0):
+    def restart_dut(self, toff: float = 0.05, ton: float = 0.0):
         """
         Power-cycle the DUT socket.
 
@@ -755,7 +755,7 @@ class Power(Module):
         if ton > 0:
             sleep(ton)
 
-    def restart_platform(self, toff: float = 0.05, ton: float = 0):
+    def restart_platform(self, toff: float = 0.05, ton: float = 0.0):
         """
         Power-cycle the platform socket.
 
@@ -771,7 +771,7 @@ class Power(Module):
         if ton > 0:
             sleep(ton)
 
-    def restart_all(self, toff: float = 0.05, ton: float = 0):
+    def restart_all(self, toff: float = 0.05, ton: float = 0.0):
         """
         Power-cycle both DUT and platform sockets.
 
@@ -1132,7 +1132,7 @@ class I2C(Module):
             start and 'b' on transaction end. If I2CTrigger Flag, it may contain
             the I2CTrigger.START and/or I2CTrigger.END values to asserts trigger
             on transaction start and/or on transaction end.
-        :type trigger: int, str or I2CTrigger.
+        :type trigger: None, int, str or I2CTrigger.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         # Verify trigger parameter before doing anything
@@ -1158,6 +1158,7 @@ class I2C(Module):
         else:
             if trigger is not None:
                 raise ValueError("Invalid trigger parameter")
+
         self.flush()
         self.reg_size_h.set(read_size >> 8)
         self.reg_size_l.set(read_size & 0xFF)
