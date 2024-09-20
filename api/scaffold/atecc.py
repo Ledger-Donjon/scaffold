@@ -1240,7 +1240,7 @@ class ATECC:
         """
         # Bit 7 to ignore CRC content checking before lock.
         mode = 1 << 7
-        self.command(ATECCOpCode.LOCK, mode, 0)
+        self.command(ATECCOpCode.LOCK, mode, 0, wait=0.02)
 
     def lock_data(self):
         """
@@ -1248,7 +1248,7 @@ class ATECC:
         """
         # Bit 7 to ignore CRC content checking before lock.
         mode = (1 << 7) + 0b01
-        self.command(ATECCOpCode.LOCK, mode, 0)
+        self.command(ATECCOpCode.LOCK, mode, 0, wait=0.02)
 
     def lock_slot(self, slot: int):
         """
