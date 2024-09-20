@@ -19,7 +19,7 @@
 from time import sleep
 from enum import Enum
 from binascii import hexlify
-from scaffold import Pull, IOMode, Scaffold, I2CTrigger
+from . import Pull, IOMode, Scaffold, I2CTrigger
 from typing import Optional, Union, cast
 import crcmod
 from Crypto.Hash import SHA256
