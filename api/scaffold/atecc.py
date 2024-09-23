@@ -17,7 +17,7 @@
 # Copyright 2023 Ledger SAS, written by Michael Mouchous
 
 from time import sleep
-from enum import Enum
+from enum import Enum, auto
 from binascii import hexlify
 from . import Pull, IOMode, Scaffold, I2CTrigger
 from typing import Optional, Union, cast
@@ -78,6 +78,16 @@ class ATECCRevision(Enum):
     @property
     def is_ATECC508(self) -> bool:
         return self in [ATECCRevision.ATECC508A]
+
+
+class ATECCState(Enum):
+    """ATECC state machine states
+    When the device is asleep, it ignores all but the Wake condition.
+    """
+
+    IDLE = auto()
+    SLEEP = auto()
+    AWAKE = auto()
 
 
 class ATECCErrorCode(int, Enum):
@@ -870,6 +880,9 @@ class ATECC:
             self.sda >> self.uart.rx
         self.serial = None  # Set when calling read_serial or read_config
         self.temp_key: Optional[bytes] = None  # Set when calling nonce
+        self._state = (
+            ATECCState.SLEEP
+        )  # Internal tracking of the state for I2C synchronization
 
     @property
     def address(self):
@@ -890,6 +903,8 @@ class ATECC:
     def wake_up(self):
         """
         Force a wake up by setting the SDA line to 0 and then to 1.
+        The Wake condition requires that the system processor manually drives
+        the SDA pin low for tWLO (60μs).
         """
         self.sda << 0
         sleep(2e-4)
@@ -900,6 +915,7 @@ class ATECC:
             self.sda << self.i2c.sda_out
         elif self.interface == ATECCInterface.SWI:
             self.sda << self.uart.tx
+        self._state = ATECCState.AWAKE
 
     def __swi_receive(self, n: int) -> bytes:
         """
@@ -908,7 +924,7 @@ class ATECC:
         :param n: The number of bytes exepected to be received.
         :raises RuntimeError: Raises a transmission error when
             the received value is not 0xFF or 0xFB.
-        :return: _description_
+        :return: n bytes of data received from the device.
         """
         buf = self.uart.receive(n * 8)
         result = bytearray()
@@ -985,6 +1001,11 @@ class ATECC:
         buf += p2.to_bytes(2, "little")
         buf += data
         buf += crc16b(buf[1:])
+
+        if not self._state == ATECCState.AWAKE:
+            # Check if the device is not in sleep or idle mode
+            self.wake_up()
+
         if self.interface == ATECCInterface.I2C:
             self.i2c.write(buf, trigger=trigger)
             if wait:
@@ -1028,12 +1049,21 @@ class ATECC:
         elif self.interface == ATECCInterface.SWI:
             pass
 
+    def sleep(self):
+        """Put the device into SLEEP mode."""
+        if self.interface == ATECCInterface.I2C:
+            self.i2c.write(bytes((ATECCWordAddress.SLEEP.value,)))
+        elif self.interface == ATECCInterface.SWI:
+            self.uart.transmit(swi_bits(ATECCIOFlag.SLEEP.value))
+        self._state = ATECCState.SLEEP
+
     def idle(self):
         """Put the device into IDLE mode."""
         if self.interface == ATECCInterface.I2C:
             self.i2c.write(bytes((ATECCWordAddress.IDLE.value,)))
         elif self.interface == ATECCInterface.SWI:
             self.uart.transmit(swi_bits(ATECCIOFlag.IDLE.value))
+        self._state = ATECCState.IDLE
 
     def info(
         self,
