@@ -20,7 +20,7 @@ from time import sleep
 from enum import Enum, auto
 from binascii import hexlify
 from . import Pull, IOMode, Scaffold, I2CTrigger
-from typing import Optional, Union, cast
+from typing import Literal, Optional, Union, cast
 import crcmod
 from Crypto.Hash import SHA256
 
@@ -243,16 +243,27 @@ class SlotConfig:
         assert self.read_key in range(16)  # 4 bits
 
 
-class ATECCInfoMode(Enum):
+class ATECCInfoMode(int, Enum):
     REVISION = 0
     KEYVALID = 1
     STATE = 2
     GPIO = 3
+    # The Persistent Latch Read mode of the INFO
+    # command allows for reading the state of the persistent latch.
+    # This is useful to verify the state of the persistent latch
+    # when a key authorization has been connected to that latch.
     VOLATILE_KEY_PERMIT = 4
 
 
 class Info:
-    def __init__(self, mode, data: bytes, param):
+    def __init__(self, mode: ATECCInfoMode, data: bytes, param=0):
+        """
+        Structure to hold information of the Info Command.
+
+        :param mode: The mode of the Info command.
+        :param data: The output payload
+        :param param: Used for mode KEYVALID to indicate the Slot number.
+        """
         self.mode = mode
         self.revision: Optional[ATECCRevision] = None
         self.raw = data
@@ -282,6 +293,9 @@ class Info:
             self.authvalid = bool((buf[1] >> 2) & 0x1)
             self.authkey = (buf[1] >> 3) & 0b1111
             self.tempkey_valid = bool((buf[1] >> 7) & 0x1)
+        if self.mode == ATECCInfoMode.GPIO:
+            # Successful return value if GPIO has been written to a 0 or 1
+            self.gpio_written_value = buf[3]
 
     def __str__(self) -> str:
         ret = f"Info mode: {self.mode} : {self.raw.hex()}\n"
@@ -299,6 +313,12 @@ class Info:
             ret += f" authvalid: {self.authvalid}\n"
             ret += f" authkey: {self.authkey}\n"
             ret += f" tempkey_valid: {self.tempkey_valid}"
+        elif self.mode == ATECCInfoMode.GPIO:
+            if self.param == 2:
+                ret += " GPIO value to write: 0\n"
+            elif self.param == 3:
+                ret += " GPIO value to write: 1\n"
+            ret += f"GPIO written value: {self.gpio_written_value}"
         return ret
 
 
@@ -1073,6 +1093,8 @@ class ATECC:
     ) -> Info:
         """
         Query info from device.
+        The Info command is used to read the status and state of the device.
+        This information is useful in determining errors or to operate various commands.
 
         :return: Device info bytes.
         """
