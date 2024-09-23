@@ -116,7 +116,7 @@ class ATECCError(Exception):
 
 
 class ATECCOpCode(Enum):
-    """ATECC508 command OpCodes"""
+    """ATECC command OpCodes"""
 
     CHECK_MAC = 0x28
     COUNTER = 0x24
@@ -142,7 +142,7 @@ class ATECCOpCode(Enum):
 
 
 class ATECCWordAddress(Enum):
-    """Possible word-address for ATECC508 I2C writes."""
+    """Possible word-address for ATECC I2C writes."""
 
     RESET = 0x00
     SLEEP = 0x01
@@ -1086,9 +1086,9 @@ class ATECC:
     def read(
         self,
         zone=ATECCZone.DATA,
-        size=32,
+        size: Union[Literal[4], Literal[32]] = 32,
         block=0,
-        slot=None,
+        slot: Optional[int] = None,
         offset=0,
         trigger: Optional[Union[bool, int, I2CTrigger]] = None,
     ) -> bytes:
@@ -1096,10 +1096,10 @@ class ATECC:
         Read memory from the device.
 
         :param zone: Memory zone.
-        :param slot: Slot index, for data memory only. None for other zones.
+        :param size: 4 or 32 bytes to read.
         :param block: Block index in the selected slot or zone.
-        :param offset: Read/write offset
-        :param size: 4 or 32.
+        :param slot: Slot index, for data memory only. None for other zones.
+        :param offset: Read/write offset, in number of bytes.
         :return: Memory content.
         """
         if size not in (4, 32):
@@ -1114,8 +1114,12 @@ class ATECC:
         return data
 
     def encrypted_read(
-        self, slot, key_id, key, trigger: Optional[Union[bool, int, I2CTrigger]] = None
-    ):
+        self,
+        slot: int,
+        key_id: int,
+        key: bytes,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ) -> bytes:
         self.nonce()
         self.gen_dig(key_id, key)
         encrypted_data = self.read(
