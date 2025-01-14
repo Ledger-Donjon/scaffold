@@ -19,9 +19,10 @@
 
 from enum import Enum, Flag, auto
 from time import sleep
-from typing import Any, Optional, Union, List
+from typing import Any, Literal, Optional, Union
 import serial.tools.list_ports
 import serial.tools.list_ports_common
+import packaging
 from packaging.version import parse as parse_version
 from .bus import ScaffoldBus, Register, TimeoutError
 
@@ -59,17 +60,17 @@ class Signal:
         return self.__path
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         Signal name (last element of the path). For instance 'tx'. Read-only.
         """
         return self.__path.split("/")[-1]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """:return: Signal path. For instance '/dev/uart0/tx'."""
         return self.__path
 
-    def __lshift__(self, other: Union[int, "Signal"]) -> None:
+    def __lshift__(self, other: Union["Signal", Literal[0, 1]]):
         """
         Feed the current signal with another signal.
 
@@ -78,7 +79,7 @@ class Signal:
         """
         self.__parent.sig_connect(self, other)
 
-    def __rshift__(self, other: "Signal") -> None:
+    def __rshift__(self, other: "Signal"):
         """
         Feed another signal with current signal.
 
@@ -118,10 +119,9 @@ class Module:
         else:
             path = self.__path + "/" + name
         sig = Signal(self.__parent, path)
-        # self.__dict__[name] = sig
         return sig
 
-    def add_signals(self, *names: str):
+    def add_signals(self, *names: str) -> list[Signal]:
         """
         Add many signals to the object and set them as new attributes of the
         instance.
@@ -166,7 +166,7 @@ class Module:
             reg.reset()
 
     @property
-    def parent(self):
+    def parent(self) -> "Scaffold":
         """:class:`Scaffold` instance the module belongs to. Read-only."""
         return self.__parent
 
@@ -186,7 +186,7 @@ class FreqRegisterHelper:
         """
         self.__sys_freq = sys_freq
         self.__reg = reg
-        self.__cache = None
+        self.__cache: Optional[float] = None
         self.__max_err = 0.01
 
     def set(self, value: float):
@@ -213,7 +213,7 @@ class FreqRegisterHelper:
         self.__reg.set(d)
         self.__cache = real
 
-    def get(self):
+    def get(self) -> Optional[float]:
         """
         :return: Actual clock frequency. None if frequency has not been set.
         """
@@ -230,7 +230,7 @@ class Version(Module):
         super().__init__(parent)
         self.reg_data = self.add_register("data", "r", 0x0100)
 
-    def get_string(self):
+    def get_string(self) -> str:
         """
         Read the data register multiple times until the full version string has
         been retrieved.
@@ -341,7 +341,7 @@ class LEDs(Module):
         self.reg_mode.set(0)
 
     @property
-    def brightness(self):
+    def brightness(self) -> float:
         """
         LEDs brightness. 0 is the minimum. 1 is the maximum.
 
@@ -356,7 +356,7 @@ class LEDs(Module):
         self.reg_brightness.set(int(value * 127))
 
     @property
-    def disabled(self):
+    def disabled(self) -> bool:
         """If set to True, LEDs driver outputs are all disabled."""
         return bool(self.reg_control.get() & 1)
 
@@ -365,7 +365,7 @@ class LEDs(Module):
         self.reg_control.set_mask(int(bool(value)), 1)
 
     @property
-    def override(self):
+    def override(self) -> bool:
         """
         If set to True, LEDs state is the value of the leds_n registers.
         """
@@ -426,7 +426,7 @@ class UART(Module):
         self.baudrate = 9600
 
     @property
-    def baudrate(self):
+    def baudrate(self) -> Optional[float]:
         """
         Target UART baudrate.
 
@@ -502,7 +502,7 @@ class UART(Module):
         self.reg_control.set_bit(self.__REG_CONTROL_BIT_FLUSH, 1)
 
     @property
-    def parity(self):
+    def parity(self) -> UARTParity:
         """
         Parity mode. Disabled by default.
 
@@ -1213,7 +1213,7 @@ class I2C(Module):
             #     raise RuntimeError('FIFO should be empty')
             return fifo
 
-    def __make_header(self, address: Optional[int], rw: int):
+    def __make_header(self, address: Optional[int], rw: int) -> bytes:
         """
         Internal method to build the transaction header bytes.
 
@@ -1249,7 +1249,7 @@ class I2C(Module):
             if address & 1:
                 raise ValueError("I2C address LSB (R/W) must be 0")
             result.append(address + rw)
-        return bytes(result)
+        return result
 
     def read(
         self,
@@ -1570,8 +1570,7 @@ class Chain(Module):
         self.reg_control = self.add_register(
             "control", "wv", self.__ADDR_CONTROL + index * 0x10
         )
-        for i in range(size):
-            self.add_signal(f"event{i}")
+        self.events = self.add_signals(*[f"event{i}" for i in range(size)])
         self.trigger = self.add_signal("trigger")
 
     def rearm(self):
@@ -1620,7 +1619,7 @@ class Clock(Module):
         )
 
     @property
-    def frequency(self):
+    def frequency(self) -> float:
         """
         Base clock frequency, in Hertz. Only divisors of the system frequency
         can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
@@ -1769,7 +1768,7 @@ class IO(Signal, Module):
             self.reg_value.set(0)
 
     @property
-    def mode(self):
+    def mode(self) -> IOMode:
         """
         I/O mode. Default is AUTO, but this can be overriden for special
         applications.
@@ -1787,7 +1786,7 @@ class IO(Signal, Module):
         self.reg_config.set_mask(value, 0b11)
 
     @property
-    def pull(self):
+    def pull(self) -> Pull:
         """
         Pull resistor mode. Can only be written if the I/O supports this
         feature.
@@ -1835,7 +1834,7 @@ class ArchBase:
         self,
         sys_freq: int,
         board_name: str,
-        supported_versions: List[packaging.version.Version],
+        supported_versions: list[packaging.version.Version],
         baudrate: int = 2000000,
     ):
         """
@@ -1974,7 +1973,7 @@ class ArchBase:
         # wait operations will be enabled.
         self.bus.version = self.__version
 
-    def __signal_to_path(self, signal: Optional[Union[int, Signal]]):
+    def __signal_to_path(self, signal: Optional[Union[int, Signal]]) -> str:
         """
         Convert a signal, 0, 1 or None to a path. Verify the signal belongs to
         the current Scaffold instance.

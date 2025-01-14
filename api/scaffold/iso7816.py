@@ -19,7 +19,7 @@
 
 from enum import Enum
 from scaffold import Pull, Scaffold, ISO7816
-from typing import Callable, Tuple, List, Union, Optional
+from typing import Callable, Union, Optional, cast
 from packaging.version import parse as parse_version
 import requests
 import crcmod
@@ -199,7 +199,7 @@ class NoATRDatabase(Exception):
     pass
 
 
-def load_atr_info_db(allow_web_download: bool = False) -> List[Tuple[str, List[str]]]:
+def load_atr_info_db(allow_web_download: bool = False) -> list[tuple[str, list[str]]]:
     """
     Parse the smartcard ATR list database from Ludovic Rousseau to get list of
     known ATR.
@@ -354,7 +354,7 @@ class Smartcard:
         # Verify that there are no more bytes
         if not self.iso7816.empty:
             raise ProtocolError("Unexpected bytes after ATR")
-        return bytes(info.atr)
+        return info.atr
 
     def apdu(self, the_apdu: Union[bytes, str], trigger: str = "") -> bytes:
         """
@@ -380,6 +380,8 @@ class Smartcard:
         """
         if isinstance(the_apdu, str):
             the_apdu = bytes.fromhex(the_apdu)
+        the_apdu = cast(bytes, the_apdu)
+
         apdu_len = len(the_apdu)
         if apdu_len < 5:
             raise ValueError("APDU too short")
@@ -446,7 +448,7 @@ class Smartcard:
             response.append(procedure_byte)
             # Received SW2
             response.append(self.iso7816.receive(1)[0])
-            return bytes(response)
+            return response
         elif procedure_byte in (ins, ~ins):
             # Acknowledge byte.
             # Transfer the remaining data
@@ -463,7 +465,7 @@ class Smartcard:
             response += self.iso7816.receive(in_data_len + 2)
             if "b" in trigger:  # Disable only if enabled previously
                 self.iso7816.trigger_long = False
-            return bytes(response)
+            return response
         else:
             raise RuntimeError(
                 f"Unexpected procedure byte 0x{procedure_byte:02x} received"
@@ -514,7 +516,7 @@ class Smartcard:
                 else:  # S-block
                     raise ProtocolError("Expected R-block, received I-block")
 
-        response = b""
+        response = bytearray()
         has_more = True
         while has_more:
             block = self.receive_block()
@@ -600,7 +602,7 @@ class Smartcard:
             pck ^= b
         request.append(pck)
         # Send the request
-        request = bytes(request)
+        request = request
         self.iso7816.transmit(request)
         # Get the response
         res = self.iso7816.receive(4, timeout=1)
@@ -611,7 +613,7 @@ class Smartcard:
         else:
             raise RuntimeError("PPS request failed")
 
-    def find_info(self, allow_web_download: bool = False) -> Optional[List[str]]:
+    def find_info(self, allow_web_download: bool = False) -> Optional[list[str]]:
         """
         Parse the smartcard ATR list database available at
         http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
@@ -696,7 +698,7 @@ class Smartcard:
         """
         if len(info) > 254:
             raise ValueError(f"info field is too long ({len(info)} > 254)")
-        data = bytes([nad, pcb, len(info)]) + info
+        data = bytearray([nad, pcb, len(info)]) + info
         data += self.calculate_edc(data)
         if trigger:
             self.iso7816.transmit(data[:-1])

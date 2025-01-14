@@ -1,14 +1,13 @@
 """Core classes and methods for communicating with the Scaffold FPGA."""
 
 from enum import Enum
-from typing import Optional, List, TYPE_CHECKING, Union
+from typing import Literal, Optional, TYPE_CHECKING, Union
 from abc import ABC, abstractmethod
 import serial
-import packaging.version
-from packaging.version import parse as parse_version
+from packaging.version import parse as parse_version, Version
 
 if TYPE_CHECKING:
-    from . import Scaffold
+    from scaffold import Scaffold
 
 
 class TimeoutError(Exception):
@@ -30,7 +29,7 @@ class TimeoutError(Exception):
         self.expected = expected
         if data is not None:
             assert size is None
-            self.size = len(data)
+            self.size = len(self.data)
         else:
             self.size = size
 
@@ -76,7 +75,7 @@ class Operation(ABC):
     """
 
     def __init__(self):
-        self.bus: Optional[ScaffoldBus] = None
+        self.bus: Optional["ScaffoldBus"] = None
         self.status = OperationStatus.PENDING
 
     def wait(self):
@@ -88,7 +87,7 @@ class Operation(ABC):
             self.bus.resolve_next_operation()
 
     @abstractmethod
-    def supported(self, version: packaging.version.Version) -> bool:
+    def supported(self, version: Version) -> bool:
         """:return: True if the given hardware version supports this operation."""
 
     @abstractmethod
@@ -114,10 +113,10 @@ class ReadWriteOperation(Operation):
         self.__addr = addr
         self.__poll = poll
 
-    def supported(self, _version: packaging.version.Version) -> bool:
+    def supported(self, _version: Version) -> bool:
         return True
 
-    def datagram_head(self, rw: int, size: int) -> bytearray:
+    def datagram_head(self, rw: int, size: int) -> bytes:
         """
         Generates part of the datagram for a read write operation.
 
@@ -217,7 +216,7 @@ class TimeoutOperation(Operation):
             raise ValueError("Timeout value out of range")
         self.__value = value
 
-    def supported(self, _version: packaging.version.Version) -> bool:
+    def supported(self, _version: Version) -> bool:
         return True
 
     def datagram(self) -> bytes:
@@ -243,7 +242,7 @@ class DelayOperation(Operation):
             raise ValueError("Delay out of range")
         self.__cycles = cycles
 
-    def supported(self, version: packaging.version.Version) -> bool:
+    def supported(self, version: Version) -> bool:
         return version >= parse_version("0.9")
 
     def datagram(self) -> bytes:
@@ -270,7 +269,7 @@ class BufferWaitOperation(Operation):
             raise ValueError("Buffer size out of range")
         self.__size = size
 
-    def supported(self, version: packaging.version.Version) -> bool:
+    def supported(self, version: Version) -> bool:
         return version >= parse_version("0.9")
 
     def datagram(self) -> bytes:
@@ -290,7 +289,7 @@ class ScaffoldBusTimeoutSection:
     time. This is to be used with the python 'with' statement.
     """
 
-    def __init__(self, bus: "ScaffoldBus", timeout: Optional[float]):
+    def __init__(self, bus: "ScaffoldBus", timeout: float):
         """
         :param bus: Scaffold bus manager.
         :type bus: ScaffoldBus
@@ -342,15 +341,15 @@ class ScaffoldBus:
         # it there once set.
         self.__cache_timeout = None
         # Timeout stack for push_timeout and pop_timeout methods.
-        self.__timeout_stack: List[Optional[float]] = []
+        self.__timeout_stack: list[Optional[float]] = []
         # List of operations that has been sent to the board, and whose response has
         # not been fetched yet.
-        self.__operations: List[Operation] = []
+        self.__operations: list[Operation] = []
         # List of operations that will be sent to the board, prepended with a buffer
         # wait operation to be sure that the board has all the data before starting to
         # execute the operations. This is used to execute different operations with
         # precise timing.
-        self.__buffer_wait_operations: List[Operation] = []
+        self.__buffer_wait_operations: list[Operation] = []
         # Every time a buffer wait section is entered, this member is incremented.
         # Every time a buffer wait section is exited, this member is decremented.
         # When this value is greater than zero, operations are not sent to the board,
@@ -398,7 +397,7 @@ class ScaffoldBus:
         while self.FIFO_SIZE - self.__fifo_size < size:
             self.resolve_next_operation()
 
-    def operation(self, op: Operation):
+    def operation(self, op: Operation) -> Operation:
         """
         Register a bus operation to be performed.
         """
@@ -432,12 +431,7 @@ class ScaffoldBus:
         """
         self.operation(DelayOperation(cycles))
 
-    def write(
-        self,
-        addr: int,
-        data: Union[int, bytearray, bytes],
-        poll: Optional[Polling] = None,
-    ):
+    def write(self, addr: int, data: Union[bytes, int], poll: Optional[Polling] = None):
         """
         Write data to a register.
 
@@ -448,8 +442,6 @@ class ScaffoldBus:
         # If data is an int, convert it to bytes.
         if isinstance(data, int):
             data = bytes([data])
-        elif isinstance(data, bytearray):
-            data = bytes(data)
 
         offset = 0
         remaining = len(data)
@@ -460,7 +452,9 @@ class ScaffoldBus:
             remaining -= chunk_size
             offset += chunk_size
 
-    def read(self, addr: int, size: int = 1, poll: Optional[Polling] = None) -> bytes:
+    def read(
+        self, addr: int, size: int = 1, poll: Optional[Polling] = None
+    ) -> bytes:
         """
         Read data from a register.
 
@@ -477,7 +471,7 @@ class ScaffoldBus:
             result += op.result
             remaining -= chunk_size
             offset += chunk_size
-        return bytes(result)
+        return result
 
     @property
     def is_connected(self):
@@ -534,7 +528,7 @@ class ScaffoldBus:
             raise RuntimeError("Timeout setting stack is empty")
         self.timeout = self.__timeout_stack.pop()
 
-    def timeout_section(self, timeout: Optional[float]):
+    def timeout_section(self, timeout: float) -> ScaffoldBusTimeoutSection:
         """
         :return: :class:`ScaffoldBusTimeoutSection` to be used with the python
             'with' statement to start and close a timeout section.
@@ -570,7 +564,7 @@ class ScaffoldBus:
                 self.operation(op)
             self.__buffer_wait_operations.clear()
 
-    def buffer_wait_section(self):
+    def buffer_wait_section(self) -> BufferWaitSection:
         """
         :return: :class:`BufferWaitSection` to be used with the python 'with' statement
             to start and close a buffer wait section.
@@ -587,7 +581,7 @@ class Register:
     def __init__(
         self,
         parent: "Scaffold",
-        mode: str,
+        mode: Literal["r", "w", "v"],
         address: int,
         wideness: int = 1,
         min_value: Optional[int] = None,
@@ -704,7 +698,10 @@ class Register:
         self.set(self.get() | value)
 
     def set_bit(
-        self, index: int, value: Union[bool, int], poll: Optional[Polling] = None
+        self,
+        index: int,
+        value: Literal[0, 1, True, False],
+        poll: Optional[Polling] = None,
     ):
         """
         Sets the value of a single bit of the register.
@@ -715,7 +712,7 @@ class Register:
         """
         self.set((self.get() & ~(1 << index)) | (int(bool(value)) << index), poll)
 
-    def get_bit(self, index: int):
+    def get_bit(self, index: int) -> int:
         """
         Gets the value of a single bit of the register.
 
@@ -736,7 +733,7 @@ class Register:
         current = self.get()
         self.set((current & (~mask)) | (value & mask), poll)
 
-    def write(self, data: Union[int, bytearray, bytes], poll: Optional[Polling] = None):
+    def write(self, data: Union[bytes, int], poll: Optional[Polling] = None):
         """
         Raw write in the register. This method raises a RuntimeError if the
         register cannot be written.
@@ -777,12 +774,12 @@ class Register:
         return Polling(self.__address, mask, value)
 
     @property
-    def address(self):
+    def address(self) -> int:
         """:return: Register address."""
         return self.__address
 
     @property
-    def max(self):
+    def max(self) -> int:
         """
         Maximum possible value for the register.
         :type: int
@@ -790,7 +787,7 @@ class Register:
         return self.__max_value
 
     @property
-    def min(self):
+    def min(self) -> int:
         """
         Minimum possible value for the register.
         :type: int
