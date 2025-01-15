@@ -133,17 +133,13 @@ class Module:
         """
         return list(self.add_signal(name) for name in names)
 
-    def add_register(self, name: str, *args: Any, **kwargs: Any) -> Register:
+    def add_register(self, *args: Any, **kwargs: Any) -> Register:
         """
         Create a new register.
-        :param name: Register name.
         :param args: Arguments passed to Register.__init__.
         :param kwargs: Keyword arguments passed to Register.__init__.
         """
-        # attr_name = "reg_" + name
         reg = Register(self.__parent, *args, **kwargs)
-        # self.__dict__[attr_name] = reg
-        # Keep track of the register for reset_registers method
         self.__registers.append(reg)
         return reg
 
@@ -228,7 +224,7 @@ class Version(Module):
         :param parent: The :class:`Scaffold` instance owning the version module.
         """
         super().__init__(parent)
-        self.reg_data = self.add_register("data", "r", 0x0100)
+        self.reg_data = self.add_register("r", 0x0100)
 
     def get_string(self) -> str:
         """
@@ -298,12 +294,12 @@ class LEDs(Module):
         :param parent: The :class:`Scaffold` instance owning the LED modules.
         """
         super().__init__(parent)
-        self.reg_control = self.add_register("control", "w", 0x0200)
-        self.reg_brightness = self.add_register("brightness", "w", 0x0201)
-        self.reg_leds_0 = self.add_register("leds_0", "w", 0x0202)
-        self.reg_leds_1 = self.add_register("leds_1", "w", 0x0203)
-        self.reg_leds_2 = self.add_register("leds_2", "w", 0x0204)
-        self.reg_mode = self.add_register("mode", "w", 0x0205, wideness=3)
+        self.reg_control = self.add_register("w", 0x0200)
+        self.reg_brightness = self.add_register("w", 0x0201)
+        self.reg_leds_0 = self.add_register("w", 0x0202)
+        self.reg_leds_1 = self.add_register("w", 0x0203)
+        self.reg_leds_2 = self.add_register("w", 0x0204)
+        self.reg_mode = self.add_register("w", 0x0205, wideness=3)
         assert self.parent.version is not None
         if self.parent.version <= parse_version("0.3"):
             # Scaffold hardware v1 only
@@ -404,13 +400,13 @@ class UART(Module):
         self.rx, self.tx, self.trigger = self.add_signals("rx", "tx", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0400 + 0x0010 * index
-        self.reg_status = self.add_register("status", "rv", base)
-        self.reg_control = self.add_register("control", "w", base + 1)
-        self.reg_config = self.add_register("config", "w", base + 2)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
         self.reg_divisor = self.add_register(
-            "divisor", "w", base + 3, wideness=2, min_value=1
+            "w", base + 3, wideness=2, min_value=1
         )
-        self.reg_data = self.add_register("data", "rwv", base + 4)
+        self.reg_data = self.add_register("rwv", base + 4)
         # Current board target baudrate (this is not the effective baudrate)
         self.__cache_baudrate = None
         # Accuracy parameter
@@ -541,15 +537,15 @@ class PulseGenerator(Module):
         # Create the signals
         self.start, self.out = self.add_signals("start", "out")
         # Create the registers
-        self.reg_status = self.add_register("status", "rv", base)
-        self.reg_control = self.add_register("control", "wv", base + 1)
-        self.reg_config = self.add_register("config", "w", base + 2, reset=0)
-        self.reg_delay = self.add_register("delay", "w", base + 3, wideness=3, reset=0)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("wv", base + 1)
+        self.reg_config = self.add_register("w", base + 2, reset=0)
+        self.reg_delay = self.add_register("w", base + 3, wideness=3, reset=0)
         self.reg_interval = self.add_register(
-            "interval", "w", base + 4, wideness=3, reset=0
+            "w", base + 4, wideness=3, reset=0
         )
-        self.reg_width = self.add_register("width", "w", base + 5, wideness=3, reset=0)
-        self.reg_count = self.add_register("count", "w", base + 6, wideness=2, reset=0)
+        self.reg_width = self.add_register("w", base + 5, wideness=3, reset=0)
+        self.reg_count = self.add_register("w", base + 6, wideness=2, reset=0)
 
     def fire(self):
         """Manually trigger the pulse generation."""
@@ -708,7 +704,7 @@ class Power(Module):
     def __init__(self, parent: "Scaffold"):
         """:param parent: The :class:`Scaffold` instance owning the power module."""
         super().__init__(parent, "/power")
-        self.reg_control = self.add_register("control", "rwv", self.__ADDR_CONTROL)
+        self.reg_control = self.add_register("rwv", self.__ADDR_CONTROL)
         self.dut_trigger, self.platform_trigger = self.add_signals(
             "dut_trigger", "platform_trigger"
         )
@@ -826,12 +822,12 @@ class ISO7816(Module):
             "io_in", "io_out", "clk", "trigger"
         )
         self.__addr_base = base = 0x0500
-        self.reg_status = self.add_register("status", "rv", base)
-        self.reg_control = self.add_register("control", "w", base + 1)
-        self.reg_config = self.add_register("config", "w", base + 2)
-        self.reg_divisor = self.add_register("divisor", "w", base + 3)
-        self.reg_etu = self.add_register("etu", "w", base + 4, wideness=2)
-        self.reg_data = self.add_register("data", "rwv", base + 5)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
+        self.reg_divisor = self.add_register("w", base + 3)
+        self.reg_etu = self.add_register("w", base + 4, wideness=2)
+        self.reg_data = self.add_register("rwv", base + 5)
         # Accuracy parameter
         self.max_err = 0.01
 
@@ -1088,15 +1084,15 @@ class I2C(Module):
         )
         # Declare the registers
         self.__addr_base = base = 0x0700 + 0x0010 * index
-        self.reg_status = self.add_register("status", "rv", base)
-        self.reg_control = self.add_register("control", "w", base + 1)
-        self.reg_config = self.add_register("config", "w", base + 2)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
         self.reg_divisor = self.add_register(
-            "divisor", "w", base + 3, wideness=2, min_value=1
+            "w", base + 3, wideness=2, min_value=1
         )
-        self.reg_data = self.add_register("data", "rwv", base + 4)
-        self.reg_size_h = self.add_register("size_h", "rwv", base + 5)
-        self.reg_size_l = self.add_register("size_l", "rwv", base + 6)
+        self.reg_data = self.add_register("rwv", base + 4)
+        self.reg_size_h = self.add_register("rwv", base + 5)
+        self.reg_size_l = self.add_register("rwv", base + 6)
         self.address = None
         # Current I2C clock frequency
         self.__cache_frequency = None
@@ -1371,13 +1367,13 @@ class SPI(Module):
         )
         # Declare the registers
         self.__addr_base = base = 0x0800 + 0x0010 * index
-        self.reg_status = self.add_register("status", "rv", base)
-        self.reg_control = self.add_register("control", "w", base + 1)
-        self.reg_config = self.add_register("config", "w", base + 2, reset=0x00)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2, reset=0x00)
         self.reg_divisor = self.add_register(
-            "divisor", "w", base + 3, wideness=2, min_value=1, reset=0x1000
+            "w", base + 3, wideness=2, min_value=1, reset=0x1000
         )
-        self.reg_data = self.add_register("data", "rwv", base + 4)
+        self.reg_data = self.add_register("rwv", base + 4)
         # Current SPI clock frequency
         self.__cache_frequency = None
 
@@ -1568,7 +1564,7 @@ class Chain(Module):
         """
         super().__init__(parent, f"/chain{index}")
         self.reg_control = self.add_register(
-            "control", "wv", self.__ADDR_CONTROL + index * 0x10
+            "wv", self.__ADDR_CONTROL + index * 0x10
         )
         self.events = self.add_signals(*[f"event{i}" for i in range(size)])
         self.trigger = self.add_signal("trigger")
@@ -1598,16 +1594,16 @@ class Clock(Module):
         """
         super().__init__(parent, f"/clock{index}")
         self.reg_config = self.add_register(
-            "config", "w", self.__ADDR_CONFIG + index * 0x10
+            "w", self.__ADDR_CONFIG + index * 0x10
         )
         self.reg_divisor_a = self.add_register(
-            "divisor_a", "w", self.__ADDR_DIVISOR_A + index * 0x10
+            "w", self.__ADDR_DIVISOR_A + index * 0x10
         )
         self.reg_divisor_b = self.add_register(
-            "divisor_b", "w", self.__ADDR_DIVISOR_B + index * 0x10
+            "w", self.__ADDR_DIVISOR_B + index * 0x10
         )
         self.reg_count = self.add_register(
-            "count", "w", self.__ADDR_COUNT + index * 0x10
+            "w", self.__ADDR_COUNT + index * 0x10
         )
         self.glitch, self.out = self.add_signals("glitch", "out")
 
@@ -1714,13 +1710,13 @@ class IO(Signal, Module):
             self.__group = index // 8
             self.__group_index = index % 8
             base = 0xE000 + 0x10 * self.__group
-            self.reg_value = self.add_register("value", "rv", base + 0x00)
-            self.reg_event = self.add_register("event", "rwv", base + 0x01, reset=0)
+            self.reg_value = self.add_register("rv", base + 0x00)
+            self.reg_event = self.add_register("rwv", base + 0x01, reset=0)
         else:
             # 0.3
             base = 0xE000 + 0x10 * self.index
-            self.reg_value = self.add_register("value", "rwv", base + 0x00, reset=0)
-            self.reg_config = self.add_register("config", "rw", base + 0x01, reset=0)
+            self.reg_value = self.add_register("rwv", base + 0x00, reset=0)
+            self.reg_config = self.add_register("rw", base + 0x01, reset=0)
             # No more event register in 0.3. Events are in the value register
 
     @property
