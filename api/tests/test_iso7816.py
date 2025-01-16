@@ -30,7 +30,7 @@ from scaffold.iso7816 import (
 
 
 def test_parsing_ok():
-    tab = load_atr_info_db()
+    tab = load_atr_info_db(True)
 
     # Some cards do not respect the norm correctly and have malformated ATR
     # Here are some list of invalid ATR in the database.
@@ -74,6 +74,14 @@ def test_parsing_ok():
         "3b6f00008031e06b082e0502b9555555",
         "3b781400000073c8400000",
         "3b9f978131fe458065544312210831c073f621808105",
+        "3b6500002063cbbc",
+        "3b6b00000031c164086032060f90",
+        "3b6f00000031c173c8211064414d3347",
+        "3b7f960080318065b084413df612004c829000",
+        "3b8c8001502752318100000000007181",
+        "3b8f80018031806549544a3442120fff829000",
+        "3b9f95801fc78031a073b6a10067cf15ca9cd70920",
+        "3b9f96801fc78031e073fe2113574a338101330017",
     ]
 
     # List of invalid ATR with too much bytes
@@ -119,14 +127,20 @@ def test_parsing_ok():
         "3bff0000ff8131fe458025a000000056575343363530000000",
         "3bff9500008031fe4380318067b0850201f3a3138301f83bff",
         "3be6000080318066b1a30401110b83",
+        "3b801fc78031e073fe211163407163830790009a",
+        "3b8580012063c8b880b4",
+        "3b96004121920000622433339000",
     ]
 
-    atrs: list[str] = []
+    atrs: list[bytes] = []
     for atr_pattern, _ in tab:
-        if ("." not in atr_pattern) and ("[" not in atr_pattern):
-            atrs.append(atr_pattern)
+        try:
+            atrs.append(bytes.fromhex(atr_pattern))
+        except ValueError:
+            continue
+
     for atr in atrs:
-        reader = BasicByteReader(bytes.fromhex(atr))
+        reader = BasicByteReader(atr)
         if atr in badlist_extra:
             parse_atr(reader)
             assert len(reader.data) > 0
@@ -137,7 +151,12 @@ def test_parsing_ok():
             with pytest.raises(ProtocolError):
                 parse_atr(reader)
         else:
-            parse_atr(reader)
+            try:
+                parse_atr(reader)
+            except Exception as e:
+                print(f"Failing ATR: {atr}")
+                print(f"Exception: {e}")
+                raise e
 
 
 def test_t1_lrc():
