@@ -120,7 +120,9 @@ class BasicByteReader(ByteReader):
 
     def read(self, n: int) -> bytes:
         if len(self.data) < n:
-            raise EOFError()
+            raise EOFError(
+                f"Not enough data: expected {n} bytes but got {repr(self.data.hex())} ({len(self.data)} bytes)"
+            )
         chunk = self.data[:n]
         self.data = self.data[n:]
         return chunk
@@ -175,7 +177,14 @@ def parse_atr(reader: ByteReader) -> ATRInfo:
         info.protocols.add(0)
     # Fetch historical bytes
     # Number of historical bytes is the low nibble of T0
-    atr += reader.read(atr[1] & 0x0F)
+    num_historical_bytes = atr[1] & 0x0F
+    try:
+        atr += reader.read(num_historical_bytes)
+    except EOFError as e:
+        raise EOFError(
+            f"Not enough data for historical bytes in {atr.hex()}: expected {num_historical_bytes}, got {len(reader.data)}"
+        )
+
     # Parse TCK (check byte)
     # This byte is absent if only T=0 is supported
     if info.protocols != {0}:
