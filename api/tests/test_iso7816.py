@@ -134,6 +134,8 @@ def test_parsing_ok():
 
     atrs: list[bytes] = []
     for atr_pattern, _ in tab:
+        if ("." in atr_pattern) or ("[" in atr_pattern):
+            continue
         try:
             atrs.append(bytes.fromhex(atr_pattern))
         except ValueError:
@@ -154,7 +156,7 @@ def test_parsing_ok():
             try:
                 parse_atr(reader)
             except Exception as e:
-                print(f"Failing ATR: {atr}")
+                print(f"Failing ATR: {atr.hex()}")
                 print(f"Exception: {e}")
                 raise e
 

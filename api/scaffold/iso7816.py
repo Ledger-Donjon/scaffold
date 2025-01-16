@@ -121,7 +121,8 @@ class BasicByteReader(ByteReader):
     def read(self, n: int) -> bytes:
         if len(self.data) < n:
             raise EOFError(
-                f"Not enough data: expected {n} bytes but got {repr(self.data.hex())} ({len(self.data)} bytes)"
+                f"Not enough data: expected {n} bytes "
+                f"but got {repr(self.data.hex())} ({len(self.data)} bytes)"
             )
         chunk = self.data[:n]
         self.data = self.data[n:]
@@ -180,9 +181,10 @@ def parse_atr(reader: ByteReader) -> ATRInfo:
     num_historical_bytes = atr[1] & 0x0F
     try:
         atr += reader.read(num_historical_bytes)
-    except EOFError as e:
+    except EOFError as _:
         raise EOFError(
-            f"Not enough data for historical bytes in {atr.hex()}: expected {num_historical_bytes}, got {len(reader.data)}"
+            f"Not enough data for historical bytes in {atr.hex()}:"
+            f" expected {num_historical_bytes}, got {len(reader.data)}"
         )
 
     # Parse TCK (check byte)
