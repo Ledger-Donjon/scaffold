@@ -21,7 +21,7 @@ class TimeoutError(Exception):
     ):
         """
         :param data: The received data until timeout. None if timeout occured
-        during a write operation.
+          during a write operation.
         :param size: The number of successfully proceeded bytes.
         :param expected: The expected number of bytes to be proceeded.
         """
@@ -29,7 +29,7 @@ class TimeoutError(Exception):
         self.expected = expected
         if data is not None:
             assert size is None
-            self.size = len(self.data)
+            self.size = len(data)
         else:
             self.size = size
 
@@ -289,12 +289,12 @@ class ScaffoldBusTimeoutSection:
     time. This is to be used with the python 'with' statement.
     """
 
-    def __init__(self, bus: "ScaffoldBus", timeout: float):
+    def __init__(self, bus: "ScaffoldBus", timeout: Optional[float]):
         """
         :param bus: Scaffold bus manager.
         :type bus: ScaffoldBus
         :param timeout: Section timeout value, in seconds.
-        :type timeout: int, float
+        :type timeout: float, None
         """
         self.bus = bus
         self.timeout = timeout
@@ -358,7 +358,7 @@ class ScaffoldBus:
         # pending operations in the list.
         self.__buffer_wait_stack = 0
         self.__fifo_size = 0
-        self.version: Optional[str] = None
+        self.version: Optional[Version] = None
 
     def wait(self):
         """Wait for all pending operations to be completed."""
@@ -452,9 +452,7 @@ class ScaffoldBus:
             remaining -= chunk_size
             offset += chunk_size
 
-    def read(
-        self, addr: int, size: int = 1, poll: Optional[Polling] = None
-    ) -> bytes:
+    def read(self, addr: int, size: int = 1, poll: Optional[Polling] = None) -> bytes:
         """
         Read data from a register.
 
@@ -528,7 +526,7 @@ class ScaffoldBus:
             raise RuntimeError("Timeout setting stack is empty")
         self.timeout = self.__timeout_stack.pop()
 
-    def timeout_section(self, timeout: float) -> ScaffoldBusTimeoutSection:
+    def timeout_section(self, timeout: Optional[float]) -> ScaffoldBusTimeoutSection:
         """
         :return: :class:`ScaffoldBusTimeoutSection` to be used with the python
             'with' statement to start and close a timeout section.
@@ -700,7 +698,7 @@ class Register:
     def set_bit(
         self,
         index: int,
-        value: Literal[0, 1, True, False],
+        value: Union[Literal[0, 1, True, False], int],
         poll: Optional[Polling] = None,
     ):
         """

@@ -22,8 +22,7 @@ from time import sleep
 from typing import Any, Literal, Optional, Union
 import serial.tools.list_ports
 import serial.tools.list_ports_common
-import packaging
-from packaging.version import parse as parse_version
+from packaging.version import parse as parse_version, Version as PackagingVersion
 from .bus import ScaffoldBus, Register, TimeoutError
 
 
@@ -204,7 +203,7 @@ class FreqRegisterHelper:
         if err > self.__max_err:
             raise RuntimeError(
                 f"Cannot reach target clock frequency within "
-                f"{self.__max_err*100}% accuracy."
+                f"{self.__max_err * 100}% accuracy."
             )
         self.__reg.set(d)
         self.__cache = real
@@ -403,9 +402,7 @@ class UART(Module):
         self.reg_status = self.add_register("rv", base)
         self.reg_control = self.add_register("w", base + 1)
         self.reg_config = self.add_register("w", base + 2)
-        self.reg_divisor = self.add_register(
-            "w", base + 3, wideness=2, min_value=1
-        )
+        self.reg_divisor = self.add_register("w", base + 3, wideness=2, min_value=1)
         self.reg_data = self.add_register("rwv", base + 4)
         # Current board target baudrate (this is not the effective baudrate)
         self.__cache_baudrate = None
@@ -454,7 +451,7 @@ class UART(Module):
         max_err = self.max_err
         if err > max_err:
             raise RuntimeError(
-                f"Cannot reach target baudrate within {max_err*100}% accuracy."
+                f"Cannot reach target baudrate within {max_err * 100}% accuracy."
             )
         self.reg_divisor.set(d)
         self.__cache_baudrate = real
@@ -541,9 +538,7 @@ class PulseGenerator(Module):
         self.reg_control = self.add_register("wv", base + 1)
         self.reg_config = self.add_register("w", base + 2, reset=0)
         self.reg_delay = self.add_register("w", base + 3, wideness=3, reset=0)
-        self.reg_interval = self.add_register(
-            "w", base + 4, wideness=3, reset=0
-        )
+        self.reg_interval = self.add_register("w", base + 4, wideness=3, reset=0)
         self.reg_width = self.add_register("w", base + 5, wideness=3, reset=0)
         self.reg_count = self.add_register("w", base + 6, wideness=2, reset=0)
 
@@ -691,7 +686,7 @@ class PulseGenerator(Module):
 
     @polarity.setter
     def polarity(self, value: Polarity):
-        if value not in range(2):
+        if value not in [Polarity.HIGH_ON_PULSES, Polarity.LOW_ON_PULSES]:
             raise ValueError("Invalid polarity value: must be 0 or 1")
         self.reg_config.set_bit(0, value)
 
@@ -870,8 +865,7 @@ class ISO7816(Module):
         max_err = self.max_err = 0.01
         if err > max_err:
             raise RuntimeError(
-                f"Cannot reach target clock frequency within {max_err*100}% "
-                "accuracy."
+                f"Cannot reach target clock frequency within {max_err * 100}% accuracy."
             )
         self.reg_divisor.set(d)
         self.__cache_clock_frequency = real
@@ -1087,9 +1081,7 @@ class I2C(Module):
         self.reg_status = self.add_register("rv", base)
         self.reg_control = self.add_register("w", base + 1)
         self.reg_config = self.add_register("w", base + 2)
-        self.reg_divisor = self.add_register(
-            "w", base + 3, wideness=2, min_value=1
-        )
+        self.reg_divisor = self.add_register("w", base + 3, wideness=2, min_value=1)
         self.reg_data = self.add_register("rwv", base + 4)
         self.reg_size_h = self.add_register("rwv", base + 5)
         self.reg_size_l = self.add_register("rwv", base + 6)
@@ -1563,9 +1555,7 @@ class Chain(Module):
         :param size: Number of events in the chain.
         """
         super().__init__(parent, f"/chain{index}")
-        self.reg_control = self.add_register(
-            "wv", self.__ADDR_CONTROL + index * 0x10
-        )
+        self.reg_control = self.add_register("wv", self.__ADDR_CONTROL + index * 0x10)
         self.events = self.add_signals(*[f"event{i}" for i in range(size)])
         self.trigger = self.add_signal("trigger")
 
@@ -1593,18 +1583,14 @@ class Clock(Module):
         :param index: Clock module index.
         """
         super().__init__(parent, f"/clock{index}")
-        self.reg_config = self.add_register(
-            "w", self.__ADDR_CONFIG + index * 0x10
-        )
+        self.reg_config = self.add_register("w", self.__ADDR_CONFIG + index * 0x10)
         self.reg_divisor_a = self.add_register(
             "w", self.__ADDR_DIVISOR_A + index * 0x10
         )
         self.reg_divisor_b = self.add_register(
             "w", self.__ADDR_DIVISOR_B + index * 0x10
         )
-        self.reg_count = self.add_register(
-            "w", self.__ADDR_COUNT + index * 0x10
-        )
+        self.reg_count = self.add_register("w", self.__ADDR_COUNT + index * 0x10)
         self.glitch, self.out = self.add_signals("glitch", "out")
 
         self.__freq_helper_a = FreqRegisterHelper(
@@ -1615,10 +1601,12 @@ class Clock(Module):
         )
 
     @property
-    def frequency(self) -> float:
+    def frequency(self) -> Optional[float]:
         """
         Base clock frequency, in Hertz. Only divisors of the system frequency
         can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
+        If the frequency has not been set previously, this attribute will return
+        None.
 
         :type: float
         """
@@ -1771,12 +1759,16 @@ class IO(Signal, Module):
 
         :type: IOMode
         """
-        assert self.parent.version is not None and self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
     def mode(self, value: IOMode):
-        assert self.parent.version is not None and self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         if not isinstance(value, IOMode):
             raise ValueError("mode must be an instance of IOMode enumeration")
         self.reg_config.set_mask(value, 0b11)
@@ -1789,14 +1781,18 @@ class IO(Signal, Module):
 
         :type: Pull
         """
-        assert self.parent.version is not None and self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         if not self.__pullable:
             return Pull.NONE
         return Pull((self.reg_config.get() >> 2) & 0b11)
 
     @pull.setter
     def pull(self, value: Optional[Pull]):
-        assert self.parent.version is not None and self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         # Accept None as value
         if value is None:
             value = Pull.NONE
@@ -1830,7 +1826,7 @@ class ArchBase:
         self,
         sys_freq: int,
         board_name: str,
-        supported_versions: list[packaging.version.Version],
+        supported_versions: list[PackagingVersion],
         baudrate: int = 2000000,
     ):
         """
@@ -1856,7 +1852,7 @@ class ArchBase:
 
         # Cache the version string once read
         self.__version_string: Optional[str] = None
-        self.__version: Optional[str] = None
+        self.__version: Optional[PackagingVersion] = None
         self.__board_name: Optional[str] = None
 
         # Low-level management
@@ -1907,7 +1903,9 @@ class ArchBase:
         self.mtxr_out.append(name)
 
     @property
-    def version(self) -> Optional[packaging.version.Version]:
+    def version(
+        self,
+    ) -> Optional[PackagingVersion]:
         """
         :return: Hardware version.
         """
@@ -1960,11 +1958,13 @@ class ArchBase:
                 "Failed to parse board version string '" + self.__version_string + "'"
             )
         self.__board_name = tokens[0]
-        self.__version = parse_version(tokens[1])
+        version = parse_version(tokens[1])
         if self.__board_name != self.__expected_board_name:
             raise RuntimeError("Invalid board name during version check")
-        if self.__version not in self.__supported_versions:
-            raise RuntimeError("Hardware version " + self.__version + " not supported")
+        if version not in self.__supported_versions:
+            raise RuntimeError("Hardware version " + str(version) + " not supported")
+        self.__version = version
+
         # Tell ScaffoldBus the current version. If version is >= 0.9, delays and buffer
         # wait operations will be enabled.
         self.bus.version = self.__version
@@ -2155,7 +2155,7 @@ class Scaffold(ArchBase):
             "scaffold",  # board name
             # Supported FPGA bitstream versions
             [
-                parse_version(v)
+                PackagingVersion(v)
                 for v in (
                     "0.2",
                     "0.3",
