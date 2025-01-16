@@ -143,6 +143,7 @@ def test_parsing_ok():
 
     for atr in atrs:
         reader = BasicByteReader(atr)
+        atr = atr.hex()
         if atr in badlist_extra:
             parse_atr(reader)
             assert len(reader.data) > 0
@@ -156,7 +157,7 @@ def test_parsing_ok():
             try:
                 parse_atr(reader)
             except Exception as e:
-                print(f"Failing ATR: {atr.hex()}")
+                print(f"Failing ATR: {atr}")
                 print(f"Exception: {e}")
                 raise e
 
