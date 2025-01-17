@@ -667,12 +667,12 @@ class PulseGenerator(Module):
         self.reg_count.set(value - 1)
 
     @property
-    def count_min(self) -> float:
+    def count_min(self) -> int:
         """:return: Minimum possible pulse count."""
         return 1
 
     @property
-    def count_max(self) -> float:
+    def count_max(self) -> int:
         """:return: Maximum possible pulse count."""
         return self.reg_count.max + 1
 
@@ -1557,6 +1557,10 @@ class Chain(Module):
         super().__init__(parent, f"/chain{index}")
         self.reg_control = self.add_register("wv", self.__ADDR_CONTROL + index * 0x10)
         self.events = self.add_signals(*[f"event{i}" for i in range(size)])
+        # For backward compatibility with scripts accessing events with scaffold.chainX.eventX
+        for i, event in enumerate(self.events):
+            self.__dict__[f"event{i}"] = event
+
         self.trigger = self.add_signal("trigger")
 
     def rearm(self):
@@ -1847,8 +1851,7 @@ class ArchBase:
 
         # Hardware version module. Defined here because it is an architecture
         # requirement. There is no need to expose this module.
-        if isinstance(self, Scaffold):
-            self.__version_module = Version(self)
+        self.__version_module = Version(self)  # type: ignore
 
         # Cache the version string once read
         self.__version_string: Optional[str] = None
@@ -2122,12 +2125,6 @@ class Scaffold(ArchBase):
     # Number of I/Os
     __IO_D_COUNT = 16
     __IO_P_COUNT = 16
-    # Number of UART peripherals
-    __UART_COUNT = 2
-    # Number of pulse generator peripherals
-    __PULSE_GENERATOR_COUNT = 4
-    # Number of I2C modules
-    __I2C_COUNT = 1
 
     def __init__(
         self,
@@ -2347,12 +2344,12 @@ class Scaffold(ArchBase):
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
-        for i in range(self.__UART_COUNT):
+        for i in range(len(self.uarts)):
             self.add_mtxl_out(f"/uart{i}/rx")
         self.add_mtxl_out("/iso7816/io_in")
-        for i in range(self.__PULSE_GENERATOR_COUNT):
+        for i in range(len(self.pgens)):
             self.add_mtxl_out(f"/pgen{i}/start")
-        for i in range(self.__I2C_COUNT):
+        for i in range(len(self.i2cs)):
             self.add_mtxl_out(f"/i2c{i}/sda_in")
             self.add_mtxl_out(f"/i2c{i}/scl_in")
         for i in range(len(self.spis)):
@@ -2373,15 +2370,15 @@ class Scaffold(ArchBase):
         self.add_mtxr_in("1")
         self.add_mtxr_in("/power/dut_trigger")
         self.add_mtxr_in("/power/platform_trigger")
-        for i in range(self.__UART_COUNT):
+        for i in range(len(self.uarts)):
             self.add_mtxr_in(f"/uart{i}/tx")
             self.add_mtxr_in(f"/uart{i}/trigger")
         self.add_mtxr_in("/iso7816/io_out")
         self.add_mtxr_in("/iso7816/clk")
         self.add_mtxr_in("/iso7816/trigger")
-        for i in range(self.__PULSE_GENERATOR_COUNT):
+        for i in range(len(self.pgens)):
             self.add_mtxr_in(f"/pgen{i}/out")
-        for i in range(self.__I2C_COUNT):
+        for i in range(len(self.i2cs)):
             self.add_mtxr_in(f"/i2c{i}/sda_out")
             self.add_mtxr_in(f"/i2c{i}/scl_out")
             self.add_mtxr_in(f"/i2c{i}/trigger")
