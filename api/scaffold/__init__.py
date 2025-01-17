@@ -25,10 +25,12 @@ import serial.tools.list_ports_common
 from packaging.version import parse as parse_version, Version as PackagingVersion
 from .bus import ScaffoldBus, Register, TimeoutError
 
+# Dynamically managed by Peotry
+__version__ = "0.0.0"
 
 # Prevent flake8 from complaining about unused import. This class is actually
 # re-exported. This should be improved in the future.
-TimeoutError = TimeoutError
+__all__ = ["TimeoutError"]
 
 
 class Signal:
@@ -1557,7 +1559,8 @@ class Chain(Module):
         super().__init__(parent, f"/chain{index}")
         self.reg_control = self.add_register("wv", self.__ADDR_CONTROL + index * 0x10)
         self.events = self.add_signals(*[f"event{i}" for i in range(size)])
-        # For backward compatibility with scripts accessing events with scaffold.chainX.eventX
+        # For backward compatibility with scripts accessing
+        # events with scaffold.chainX.eventX
         for i, event in enumerate(self.events):
             self.__dict__[f"event{i}"] = event
 
