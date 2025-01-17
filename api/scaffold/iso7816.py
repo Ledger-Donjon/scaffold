@@ -184,8 +184,13 @@ def parse_atr(reader: ByteReader) -> ATRInfo:
     except EOFError as e:
         raise EOFError(
             f"Not enough data for historical bytes in {atr.hex()}:"
-            f" expected {num_historical_bytes},"
-            f" got {len(reader.data)}: {str(e)}"
+            + f" expected {num_historical_bytes}"
+            + (
+                f", got {len(reader.data)}"
+                if isinstance(reader, BasicByteReader)
+                else ""
+            )
+            + f": {str(e)}"
         )
 
     # Parse TCK (check byte)
