@@ -17,18 +17,20 @@
 # Copyright 2019 Ledger SAS, written by Olivier Hériveaux
 
 
-from enum import Enum
+from enum import Enum, Flag, auto
 from time import sleep
-from typing import Optional, Union, List
+from typing import Any, Literal, Optional, Union
 import serial.tools.list_ports
-import packaging.version
-from packaging.version import parse as parse_version
+import serial.tools.list_ports_common
+from packaging.version import parse as parse_version, Version as PackagingVersion
 from .bus import ScaffoldBus, Register, TimeoutError
 
+# Dynamically managed by Peotry
+__version__ = "0.0.0"
 
 # Prevent flake8 from complaining about unused import. This class is actually
 # re-exported. This should be improved in the future.
-TimeoutError = TimeoutError
+__all__ = ["TimeoutError"]
 
 
 class Signal:
@@ -39,9 +41,9 @@ class Signal:
     together.
     """
 
-    def __init__(self, parent, path):
+    def __init__(self, parent: "Scaffold", path: str):
         """
-        :param parent: Scaffold instance which the signal belongs to.
+        :param parent: The :class:`Scaffold` instance which the signal belongs to.
         :param path: Signal path string. Uniquely identifies a Scaffold board
             internal signal. For instance '/dev/uart0/tx'.
         """
@@ -59,17 +61,17 @@ class Signal:
         return self.__path
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         Signal name (last element of the path). For instance 'tx'. Read-only.
         """
         return self.__path.split("/")[-1]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """:return: Signal path. For instance '/dev/uart0/tx'."""
         return self.__path
 
-    def __lshift__(self, other):
+    def __lshift__(self, other: Union["Signal", Literal[0, 1]]):
         """
         Feed the current signal with another signal.
 
@@ -78,7 +80,7 @@ class Signal:
         """
         self.__parent.sig_connect(self, other)
 
-    def __rshift__(self, other):
+    def __rshift__(self, other: "Signal"):
         """
         Feed another signal with current signal.
 
@@ -93,16 +95,16 @@ class Module:
     Class to facilitate signals and registers declaration.
     """
 
-    def __init__(self, parent, path=None):
+    def __init__(self, parent: "Scaffold", path: Optional[str] = None):
         """
-        :param parent: The Scaffold instance owning the object.
+        :param parent: The :class:`Scaffold` instance owning the module.
         :param path: Base path for the signals. For instance '/uart'.
         """
         self.__parent = parent
         self.__path = path
-        self.__registers = []
+        self.__registers: list[Register] = []
 
-    def add_signal(self, name):
+    def add_signal(self, name: str) -> Signal:
         """
         Add a new signal to the object and set it as a new attribute of the
         instance.
@@ -118,10 +120,9 @@ class Module:
         else:
             path = self.__path + "/" + name
         sig = Signal(self.__parent, path)
-        self.__dict__[name] = sig
         return sig
 
-    def add_signals(self, *names):
+    def add_signals(self, *names: str) -> list[Signal]:
         """
         Add many signals to the object and set them as new attributes of the
         instance.
@@ -133,20 +134,17 @@ class Module:
         """
         return list(self.add_signal(name) for name in names)
 
-    def add_register(self, name, *args, **kwargs):
+    def add_register(self, *args: Any, **kwargs: Any) -> Register:
         """
         Create a new register.
-        :param name: Register name.
         :param args: Arguments passed to Register.__init__.
         :param kwargs: Keyword arguments passed to Register.__init__.
         """
-        attr_name = "reg_" + name
         reg = Register(self.__parent, *args, **kwargs)
-        self.__dict__[attr_name] = reg
-        # Keep track of the register for reset_registers method
         self.__registers.append(reg)
+        return reg
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: Any):
         if key in self.__dict__:
             item = self.__dict__[key]
             if isinstance(item, Register):
@@ -165,8 +163,8 @@ class Module:
             reg.reset()
 
     @property
-    def parent(self):
-        """Scaffold instance the module belongs to. Read-only."""
+    def parent(self) -> "Scaffold":
+        """:class:`Scaffold` instance the module belongs to. Read-only."""
         return self.__parent
 
 
@@ -176,7 +174,7 @@ class FreqRegisterHelper:
     registers value based on asked target frequencies.
     """
 
-    def __init__(self, sys_freq, reg):
+    def __init__(self, sys_freq: int, reg: Register):
         """
         :param sys_freq: System base frequency used to compute clock divisors.
         :type sys_freq: int
@@ -185,10 +183,10 @@ class FreqRegisterHelper:
         """
         self.__sys_freq = sys_freq
         self.__reg = reg
-        self.__cache = None
+        self.__cache: Optional[float] = None
         self.__max_err = 0.01
 
-    def set(self, value):
+    def set(self, value: float):
         """
         Configure the register value depending on the target frequency.
 
@@ -207,12 +205,12 @@ class FreqRegisterHelper:
         if err > self.__max_err:
             raise RuntimeError(
                 f"Cannot reach target clock frequency within "
-                f"{self.__max_err*100}% accuracy."
+                f"{self.__max_err * 100}% accuracy."
             )
         self.__reg.set(d)
         self.__cache = real
 
-    def get(self):
+    def get(self) -> Optional[float]:
         """
         :return: Actual clock frequency. None if frequency has not been set.
         """
@@ -222,14 +220,14 @@ class FreqRegisterHelper:
 class Version(Module):
     """Version module of Scaffold."""
 
-    def __init__(self, parent):
+    def __init__(self, parent: "Scaffold"):
         """
-        :param parent: The Scaffold instance owning the version module.
+        :param parent: The :class:`Scaffold` instance owning the version module.
         """
         super().__init__(parent)
-        self.add_register("data", "r", 0x0100)
+        self.reg_data = self.add_register("r", 0x0100)
 
-    def get_string(self):
+    def get_string(self) -> str:
         """
         Read the data register multiple times until the full version string has
         been retrieved.
@@ -251,7 +249,7 @@ class Version(Module):
         return result
 
 
-class LEDMode(Enum):
+class LEDMode(int, Enum):
     EVENT = 0
     VALUE = 1
 
@@ -262,7 +260,7 @@ class LED:
     Each instance of this class is an attribute of a :class:`LEDs` instance.
     """
 
-    def __init__(self, parent, index):
+    def __init__(self, parent: "LEDs", index: int):
         """
         :param parent: Parent LEDs module instance.
         :param index: Bit index of the LED.
@@ -271,7 +269,7 @@ class LED:
         self.__index = index
 
     @property
-    def mode(self):
+    def mode(self) -> LEDMode:
         """
         LED lighting mode. When mode is EVENT, the led is lit for a short
         period of time when an edge is detected on the monitored signal. When
@@ -283,58 +281,64 @@ class LED:
         return LEDMode((self.__parent.reg_mode.get() >> self.__index) & 1)
 
     @mode.setter
-    def mode(self, value):
+    def mode(self, value: LEDMode):
         self.__parent.reg_mode.set_mask(
-            LEDMode(value).value << self.__index, 1 << self.__index
+            LEDMode(value) << self.__index, 1 << self.__index
         )
 
 
 class LEDs(Module):
     """LEDs module of Scaffold."""
 
-    def __init__(self, parent):
+    def __init__(self, parent: "Scaffold"):
         """
-        :param parent: The Scaffold instance owning the version module.
+        :param parent: The :class:`Scaffold` instance owning the LED modules.
         """
         super().__init__(parent)
-        self.add_register("control", "w", 0x0200)
-        self.add_register("brightness", "w", 0x0201)
-        self.add_register("leds_0", "w", 0x0202)
-        self.add_register("leds_1", "w", 0x0203)
-        self.add_register("leds_2", "w", 0x0204)
-        self.add_register("mode", "w", 0x0205, wideness=3)
+        self.reg_control = self.add_register("w", 0x0200)
+        self.reg_brightness = self.add_register("w", 0x0201)
+        self.reg_leds_0 = self.add_register("w", 0x0202)
+        self.reg_leds_1 = self.add_register("w", 0x0203)
+        self.reg_leds_2 = self.add_register("w", 0x0204)
+        self.reg_mode = self.add_register("w", 0x0205, wideness=3)
+        assert self.parent.version is not None
         if self.parent.version <= parse_version("0.3"):
             # Scaffold hardware v1 only
-            leds = [
-                "a0",
-                "a1",
-                "b0",
-                "b1",
-                "c0",
-                "c1",
-                "d0",
-                "d1",
-                "d2",
-                "d3",
-                "d4",
-                "d5",
-            ]
             offset = 6
+            self.a0 = LED(self, 0 + offset)
+            self.a1 = LED(self, 1 + offset)
+            self.b0 = LED(self, 2 + offset)
+            self.b1 = LED(self, 3 + offset)
+            self.c0 = LED(self, 4 + offset)
+            self.c1 = LED(self, 5 + offset)
+            self.d0 = LED(self, 6 + offset)
+            self.d1 = LED(self, 7 + offset)
+            self.d2 = LED(self, 8 + offset)
+            self.d3 = LED(self, 9 + offset)
+            self.d4 = LED(self, 10 + offset)
+            self.d5 = LED(self, 11 + offset)
         else:
             # Scaffold hardware v1.1
-            leds = ["a0", "a1", "a2", "a3", "d0", "d1", "d2", "d3", "d4", "d5"]
             offset = 8
-        for i, name in enumerate(leds):
-            self.__setattr__(name, LED(self, i + offset))
+            self.a0 = LED(self, 0 + offset)
+            self.a1 = LED(self, 1 + offset)
+            self.a2 = LED(self, 2 + offset)
+            self.a3 = LED(self, 3 + offset)
+            self.d0 = LED(self, 4 + offset)
+            self.d1 = LED(self, 5 + offset)
+            self.d2 = LED(self, 6 + offset)
+            self.d3 = LED(self, 7 + offset)
+            self.d4 = LED(self, 8 + offset)
+            self.d5 = LED(self, 9 + offset)
 
     def reset(self):
         """Set module registers to default values."""
-        self.reg_control = 0
+        self.reg_control.set(0)
         self.reg_brightness.set(20)
         self.reg_mode.set(0)
 
     @property
-    def brightness(self):
+    def brightness(self) -> float:
         """
         LEDs brightness. 0 is the minimum. 1 is the maximum.
 
@@ -343,35 +347,33 @@ class LEDs(Module):
         return self.reg_brightness.get() / 127.0
 
     @brightness.setter
-    def brightness(self, value):
+    def brightness(self, value: float):
         if (value < 0) or (value > 1):
             raise ValueError("Invalid brightness value")
         self.reg_brightness.set(int(value * 127))
 
     @property
-    def disabled(self):
+    def disabled(self) -> bool:
         """If set to True, LEDs driver outputs are all disabled."""
         return bool(self.reg_control.get() & 1)
 
     @disabled.setter
-    def disabled(self, value):
-        value = int(bool(value))
-        self.reg_control.set_mask(value, 1)
+    def disabled(self, value: bool):
+        self.reg_control.set_mask(int(bool(value)), 1)
 
     @property
-    def override(self):
+    def override(self) -> bool:
         """
         If set to True, LEDs state is the value of the leds_n registers.
         """
         return bool(self.reg_control.get() & 2)
 
     @override.setter
-    def override(self, value):
-        value = int(bool(value))
-        self.reg_control.set_mask(value << 1, 2)
+    def override(self, value: bool):
+        self.reg_control.set_mask(int(bool(value)) << 1, 2)
 
 
-class UARTParity(Enum):
+class UARTParity(int, Enum):
     """Possible parity modes for UART peripherals."""
 
     NONE = 0
@@ -388,22 +390,22 @@ class UART(Module):
     __REG_CONFIG_BIT_TRIGGER = 3
     __REG_CONFIG_BIT_PARITY = 0
 
-    def __init__(self, parent, index):
+    def __init__(self, parent: "Scaffold", index: int):
         """
-        :param parent: The Scaffold instance owning the UART module.
+        :param parent: The :class:`Scaffold` instance owning the UART module.
         :param index: UART module index.
         """
         super().__init__(parent, f"/uart{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals("rx", "tx", "trigger")
+        self.rx, self.tx, self.trigger = self.add_signals("rx", "tx", "trigger")
         # Declare the registers
         self.__addr_base = base = 0x0400 + 0x0010 * index
-        self.add_register("status", "rv", base)
-        self.add_register("control", "w", base + 1)
-        self.add_register("config", "w", base + 2)
-        self.add_register("divisor", "w", base + 3, wideness=2, min_value=1)
-        self.add_register("data", "rwv", base + 4)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
+        self.reg_divisor = self.add_register("w", base + 3, wideness=2, min_value=1)
+        self.reg_data = self.add_register("rwv", base + 4)
         # Current board target baudrate (this is not the effective baudrate)
         self.__cache_baudrate = None
         # Accuracy parameter
@@ -419,7 +421,7 @@ class UART(Module):
         self.baudrate = 9600
 
     @property
-    def baudrate(self):
+    def baudrate(self) -> Optional[float]:
         """
         Target UART baudrate.
 
@@ -432,7 +434,7 @@ class UART(Module):
         return self.__cache_baudrate
 
     @baudrate.setter
-    def baudrate(self, value):
+    def baudrate(self, value: int):
         """
         Set target baudrate. If baudrate is too low or too high, a ValueError
         is thrown. If baudrate cannot be reached within 1% accuracy, a
@@ -451,12 +453,12 @@ class UART(Module):
         max_err = self.max_err
         if err > max_err:
             raise RuntimeError(
-                f"Cannot reach target baudrate within {max_err*100}% accuracy."
+                f"Cannot reach target baudrate within {max_err * 100}% accuracy."
             )
         self.reg_divisor.set(d)
         self.__cache_baudrate = real
 
-    def transmit(self, data: bytes, trigger: bool = False):
+    def transmit(self, data: bytes, trigger: Union[bool, int] = False):
         """
         Transmit data using the UART.
 
@@ -483,7 +485,7 @@ class UART(Module):
             # Disable trigger
             self.reg_config.write(config, self.reg_status.poll(mask=0x01, value=0x01))
 
-    def receive(self, n=1):
+    def receive(self, n: int = 1):
         """
         Receive n bytes from the UART. This function blocks until all bytes
         have been received or the timeout expires and a TimeoutError is thrown.
@@ -495,7 +497,7 @@ class UART(Module):
         self.reg_control.set_bit(self.__REG_CONTROL_BIT_FLUSH, 1)
 
     @property
-    def parity(self):
+    def parity(self) -> UARTParity:
         """
         Parity mode. Disabled by default.
 
@@ -506,11 +508,16 @@ class UART(Module):
         )
 
     @parity.setter
-    def parity(self, value):
+    def parity(self, value: UARTParity):
         self.reg_config.set_mask(
-            (value.value & 0b11) << self.__REG_CONFIG_BIT_PARITY,
+            (value & 0b11) << self.__REG_CONFIG_BIT_PARITY,
             0b11 << self.__REG_CONFIG_BIT_PARITY,
         )
+
+
+class Polarity(int, Enum):
+    HIGH_ON_PULSES = 0
+    LOW_ON_PULSES = 1
 
 
 class PulseGenerator(Module):
@@ -519,25 +526,23 @@ class PulseGenerator(Module):
     Usually abreviated as pgen.
     """
 
-    def __init__(self, parent, path, base):
+    def __init__(self, parent: "Scaffold", index: int, base: int):
         """
-        :param parent: The :class:`Scaffold` instance owning the UART module.
+        :param parent: The :class:`Scaffold` instance owning the pulse generator module.
         :param path: Module path.
-        :type path: str
         :param base: Base address for all registers.
-        :type base: int
         """
-        super().__init__(parent, path)
+        super().__init__(parent, f"/pgen{index}")
         # Create the signals
-        self.add_signals("start", "out")
+        self.start, self.out = self.add_signals("start", "out")
         # Create the registers
-        self.add_register("status", "rv", base)
-        self.add_register("control", "wv", base + 1)
-        self.add_register("config", "w", base + 2, reset=0)
-        self.add_register("delay", "w", base + 3, wideness=3, reset=0)
-        self.add_register("interval", "w", base + 4, wideness=3, reset=0)
-        self.add_register("width", "w", base + 5, wideness=3, reset=0)
-        self.add_register("count", "w", base + 6, wideness=2, reset=0)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("wv", base + 1)
+        self.reg_config = self.add_register("w", base + 2, reset=0)
+        self.reg_delay = self.add_register("w", base + 3, wideness=3, reset=0)
+        self.reg_interval = self.add_register("w", base + 4, wideness=3, reset=0)
+        self.reg_width = self.add_register("w", base + 5, wideness=3, reset=0)
+        self.reg_count = self.add_register("w", base + 6, wideness=2, reset=0)
 
     def fire(self):
         """Manually trigger the pulse generation."""
@@ -554,7 +559,7 @@ class PulseGenerator(Module):
         # Dummy write to the address 0 which is not mapped.
         self.parent.bus.write(0, 0, self.reg_status.poll(mask=1, value=1))
 
-    def __duration_to_clock_cycles(self, t):
+    def __duration_to_clock_cycles(self, t: float) -> int:
         """
         Calculate the number of clock cycles corresponding to a given time.
 
@@ -566,7 +571,7 @@ class PulseGenerator(Module):
         cc = round(t * self.parent.sys_freq)
         return cc
 
-    def __clock_cycles_to_duration(self, cc):
+    def __clock_cycles_to_duration(self, cc: int) -> float:
         """
         Calculate the time elapsed during a given number of clock cycles.
 
@@ -576,7 +581,7 @@ class PulseGenerator(Module):
         return cc / self.parent.sys_freq
 
     @property
-    def delay(self):
+    def delay(self) -> float:
         """
         Delay before pulse, in seconds.
 
@@ -585,22 +590,22 @@ class PulseGenerator(Module):
         return self.__clock_cycles_to_duration(self.reg_delay.get() + 1)
 
     @delay.setter
-    def delay(self, value):
+    def delay(self, value: float):
         n = self.__duration_to_clock_cycles(value) - 1
         self.reg_delay.set(n)
 
     @property
-    def delay_min(self):
+    def delay_min(self) -> float:
         """:return: Minimum possible delay."""
         return self.__clock_cycles_to_duration(1)
 
     @property
-    def delay_max(self):
+    def delay_max(self) -> float:
         """:return: Maximum possible delay."""
         return self.__clock_cycles_to_duration(self.reg_delay.max + 1)
 
     @property
-    def interval(self):
+    def interval(self) -> float:
         """
         Delay between pulses, in seconds.
 
@@ -609,22 +614,22 @@ class PulseGenerator(Module):
         return self.__clock_cycles_to_duration(self.reg_interval.get() + 1)
 
     @interval.setter
-    def interval(self, value):
+    def interval(self, value: float):
         n = self.__duration_to_clock_cycles(value) - 1
         self.reg_interval.set(n)
 
     @property
-    def interval_min(self):
+    def interval_min(self) -> float:
         """:return: Minimum possible interval."""
         return self.__clock_cycles_to_duration(1)
 
     @property
-    def interval_max(self):
+    def interval_max(self) -> float:
         """:return: Maximum possible interval."""
         return self.__clock_cycles_to_duration(self.reg_interval.max + 1)
 
     @property
-    def width(self):
+    def width(self) -> float:
         """
         Pulse width, in seconds.
 
@@ -633,22 +638,22 @@ class PulseGenerator(Module):
         return self.__clock_cycles_to_duration(self.reg_width.get() + 1)
 
     @width.setter
-    def width(self, value):
+    def width(self, value: float):
         n = self.__duration_to_clock_cycles(value) - 1
         self.reg_width.set(n)
 
     @property
-    def width_min(self):
+    def width_min(self) -> float:
         """:return: Minimum possible pulse width."""
         return self.__clock_cycles_to_duration(1)
 
     @property
-    def width_max(self):
+    def width_max(self) -> float:
         """:return: Maximum possible pulse width."""
         return self.__clock_cycles_to_duration(self.reg_width.max + 1)
 
     @property
-    def count(self):
+    def count(self) -> int:
         """
         Number of pulses to be generated. Minimum value is 1. Maximum value is
         2^16.
@@ -658,34 +663,32 @@ class PulseGenerator(Module):
         return self.reg_count.get() + 1
 
     @count.setter
-    def count(self, value):
+    def count(self, value: int):
         if value not in range(1, 2**16 + 1):
             raise ValueError("Invalid pulse count")
         self.reg_count.set(value - 1)
 
     @property
-    def count_min(self):
+    def count_min(self) -> int:
         """:return: Minimum possible pulse count."""
         return 1
 
     @property
-    def count_max(self):
+    def count_max(self) -> int:
         """:return: Maximum possible pulse count."""
         return self.reg_count.max + 1
 
     @property
-    def polarity(self):
+    def polarity(self) -> Polarity:
         """
         Pulse polarity. If 0, output is low when idle, and high during pulses.
         When 1, output is high when idle, and low during pulses.
-
-        :type: int
         """
-        return self.reg_config.get() & 1
+        return Polarity(self.reg_config.get() & 1)
 
     @polarity.setter
-    def polarity(self, value):
-        if value not in range(2):
+    def polarity(self, value: Polarity):
+        if value not in [Polarity.HIGH_ON_PULSES, Polarity.LOW_ON_PULSES]:
             raise ValueError("Invalid polarity value: must be 0 or 1")
         self.reg_config.set_bit(0, value)
 
@@ -695,14 +698,16 @@ class Power(Module):
 
     __ADDR_CONTROL = 0x0600
 
-    def __init__(self, parent):
-        """:param parent: The Scaffold instance owning the power module."""
+    def __init__(self, parent: "Scaffold"):
+        """:param parent: The :class:`Scaffold` instance owning the power module."""
         super().__init__(parent, "/power")
-        self.add_register("control", "rwv", self.__ADDR_CONTROL)
-        self.add_signals("dut_trigger", "platform_trigger")
+        self.reg_control = self.add_register("rwv", self.__ADDR_CONTROL)
+        self.dut_trigger, self.platform_trigger = self.add_signals(
+            "dut_trigger", "platform_trigger"
+        )
 
     @property
-    def all(self):
+    def all(self) -> int:
         """
         All power-supplies state. int. Bit 0 corresponds to the DUT power
         supply. Bit 1 corresponds to the platform power-supply. When a bit is
@@ -712,7 +717,7 @@ class Power(Module):
         return self.reg_control.get()
 
     @all.setter
-    def all(self, value):
+    def all(self, value: int):
         assert (value & ~0b11) == 0
         self.reg_control.set(value)
 
@@ -722,7 +727,7 @@ class Power(Module):
         return self.reg_control.get_bit(1)
 
     @platform.setter
-    def platform(self, value):
+    def platform(self, value: int):
         self.reg_control.set_bit(1, value)
 
     @property
@@ -731,10 +736,10 @@ class Power(Module):
         return self.reg_control.get_bit(0)
 
     @dut.setter
-    def dut(self, value):
+    def dut(self, value: int):
         self.reg_control.set_bit(0, value)
 
-    def restart_dut(self, toff=0.05, ton=0):
+    def restart_dut(self, toff: float = 0.05, ton: float = 0):
         """
         Power-cycle the DUT socket.
 
@@ -750,7 +755,7 @@ class Power(Module):
         if ton > 0:
             sleep(ton)
 
-    def restart_platform(self, toff=0.05, ton=0):
+    def restart_platform(self, toff: float = 0.05, ton: float = 0):
         """
         Power-cycle the platform socket.
 
@@ -766,7 +771,7 @@ class Power(Module):
         if ton > 0:
             sleep(ton)
 
-    def restart_all(self, toff=0.05, ton=0):
+    def restart_all(self, toff: float = 0.05, ton: float = 0):
         """
         Power-cycle both DUT and platform sockets.
 
@@ -783,7 +788,7 @@ class Power(Module):
             sleep(ton)
 
 
-class ISO7816ParityMode(Enum):
+class ISO7816ParityMode(int, Enum):
     EVEN = 0b00  # Even parity (standard and default)
     ODD = 0b01  # Odd parity
     FORCE_0 = 0b10  # Parity bit always 0
@@ -805,19 +810,21 @@ class ISO7816(Module):
     __REG_CONFIG_TRIGGER_LONG = 2
     __REG_CONFIG_PARITY_MODE = 3
 
-    def __init__(self, parent):
+    def __init__(self, parent: "Scaffold"):
         """
-        :param parent: The Scaffold instance owning the UART module.
+        :param parent: The :class:`Scaffold` instance owning the ISO7816 module.
         """
         super().__init__(parent, "/iso7816")
-        self.add_signals("io_in", "io_out", "clk", "trigger")
+        self.io_in, self.io_out, self.clk, self.trigger = self.add_signals(
+            "io_in", "io_out", "clk", "trigger"
+        )
         self.__addr_base = base = 0x0500
-        self.add_register("status", "rv", base)
-        self.add_register("control", "w", base + 1)
-        self.add_register("config", "w", base + 2)
-        self.add_register("divisor", "w", base + 3)
-        self.add_register("etu", "w", base + 4, wideness=2)
-        self.add_register("data", "rwv", base + 5)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
+        self.reg_divisor = self.add_register("w", base + 3)
+        self.reg_etu = self.add_register("w", base + 4, wideness=2)
+        self.reg_data = self.add_register("rwv", base + 5)
         # Accuracy parameter
         self.max_err = 0.01
 
@@ -847,7 +854,7 @@ class ISO7816(Module):
         return self.__cache_clock_frequency
 
     @clock_frequency.setter
-    def clock_frequency(self, value):
+    def clock_frequency(self, value: float):
         d = round((0.5 * self.parent.sys_freq / value) - 1)
         # Check that the divisor fits one unsigned byte.
         if d > 0xFF:
@@ -860,8 +867,7 @@ class ISO7816(Module):
         max_err = self.max_err = 0.01
         if err > max_err:
             raise RuntimeError(
-                f"Cannot reach target clock frequency within {max_err*100}% "
-                "accuracy."
+                f"Cannot reach target clock frequency within {max_err * 100}% accuracy."
             )
         self.reg_divisor.set(d)
         self.__cache_clock_frequency = real
@@ -875,7 +881,7 @@ class ISO7816(Module):
         return self.reg_etu.get() + 1
 
     @etu.setter
-    def etu(self, value):
+    def etu(self, value: int):
         if value not in range(1, 2**11):
             raise ValueError("Invalid ETU parameter")
         self.reg_etu.set(value - 1)
@@ -884,7 +890,7 @@ class ISO7816(Module):
         """Discard all the received bytes in the FIFO."""
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
-    def receive(self, n=1, timeout=None):
+    def receive(self, n: int = 1, timeout: Optional[float] = None):
         """
         Receive bytes. This function blocks until all bytes have been
         received or the timeout expires and a TimeoutError is thrown.
@@ -967,9 +973,9 @@ class ISO7816(Module):
         )
 
     @parity_mode.setter
-    def parity_mode(self, value):
+    def parity_mode(self, value: ISO7816ParityMode):
         self.reg_config.set_mask(
-            (value.value & 0b11) << self.__REG_CONFIG_PARITY_MODE,
+            (value & 0b11) << self.__REG_CONFIG_PARITY_MODE,
             0b11 << self.__REG_CONFIG_PARITY_MODE,
         )
 
@@ -982,7 +988,7 @@ class ISO7816(Module):
         return bool(self.reg_config.get_bit(self.__REG_CONFIG_TRIGGER_TX))
 
     @trigger_tx.setter
-    def trigger_tx(self, value):
+    def trigger_tx(self, value: bool):
         self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_TX, value)
 
     @property
@@ -994,7 +1000,7 @@ class ISO7816(Module):
         return bool(self.reg_config.get_bit(self.__REG_CONFIG_TRIGGER_RX))
 
     @trigger_rx.setter
-    def trigger_rx(self, value):
+    def trigger_rx(self, value: bool):
         self.reg_config.set_bit(self.__REG_CONFIG_TRIGGER_RX, value)
 
     @property
@@ -1009,7 +1015,7 @@ class ISO7816(Module):
         return bool(self.reg_config.get_bit(self.__REG_CONFIG_TRIGGER_LONG))
 
     @trigger_long.setter
-    def trigger_long(self, value):
+    def trigger_long(self, value: bool):
         # We want until transmission is ready to avoid triggering on a pending
         # one.
         self.reg_config.set_bit(
@@ -1028,7 +1034,7 @@ class I2CNackError(Exception):
     NACK from the I2C slave.
     """
 
-    def __init__(self, index):
+    def __init__(self, index: int):
         """
         :param index: NACKed byte index. If N, then the N-th byte has not been
             acked.
@@ -1040,6 +1046,11 @@ class I2CNackError(Exception):
     def __str__(self):
         """:return: Error details on the NACKed I2C transaction."""
         return f"Byte of index {self.index} NACKed during I2C transaction."
+
+
+class I2CTrigger(Flag):
+    START = auto()
+    END = auto()
 
 
 class I2C(Module):
@@ -1056,24 +1067,26 @@ class I2C(Module):
     __REG_CONFIG_BIT_TRIGGER_END = 1
     __REG_CONFIG_BIT_CLOCK_STRETCHING = 2
 
-    def __init__(self, parent, index):
+    def __init__(self, parent: "Scaffold", index: int):
         """
-        :param parent: The Scaffold instance owning the I2C module.
+        :param parent: The :class:`Scaffold` instance owning the I2C module.
         :param index: I2C module index.
         """
         super().__init__(parent, f"/i2c{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals("sda_in", "sda_out", "scl_in", "scl_out", "trigger")
+        self.sda_in, self.sda_out, self.scl_in, self.scl_out, self.trigger = (
+            self.add_signals("sda_in", "sda_out", "scl_in", "scl_out", "trigger")
+        )
         # Declare the registers
         self.__addr_base = base = 0x0700 + 0x0010 * index
-        self.add_register("status", "rv", base)
-        self.add_register("control", "w", base + 1)
-        self.add_register("config", "w", base + 2)
-        self.add_register("divisor", "w", base + 3, wideness=2, min_value=1)
-        self.add_register("data", "rwv", base + 4)
-        self.add_register("size_h", "rwv", base + 5)
-        self.add_register("size_l", "rwv", base + 6)
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2)
+        self.reg_divisor = self.add_register("w", base + 3, wideness=2, min_value=1)
+        self.reg_data = self.add_register("rwv", base + 4)
+        self.reg_size_h = self.add_register("rwv", base + 5)
+        self.reg_size_l = self.add_register("rwv", base + 6)
         self.address = None
         # Current I2C clock frequency
         self.__cache_frequency = None
@@ -1082,18 +1095,24 @@ class I2C(Module):
         """
         Reset the I2C peripheral to a default configuration.
         """
-        self.reg_divisor = 1
-        self.reg_size_h = 0
-        self.reg_size_l = 0
-        self.reg_config = (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING) | (
-            1 << self.__REG_CONFIG_BIT_TRIGGER_START
+        self.reg_divisor.set(1)
+        self.reg_size_h.set(0)
+        self.reg_size_l.set(0)
+        self.reg_config.set(
+            (1 << self.__REG_CONFIG_BIT_CLOCK_STRETCHING)
+            | (1 << self.__REG_CONFIG_BIT_TRIGGER_START)
         )
 
     def flush(self):
         """Discards all bytes in the transmission/reception FIFO."""
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_FLUSH)
 
-    def raw_transaction(self, data, read_size, trigger=None):
+    def raw_transaction(
+        self,
+        data: bytes,
+        read_size: int,
+        trigger: Optional[Union[int, str, I2CTrigger]] = None,
+    ):
         """
         Executes an I2C transaction. This is a low-level function which does
         not manage I2C addressing nor read/write mode (those shall already be
@@ -1111,7 +1130,7 @@ class I2C(Module):
             is asserted when the transaction starts. If str, it may contain the
             letter 'a' and/or 'b', where 'a' asserts trigger on transaction
             start and 'b' on transaction end.
-        :type trigger: int or str.
+        :type trigger: int, str or `I2CTrigger`.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         # Verify trigger parameter before doing anything
@@ -1119,17 +1138,24 @@ class I2C(Module):
         t_end = False
         if isinstance(trigger, int):
             if trigger not in range(2):
-                raise ValueError("Invalid trigger parameter")
+                raise ValueError(
+                    "Invalid trigger parameter. "
+                    "It should be 0 or 1, a string containing 'a' or 'b', "
+                    "or a flag of type I2CTrigger"
+                )
             t_start = trigger == 1
         elif isinstance(trigger, str):
             t_start = "a" in trigger
             t_end = "b" in trigger
+        elif isinstance(trigger, I2CTrigger):
+            t_start = I2CTrigger.START in trigger
+            t_end = I2CTrigger.END in trigger
         else:
             if trigger is not None:
                 raise ValueError("Invalid trigger parameter")
         self.flush()
-        self.reg_size_h = read_size >> 8
-        self.reg_size_l = read_size & 0xFF
+        self.reg_size_h.set(read_size >> 8)
+        self.reg_size_l.set(read_size & 0xFF)
         # Preload the FIFO
         self.reg_data.write(data)
         # Configure trigger for this transaction
@@ -1177,7 +1203,7 @@ class I2C(Module):
             #     raise RuntimeError('FIFO should be empty')
             return fifo
 
-    def __make_header(self, address, rw):
+    def __make_header(self, address: Optional[int], rw: int) -> bytes:
         """
         Internal method to build the transaction header bytes.
 
@@ -1215,7 +1241,12 @@ class I2C(Module):
             result.append(address + rw)
         return result
 
-    def read(self, size, address=None, trigger=None):
+    def read(
+        self,
+        size: int,
+        address: Optional[int] = None,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ):
         """
         Perform an I2C read transaction.
 
@@ -1224,13 +1255,23 @@ class I2C(Module):
             (this is the R/W bit). If defined and addressing mode is 10 bits,
             bit 8 must be 0.
         :type address: int or None
+        :param trigger: Trigger configuration. If int and value is 1, trigger
+            is asserted when the transaction starts. If str, it may contain the
+            letter 'a' and/or 'b', where 'a' asserts trigger on transaction
+            start and 'b' on transaction end.
+        :type trigger: int, str or `I2CTrigger`.
         :return: Bytes from the slave.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         data = self.__make_header(address, 1)
         return self.raw_transaction(data, size, trigger)
 
-    def write(self, data, address=None, trigger=None):
+    def write(
+        self,
+        data: bytes,
+        address: Optional[int] = None,
+        trigger: Optional[Union[bool, int, I2CTrigger]] = None,
+    ):
         """
         Perform an I2C write transaction.
 
@@ -1239,6 +1280,11 @@ class I2C(Module):
             (this is the R/W bit). If defined and addressing mode is 10 bits,
             bit 8 must be 0.
         :type address: int or None
+        :param trigger: Trigger configuration. If int and value is 1, trigger
+            is asserted when the transaction starts. If str, it may contain the
+            letter 'a' and/or 'b', where 'a' asserts trigger on transaction
+            start and 'b' on transaction end.
+        :type trigger: int, str or `I2CTrigger`.
         :raises I2CNackError: If a NACK is received during the transaction.
         """
         data = self.__make_header(address, 0) + data
@@ -1258,7 +1304,7 @@ class I2C(Module):
         return self.reg_config.get_bit(self.__REG_CONFIG_BIT_CLOCK_STRETCHING)
 
     @clock_stretching.setter
-    def clock_stretching(self, value):
+    def clock_stretching(self, value: int):
         self.reg_config.set_bit(self.__REG_CONFIG_BIT_CLOCK_STRETCHING, value)
 
     @property
@@ -1273,7 +1319,7 @@ class I2C(Module):
         return self.__cache_frequency
 
     @frequency.setter
-    def frequency(self, value):
+    def frequency(self, value: float):
         d = round((self.parent.sys_freq / (4 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
         if d > 0xFFFF:
@@ -1285,7 +1331,7 @@ class I2C(Module):
         self.__cache_frequency = real
 
 
-class SPIMode(Enum):
+class SPIMode(int, Enum):
     MASTER = 0
     SLAVE = 1
 
@@ -1302,24 +1348,26 @@ class SPI(Module):
     __REG_CONFIG_BIT_PHASE = 1
     __REG_CONFIG_BIT_MODE = 2
 
-    def __init__(self, parent, index):
+    def __init__(self, parent: "Scaffold", index: int):
         """
-        :param parent: The Scaffold instance owning the SPI module.
+        :param parent: The :class:`Scaffold` instance owning the SPI module.
         :param index: SPI module index.
         """
         super().__init__(parent, f"/spi{index}")
         self.__index = index
         # Declare the signals
-        self.add_signals("miso", "sck", "mosi", "ss", "trigger")
+        self.miso, self.sck, self.mosi, self.ss, self.trigger = self.add_signals(
+            "miso", "sck", "mosi", "ss", "trigger"
+        )
         # Declare the registers
         self.__addr_base = base = 0x0800 + 0x0010 * index
-        self.add_register("status", "rv", base)
-        self.add_register("control", "w", base + 1)
-        self.add_register("config", "w", base + 2, reset=0x00)
-        self.add_register(
-            "divisor", "w", base + 3, wideness=2, min_value=1, reset=0x1000
+        self.reg_status = self.add_register("rv", base)
+        self.reg_control = self.add_register("w", base + 1)
+        self.reg_config = self.add_register("w", base + 2, reset=0x00)
+        self.reg_divisor = self.add_register(
+            "w", base + 3, wideness=2, min_value=1, reset=0x1000
         )
-        self.add_register("data", "rwv", base + 4)
+        self.reg_data = self.add_register("rwv", base + 4)
         # Current SPI clock frequency
         self.__cache_frequency = None
 
@@ -1331,7 +1379,7 @@ class SPI(Module):
         return self.reg_config.get_bit(self.__REG_CONFIG_BIT_POLARITY)
 
     @polarity.setter
-    def polarity(self, value):
+    def polarity(self, value: int):
         self.reg_config.set_bit(self.__REG_CONFIG_BIT_POLARITY, value)
 
     @property
@@ -1342,12 +1390,13 @@ class SPI(Module):
         return self.reg_config.get_bit(self.__REG_CONFIG_BIT_PHASE)
 
     @phase.setter
-    def phase(self, value):
+    def phase(self, value: int):
         self.reg_config.set_bit(self.__REG_CONFIG_BIT_PHASE, value)
 
     @property
     def mode(self) -> SPIMode:
         """SPI mode"""
+        assert self.parent.version is not None
         if self.parent.version < parse_version("0.8"):
             return SPIMode.MASTER
         else:
@@ -1355,6 +1404,7 @@ class SPI(Module):
 
     @mode.setter
     def mode(self, value: SPIMode):
+        assert self.parent.version is not None
         if self.parent.version < parse_version("0.8"):
             if value != SPIMode.MASTER:
                 raise RuntimeError(
@@ -1362,7 +1412,7 @@ class SPI(Module):
                     "Slave mode requires confware >= 0.8."
                 )
         else:
-            self.reg_config.set_bit(self.__REG_CONFIG_BIT_MODE, value.value)
+            self.reg_config.set_bit(self.__REG_CONFIG_BIT_MODE, value)
 
     @property
     def frequency(self):
@@ -1377,7 +1427,7 @@ class SPI(Module):
         return self.__cache_frequency
 
     @frequency.setter
-    def frequency(self, value):
+    def frequency(self, value: float):
         d = round((self.parent.sys_freq / (4 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
         if d > 0xFFFF:
@@ -1388,7 +1438,13 @@ class SPI(Module):
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
-    def transmit(self, value: int, size: int = 8, trigger=False, read=True):
+    def transmit(
+        self,
+        value: int,
+        size: int = 8,
+        trigger: Union[int, bool] = False,
+        read: bool = True,
+    ):
         """
         Performs a SPI transaction to transmit a value and receive data. If a
         transmission is still pending, this methods waits for the SPI
@@ -1440,7 +1496,7 @@ class SPI(Module):
             res &= 2**size - 1
             return res
 
-    def read_data_buffer(self, n):
+    def read_data_buffer(self, n: int):
         """
         Read n bytes from the internal data buffer.
 
@@ -1471,6 +1527,7 @@ class SPI(Module):
 
         :param data: Byte or bytes to be appended.
         """
+        assert self.parent.version is not None
         if self.parent.version < parse_version("0.8"):
             raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         if self.mode != SPIMode.SLAVE:
@@ -1482,6 +1539,7 @@ class SPI(Module):
         Clear the FIFO memory of the data to be returned by the peripheral when
         configured as a slave.
         """
+        assert self.parent.version is not None
         if self.parent.version < parse_version("0.8"):
             raise RuntimeError("SPI slave support requires FPGA confware >= 0.8")
         self.reg_control.write(1 << self.__REG_CONTROL_BIT_CLEAR)
@@ -1492,20 +1550,21 @@ class Chain(Module):
 
     __ADDR_CONTROL = 0x0900
 
-    def __init__(self, parent, index, size):
+    def __init__(self, parent: "Scaffold", index: int, size: int):
         """
-        :param parent: Scaffold instance owning the chain module.
-        :type parent: Scaffold
-        :param index: Module index.
-        :type index: int
+        :param parent: The :class:`Scaffold` instance owning the chain module.
+        :param index: Chain module index.
         :param size: Number of events in the chain.
-        :type size: int
         """
         super().__init__(parent, f"/chain{index}")
-        self.add_register("control", "wv", self.__ADDR_CONTROL + index * 0x10)
-        for i in range(size):
-            self.add_signal(f"event{i}")
-        self.add_signal("trigger")
+        self.reg_control = self.add_register("wv", self.__ADDR_CONTROL + index * 0x10)
+        self.events = self.add_signals(*[f"event{i}" for i in range(size)])
+        # For backward compatibility with scripts accessing
+        # events with scaffold.chainX.eventX
+        for i, event in enumerate(self.events):
+            self.__dict__[f"event{i}"] = event
+
+        self.trigger = self.add_signal("trigger")
 
     def rearm(self):
         """Reset the chain trigger to initial state."""
@@ -1525,19 +1584,21 @@ class Clock(Module):
     __ADDR_DIVISOR_B = 0x0A02
     __ADDR_COUNT = 0x0A03
 
-    def __init__(self, parent, index):
+    def __init__(self, parent: "Scaffold", index: int):
         """
-        :param parent: Scaffold instance owning the clock module.
-        :type parent: Scaffold
-        :param index: Module index.
-        :type index: int
+        :param parent: The :class:`Scaffold` instance owning the clock module.
+        :param index: Clock module index.
         """
         super().__init__(parent, f"/clock{index}")
-        self.add_register("config", "w", self.__ADDR_CONFIG + index * 0x10)
-        self.add_register("divisor_a", "w", self.__ADDR_DIVISOR_A + index * 0x10)
-        self.add_register("divisor_b", "w", self.__ADDR_DIVISOR_B + index * 0x10)
-        self.add_register("count", "w", self.__ADDR_COUNT + index * 0x10)
-        self.add_signals("glitch", "out")
+        self.reg_config = self.add_register("w", self.__ADDR_CONFIG + index * 0x10)
+        self.reg_divisor_a = self.add_register(
+            "w", self.__ADDR_DIVISOR_A + index * 0x10
+        )
+        self.reg_divisor_b = self.add_register(
+            "w", self.__ADDR_DIVISOR_B + index * 0x10
+        )
+        self.reg_count = self.add_register("w", self.__ADDR_COUNT + index * 0x10)
+        self.glitch, self.out = self.add_signals("glitch", "out")
 
         self.__freq_helper_a = FreqRegisterHelper(
             self.parent.sys_freq, self.reg_divisor_a
@@ -1547,17 +1608,19 @@ class Clock(Module):
         )
 
     @property
-    def frequency(self):
+    def frequency(self) -> Optional[float]:
         """
         Base clock frequency, in Hertz. Only divisors of the system frequency
         can be set: 50 MHz, 25 MHz, 16.66 MHz, 12.5 MHz...
+        If the frequency has not been set previously, this attribute will return
+        None.
 
         :type: float
         """
         return self.__freq_helper_a.get()
 
     @frequency.setter
-    def frequency(self, value):
+    def frequency(self, value: float):
         self.__freq_helper_a.set(value)
 
     @property
@@ -1571,7 +1634,7 @@ class Clock(Module):
         return self.__freq_helper_b.get()
 
     @glitch_frequency.setter
-    def glitch_frequency(self, value):
+    def glitch_frequency(self, value: float):
         self.__freq_helper_b.set(value)
 
     @property
@@ -1579,7 +1642,7 @@ class Clock(Module):
         return self.reg_divisor_a.get()
 
     @div_a.setter
-    def div_a(self, value):
+    def div_a(self, value: int):
         self.reg_divisor_a.set(value)
 
     @property
@@ -1587,7 +1650,7 @@ class Clock(Module):
         return self.reg_divisor_b.get()
 
     @div_b.setter
-    def div_b(self, value):
+    def div_b(self, value: int):
         self.reg_divisor_b.set(value)
 
     @property
@@ -1601,17 +1664,17 @@ class Clock(Module):
         return self.reg_count.get()
 
     @glitch_count.setter
-    def glitch_count(self, value):
+    def glitch_count(self, value: int):
         self.reg_count.set(value)
 
 
-class IOMode(Enum):
+class IOMode(int, Enum):
     AUTO = 0
     OPEN_DRAIN = 1
     PUSH_ONLY = 2
 
 
-class Pull(Enum):
+class Pull(int, Enum):
     NONE = 0b00
     UP = 0b11
     DOWN = 0b01
@@ -1622,11 +1685,13 @@ class IO(Signal, Module):
     Board I/O.
     """
 
-    def __init__(self, parent, path, index, pullable=False):
+    def __init__(
+        self, parent: "Scaffold", path: str, index: int, pullable: bool = False
+    ):
         """
-        :param parent: Scaffold instance which the signal belongs to.
-        :param path: Signal path string.
-        :param index: I/O index.
+        :param parent: The :class:`Scaffold` instance owning the I/O module.
+        :param path: I/O module path.
+        :param index: I/O module index.
         :param pullable: True if this I/O supports pull resistor.
         """
         Signal.__init__(self, parent, path)
@@ -1640,13 +1705,13 @@ class IO(Signal, Module):
             self.__group = index // 8
             self.__group_index = index % 8
             base = 0xE000 + 0x10 * self.__group
-            self.add_register("value", "rv", base + 0x00)
-            self.add_register("event", "rwv", base + 0x01, reset=0)
+            self.reg_value = self.add_register("rv", base + 0x00)
+            self.reg_event = self.add_register("rwv", base + 0x01, reset=0)
         else:
             # 0.3
             base = 0xE000 + 0x10 * self.index
-            self.add_register("value", "rwv", base + 0x00, reset=0)
-            self.add_register("config", "rw", base + 0x01, reset=0)
+            self.reg_value = self.add_register("rwv", base + 0x00, reset=0)
+            self.reg_config = self.add_register("rw", base + 0x01, reset=0)
             # No more event register in 0.3. Events are in the value register
 
     @property
@@ -1694,45 +1759,53 @@ class IO(Signal, Module):
             self.reg_value.set(0)
 
     @property
-    def mode(self):
+    def mode(self) -> IOMode:
         """
         I/O mode. Default is AUTO, but this can be overriden for special
         applications.
 
         :type: IOMode
         """
-        assert self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         return IOMode(self.reg_config.get() & 0b11)
 
     @mode.setter
-    def mode(self, value):
-        assert self.parent.version >= parse_version("0.3")
+    def mode(self, value: IOMode):
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         if not isinstance(value, IOMode):
             raise ValueError("mode must be an instance of IOMode enumeration")
-        self.reg_config.set_mask(value.value, 0b11)
+        self.reg_config.set_mask(value, 0b11)
 
     @property
-    def pull(self):
+    def pull(self) -> Pull:
         """
         Pull resistor mode. Can only be written if the I/O supports this
         feature.
 
         :type: Pull
         """
-        assert self.parent.version >= parse_version("0.3")
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         if not self.__pullable:
             return Pull.NONE
         return Pull((self.reg_config.get() >> 2) & 0b11)
 
     @pull.setter
-    def pull(self, value):
-        assert self.parent.version >= parse_version("0.3")
+    def pull(self, value: Optional[Pull]):
+        assert self.parent.version is not None and self.parent.version >= parse_version(
+            "0.3"
+        )
         # Accept None as value
         if value is None:
             value = Pull.NONE
         if (not self.__pullable) and (value != Pull.NONE):
             raise RuntimeError("This I/O does not support pull resistor")
-        self.reg_config.set_mask(value.value << 2, 0b1100)
+        self.reg_config.set_mask(value << 2, 0b1100)
 
 
 class IODir(Enum):
@@ -1758,10 +1831,10 @@ class ArchBase:
 
     def __init__(
         self,
-        sys_freq,
-        board_name,
-        supported_versions: List[packaging.version.Version],
-        baudrate=2000000,
+        sys_freq: int,
+        board_name: str,
+        supported_versions: list[PackagingVersion],
+        baudrate: int = 2000000,
     ):
         """
         Defines basic parameters of the board.
@@ -1781,12 +1854,12 @@ class ArchBase:
 
         # Hardware version module. Defined here because it is an architecture
         # requirement. There is no need to expose this module.
-        self.__version_module = Version(self)
+        self.__version_module = Version(self)  # type: ignore
 
         # Cache the version string once read
-        self.__version_string = None
-        self.__version = None
-        self.__board_name = None
+        self.__version_string: Optional[str] = None
+        self.__version: Optional[PackagingVersion] = None
+        self.__board_name: Optional[str] = None
 
         # Low-level management
         # Set as an attribute to avoid having all low level routines visible in
@@ -1794,12 +1867,12 @@ class ArchBase:
         self.bus = ScaffoldBus(self.sys_freq, baudrate)
 
         # Mux matrices signals
-        self.mtxl_in = []
-        self.mtxl_out = []
-        self.mtxr_in = []
-        self.mtxr_out = []
+        self.mtxl_in: list[str] = []
+        self.mtxl_out: list[str] = []
+        self.mtxr_in: list[str] = []
+        self.mtxr_out: list[str] = []
 
-    def add_mtxl_in(self, name):
+    def add_mtxl_in(self, name: str):
         """
         Declares an input for the left interconnect matrix.
 
@@ -1808,7 +1881,7 @@ class ArchBase:
         """
         self.mtxl_in.append(name)
 
-    def add_mtxl_out(self, name):
+    def add_mtxl_out(self, name: str):
         """
         Declares an output of the left interconnect matrix.
 
@@ -1817,7 +1890,7 @@ class ArchBase:
         """
         self.mtxl_out.append(name)
 
-    def add_mtxr_in(self, name):
+    def add_mtxr_in(self, name: str):
         """
         Declares an input for the right interconnect matrix.
 
@@ -1826,7 +1899,7 @@ class ArchBase:
         """
         self.mtxr_in.append(name)
 
-    def add_mtxr_out(self, name):
+    def add_mtxr_out(self, name: str):
         """
         Declares an output of the right interconnect matrix.
 
@@ -1836,7 +1909,9 @@ class ArchBase:
         self.mtxr_out.append(name)
 
     @property
-    def version(self) -> Optional[packaging.version.Version]:
+    def version(
+        self,
+    ) -> Optional[PackagingVersion]:
         """
         :return: Hardware version.
         """
@@ -1856,7 +1931,7 @@ class ArchBase:
         """
         if dev is None:
             # Try to find automatically the device
-            possible_ports = []
+            possible_ports: list[serial.tools.list_ports_common.ListPortInfo] = []
             for port in serial.tools.list_ports.comports():
                 # USB description string can be 'Scaffold', with uppercase 'S'.
                 if (
@@ -1889,16 +1964,18 @@ class ArchBase:
                 "Failed to parse board version string '" + self.__version_string + "'"
             )
         self.__board_name = tokens[0]
-        self.__version = parse_version(tokens[1])
+        version = parse_version(tokens[1])
         if self.__board_name != self.__expected_board_name:
             raise RuntimeError("Invalid board name during version check")
-        if self.__version not in self.__supported_versions:
-            raise RuntimeError("Hardware version " + self.__version + " not supported")
+        if version not in self.__supported_versions:
+            raise RuntimeError("Hardware version " + str(version) + " not supported")
+        self.__version = version
+
         # Tell ScaffoldBus the current version. If version is >= 0.9, delays and buffer
         # wait operations will be enabled.
         self.bus.version = self.__version
 
-    def __signal_to_path(self, signal):
+    def __signal_to_path(self, signal: Optional[Union[int, Signal]]) -> str:
         """
         Convert a signal, 0, 1 or None to a path. Verify the signal belongs to
         the current Scaffold instance.
@@ -1909,18 +1986,16 @@ class ArchBase:
             if signal.parent != self:
                 raise ValueError("Signal belongs to another Scaffold instance")
             return signal.path
-        elif type(signal) is int:
+        elif isinstance(signal, int):
             if signal not in (0, 1):
                 raise ValueError("Invalid signal value")
-            return str(signal)
-        elif type(signal) is int:
             return str(signal)
         elif signal is None:
             return "z"  # High impedance
         else:
             raise ValueError("Invalid signal type")
 
-    def sig_connect(self, a, b):
+    def sig_connect(self, a: Signal, b: Union[int, Signal]):
         """
         Configure interconnect matrices to feed the signal a with the signal b.
 
@@ -1984,10 +2059,10 @@ class ArchBase:
         return self.bus.timeout
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value: Optional[float]):
         self.bus.timeout = value
 
-    def push_timeout(self, value):
+    def push_timeout(self, value: float):
         """
         Save previous timeout setting in a stack, and set a new timeout value.
         Call to `pop_timeout` will restore previous timeout value.
@@ -2004,7 +2079,7 @@ class ArchBase:
         """
         self.bus.pop_timeout()
 
-    def timeout_section(self, timeout):
+    def timeout_section(self, timeout: Optional[float]):
         """
         :return: :class:`ScaffoldBusTimeoutSection` instance to be used with
             the python 'with' statement to push and pop timeout configuration.
@@ -2053,12 +2128,6 @@ class Scaffold(ArchBase):
     # Number of I/Os
     __IO_D_COUNT = 16
     __IO_P_COUNT = 16
-    # Number of UART peripherals
-    __UART_COUNT = 2
-    # Number of pulse generator peripherals
-    __PULSE_GENERATOR_COUNT = 4
-    # Number of I2C modules
-    __I2C_COUNT = 1
 
     def __init__(
         self,
@@ -2082,11 +2151,11 @@ class Scaffold(ArchBase):
             when multiple Scaffold boards are connected to the same computer.
         """
         super().__init__(
-            100e6,  # System frequency: 100 MHz
+            int(100e6),  # System frequency: 100 MHz
             "scaffold",  # board name
             # Supported FPGA bitstream versions
             [
-                parse_version(v)
+                PackagingVersion(v)
                 for v in (
                     "0.2",
                     "0.3",
@@ -2101,13 +2170,13 @@ class Scaffold(ArchBase):
                 )
             ],
         )
-        self.connect(dev, init_ios, sn)
+        self.connect(dev, sn, init_ios)
 
     def connect(
         self,
         dev: Optional[str] = None,
-        init_ios: bool = False,
         sn: Optional[str] = None,
+        init_ios: bool = False,
     ):
         """
         Connect to Scaffold board using the given serial port.
@@ -2125,6 +2194,9 @@ class Scaffold(ArchBase):
         """
         super().connect(dev, sn=sn)
 
+        # After a successful connection, the version should not be None
+        assert self.version is not None
+
         # Power module
         self.power = Power(self)
         # Leds module
@@ -2141,66 +2213,100 @@ class Scaffold(ArchBase):
             self.b1 = IO(self, "/io/b1", 3)
             self.c0 = IO(self, "/io/c0", 4)
             self.c1 = IO(self, "/io/c1", 5)
-            for i in range(self.__IO_D_COUNT):
-                self.__setattr__(f"d{i}", IO(self, f"/io/d{i}", i + 6))
+            offset = 6
+            self.d0 = IO(self, "/io/d0", 0 + offset)
+            self.d1 = IO(self, "/io/d1", 1 + offset)
+            self.d2 = IO(self, "/io/d2", 2 + offset)
+            self.d3 = IO(self, "/io/d3", 3 + offset)
+            self.d4 = IO(self, "/io/d4", 4 + offset)
+            self.d5 = IO(self, "/io/d5", 5 + offset)
+            self.d6 = IO(self, "/io/d6", 6 + offset)
+            self.d7 = IO(self, "/io/d7", 7 + offset)
+            self.d8 = IO(self, "/io/d8", 8 + offset)
+            self.d9 = IO(self, "/io/d9", 9 + offset)
+            self.d10 = IO(self, "/io/d10", 10 + offset)
+            self.d11 = IO(self, "/io/d11", 11 + offset)
+            self.d12 = IO(self, "/io/d12", 12 + offset)
+            self.d13 = IO(self, "/io/d13", 13 + offset)
+            self.d14 = IO(self, "/io/d14", 14 + offset)
+            self.d15 = IO(self, "/io/d15", 15 + offset)
+            self.d16 = IO(self, "/io/d16", 16 + offset)
         else:
-            self.a2 = IO(self, "/io/a2", 1)
-            self.a3 = IO(self, "/io/a3", 1)
-            for i in range(self.__IO_D_COUNT):
-                # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
-                self.__setattr__(
-                    f"d{i}", IO(self, f"/io/d{i}", i + 4, pullable=(i < 3))
-                )
+            self.a2 = IO(self, "/io/a2", 2)
+            self.a3 = IO(self, "/io/a3", 3)
+            offset = 4
+            # Only D0, D1 and D2 can be pulled in Scaffold hardware v1.1.
+            self.d0 = IO(self, "/io/d0", 0 + offset, pullable=True)
+            self.d1 = IO(self, "/io/d1", 1 + offset, pullable=True)
+            self.d2 = IO(self, "/io/d2", 2 + offset, pullable=True)
+            self.d3 = IO(self, "/io/d3", 3 + offset)
+            self.d4 = IO(self, "/io/d4", 4 + offset)
+            self.d5 = IO(self, "/io/d5", 5 + offset)
+            self.d6 = IO(self, "/io/d6", 6 + offset)
+            self.d7 = IO(self, "/io/d7", 7 + offset)
+            self.d8 = IO(self, "/io/d8", 8 + offset)
+            self.d9 = IO(self, "/io/d9", 9 + offset)
+            self.d10 = IO(self, "/io/d10", 10 + offset)
+            self.d11 = IO(self, "/io/d11", 11 + offset)
+            self.d12 = IO(self, "/io/d12", 12 + offset)
+            self.d13 = IO(self, "/io/d13", 13 + offset)
+            self.d14 = IO(self, "/io/d14", 14 + offset)
+            self.d15 = IO(self, "/io/d15", 15 + offset)
+            self.d16 = IO(self, "/io/d16", 16 + offset)
             if self.version >= parse_version("0.6"):
-                for i in range(self.__IO_P_COUNT):
-                    self.__setattr__(
-                        f"p{i}", IO(self, f"/io/p{i}", i + 4 + self.__IO_D_COUNT)
-                    )
+                offset = 4 + self.__IO_D_COUNT
+                self.p0 = IO(self, "/io/p0", 0 + offset)
+                self.p1 = IO(self, "/io/p1", 1 + offset)
+                self.p2 = IO(self, "/io/p2", 2 + offset)
+                self.p3 = IO(self, "/io/p3", 3 + offset)
+                self.p4 = IO(self, "/io/p4", 4 + offset)
+                self.p5 = IO(self, "/io/p5", 5 + offset)
+                self.p6 = IO(self, "/io/p6", 6 + offset)
+                self.p7 = IO(self, "/io/p7", 7 + offset)
+                self.p8 = IO(self, "/io/p8", 8 + offset)
+                self.p9 = IO(self, "/io/p9", 9 + offset)
+                self.p10 = IO(self, "/io/p10", 10 + offset)
+                self.p11 = IO(self, "/io/p11", 11 + offset)
+                self.p12 = IO(self, "/io/p12", 12 + offset)
+                self.p13 = IO(self, "/io/p13", 13 + offset)
+                self.p14 = IO(self, "/io/p14", 14 + offset)
+                self.p15 = IO(self, "/io/p15", 15 + offset)
+                self.p16 = IO(self, "/io/p16", 16 + offset)
 
         # Create the UART modules
-        self.uarts = []
-        for i in range(self.__UART_COUNT):
-            uart = UART(self, i)
-            self.uarts.append(uart)
-            self.__setattr__(f"uart{i}", uart)
+        self.uart0 = UART(self, 0)
+        self.uart1 = UART(self, 1)
+        self.uarts = [self.uart0, self.uart1]
 
         # Create the pulse generator modules
-        self.pgens = []
-        for i in range(self.__PULSE_GENERATOR_COUNT):
-            pgen = PulseGenerator(self, f"/pgen{i}", 0x0300 + 0x10 * i)
-            self.pgens.append(pgen)
-            self.__setattr__(f"pgen{i}", pgen)
+        self.pgen0 = PulseGenerator(self, 0, 0x0300 + 0x10 * 0)
+        self.pgen1 = PulseGenerator(self, 1, 0x0300 + 0x10 * 1)
+        self.pgen2 = PulseGenerator(self, 2, 0x0300 + 0x10 * 2)
+        self.pgen3 = PulseGenerator(self, 3, 0x0300 + 0x10 * 3)
+        self.pgens = [self.pgen0, self.pgen1, self.pgen2, self.pgen3]
 
         # Declare the I2C peripherals
-        self.i2cs = []
-        for i in range(self.__I2C_COUNT):
-            i2c = I2C(self, i)
-            self.i2cs.append(i2c)
-            self.__setattr__(f"i2c{i}", i2c)
+        self.i2c0 = I2C(self, 0)
+        self.i2cs = [self.i2c0]
 
         # Declare the SPI peripherals
-        self.spis = []
+        self.spis: list[SPI] = []
         if self.version >= parse_version("0.7"):
-            for i in range(1):
-                spi = SPI(self, i)
-                self.spis.append(spi)
-                self.__setattr__(f"spi{i}", spi)
+            self.spi0 = SPI(self, 0)
+            self.spis = [self.spi0]
 
         # Declare the trigger chain modules
-        self.chains = []
+        self.chains: list[Chain] = []
         if self.version >= parse_version("0.7"):
-            for i in range(2):
-                chain = Chain(self, i, 3)
-                self.chains.append(chain)
-                self.__setattr__(f"chain{i}", chain)
+            self.chain0 = Chain(self, 0, 3)
+            self.chain1 = Chain(self, 1, 3)
+            self.chains = [self.chain0, self.chain1]
 
         # Declare clock generation module
-        self.clocks = []
+        self.clocks: list[Clock] = []
         if self.version >= parse_version("0.7"):
-            for i in range(1):
-                clock = Clock(self, i)
-                self.clocks.append(clock)
-                self.__setattr__(f"clock{i}", clock)
+            self.clock0 = Clock(self, 0)
+            self.clocks = [self.clock0]
 
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
@@ -2241,12 +2347,12 @@ class Scaffold(ArchBase):
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
-        for i in range(self.__UART_COUNT):
+        for i in range(len(self.uarts)):
             self.add_mtxl_out(f"/uart{i}/rx")
         self.add_mtxl_out("/iso7816/io_in")
-        for i in range(self.__PULSE_GENERATOR_COUNT):
+        for i in range(len(self.pgens)):
             self.add_mtxl_out(f"/pgen{i}/start")
-        for i in range(self.__I2C_COUNT):
+        for i in range(len(self.i2cs)):
             self.add_mtxl_out(f"/i2c{i}/sda_in")
             self.add_mtxl_out(f"/i2c{i}/scl_in")
         for i in range(len(self.spis)):
@@ -2267,15 +2373,15 @@ class Scaffold(ArchBase):
         self.add_mtxr_in("1")
         self.add_mtxr_in("/power/dut_trigger")
         self.add_mtxr_in("/power/platform_trigger")
-        for i in range(self.__UART_COUNT):
+        for i in range(len(self.uarts)):
             self.add_mtxr_in(f"/uart{i}/tx")
             self.add_mtxr_in(f"/uart{i}/trigger")
         self.add_mtxr_in("/iso7816/io_out")
         self.add_mtxr_in("/iso7816/clk")
         self.add_mtxr_in("/iso7816/trigger")
-        for i in range(self.__PULSE_GENERATOR_COUNT):
+        for i in range(len(self.pgens)):
             self.add_mtxr_in(f"/pgen{i}/out")
-        for i in range(self.__I2C_COUNT):
+        for i in range(len(self.i2cs)):
             self.add_mtxr_in(f"/i2c{i}/sda_out")
             self.add_mtxr_in(f"/i2c{i}/scl_out")
             self.add_mtxr_in(f"/i2c{i}/trigger")
@@ -2312,7 +2418,7 @@ class Scaffold(ArchBase):
 
         self.reset_config(init_ios=init_ios)
 
-    def reset_config(self, init_ios=False):
+    def reset_config(self, init_ios: bool = False):
         """
         Reset the board to a default state.
         :param init_ios: True to enable I/Os peripherals initialization. Doing
@@ -2321,6 +2427,8 @@ class Scaffold(ArchBase):
             during initialization and keep the configuration set by previous
             sessions.
         """
+        assert self.version is not None
+
         # Reset to a default configuration
         self.timeout = None
         # Sometime we don't want the I/Os to be changed, since it may

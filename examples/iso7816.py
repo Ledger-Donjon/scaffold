@@ -28,34 +28,36 @@ scaffold = Scaffold()
 sc = Smartcard(scaffold)
 
 if not sc.card_inserted:
-    print('No card inserted')
+    print("No card inserted")
     sys.exit(1)
 
 scaffold.power.dut = 1
 atr = sc.reset()
-print('ATR: ' + atr.hex())
-print('Protocols: ' + ', '.join(f"T={x}" for x in sc.protocols))
+print("ATR: " + atr.hex())
+print("Protocols: " + ", ".join(f"T={x}" for x in sc.protocols))
 if 1 in sc.protocols:
+    assert sc.t1_redundancy_code is not None
     edc_dict = {
-        T1RedundancyCode.LRC: 'LRC (1 byte)',
-        T1RedundancyCode.CRC: 'CRC (2 bytes)'}
-    print('T1 redundancy code:', edc_dict[sc.t1_redundancy_code])
+        T1RedundancyCode.LRC: "LRC (1 byte)",
+        T1RedundancyCode.CRC: "CRC (2 bytes)",
+    }
+    print("T1 redundancy code:", edc_dict[sc.t1_redundancy_code])
 info = sc.find_info(allow_web_download=True)
 if info:
-    print('Card found in ATR list:')
+    print("Card found in ATR list:")
     for line in info:
-        print('  ' + line)
+        print("  " + line)
 else:
-    print('No info found on this card.')
+    print("No info found on this card.")
 
 while True:
     try:
-        apdu = bytes.fromhex(input('apdu$ '))
+        apdu = bytes.fromhex(input("apdu$ "))
     except ValueError:
-        print('Invalid input')
+        print("Invalid input")
         continue
     try:
-        response = sc.apdu(apdu, trigger='a')
+        response = sc.apdu(apdu, trigger="a")
         print(response.hex())
     except ProtocolError as e:
         print(e)

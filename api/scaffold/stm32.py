@@ -18,7 +18,8 @@
 
 
 from time import sleep
-from typing import List
+from typing import Any, Optional
+from scaffold import Scaffold
 
 
 class NACKError(Exception):
@@ -27,7 +28,7 @@ class NACKError(Exception):
     command.
     """
 
-    def __init__(self, tag=None):
+    def __init__(self, tag: Any = None):
         super().__init__("Device returned NACK to a command")
         self.tag = tag
 
@@ -35,7 +36,7 @@ class NACKError(Exception):
 class MemorySection:
     """Describes a memory section of a device."""
 
-    def __init__(self, start, end):
+    def __init__(self, start: int, end: int):
         """
         :param start: First address of the section.
         :param end: End address of the section (excluded from section, address
@@ -55,7 +56,13 @@ class MemorySection:
 class STM32Device:
     """Possible name and product ID tuple."""
 
-    def __init__(self, name, pid, memory_mapping, offset_rdp=0):
+    def __init__(
+        self,
+        name: str,
+        pid: int,
+        memory_mapping: dict[str, MemorySection],
+        offset_rdp: int = 0,
+    ):
         self.name = name
         self.pid = pid
         self.memory_mapping = memory_mapping
@@ -134,7 +141,7 @@ class STM32:
         STM32Device("STM32U59x/5Ax", 0x481, map_u5),
     ]
 
-    def __init__(self, scaffold):
+    def __init__(self, scaffold: Scaffold):
         """
         :param scaffold: An instance of :class:`scaffold.Scaffold` which will
             be configured and used to communicate with STM32 daughter board.
@@ -142,17 +149,17 @@ class STM32:
         self.scaffold = scaffold
         self.scaffold.timeout = 1
         self.nrst = scaffold.d2
-        self.uart = uart = scaffold.uart0
+        self.uart = scaffold.uart0
         self.boot0 = scaffold.d6
         self.boot1 = scaffold.d7
         # Connect the UART peripheral to D0 and D1.
-        uart.rx << scaffold.d1
-        scaffold.d0 << uart.tx
-        uart.baudrate = 115200
+        self.uart.rx << scaffold.d1
+        scaffold.d0 << self.uart.tx
+        self.uart.baudrate = 115200
         # Instance of STM32Device, set when reading the device ID.
-        self.device = None
+        self.device: Optional[STM32Device] = None
 
-    def checksum(self, data):
+    def checksum(self, data: bytes) -> int:
         """
         Calculate the checksum of some data, according to the STM32
         bootloader protocol.
@@ -174,13 +181,13 @@ class STM32:
         respond if it is locked in RDP2 state (Readout Protection level 2).
         """
         self.scaffold.power.dut = 0
-        self.boot0 << 1
-        self.boot1 << 0
-        self.nrst << 0
+        _ = self.boot0 << 1
+        _ = self.boot1 << 0
+        _ = self.nrst << 0
         sleep(0.1)
         self.scaffold.power.dut = 1
         sleep(0.1)
-        self.nrst << 1
+        _ = self.nrst << 1
         sleep(0.1)
         # Send 0x7f byte for initiating communication
         self.uart.flush()
@@ -192,16 +199,16 @@ class STM32:
         Power-cycle and reset target device and boot from user Flash memory.
         """
         self.scaffold.power.dut = 0
-        self.boot0 << 0
-        self.boot1 << 0
-        self.nrst << 0
+        _ = self.boot0 << 0
+        _ = self.boot1 << 0
+        _ = self.nrst << 0
         sleep(0.1)
         self.scaffold.power.dut = 1
         sleep(0.1)
-        self.nrst << 1
+        _ = self.nrst << 1
         sleep(0.1)
 
-    def command(self, index):
+    def command(self, index: int) -> bytes:
         """
         Send a command and return the response.
 
@@ -215,7 +222,7 @@ class STM32:
         assert data[-1] == self.ACK
         return data[0:-1]
 
-    def wait_ack(self, tag=None):
+    def wait_ack(self, tag: Optional[Any] = None):
         """
         Wait for ACK byte.
 
@@ -228,7 +235,7 @@ class STM32:
         if b != self.ACK:
             raise Exception(f"Received 0x{b:02x} byte instead of ACK or NACK.")
 
-    def wait_ack_or_nack(self):
+    def wait_ack_or_nack(self) -> bool:
         """
         Wait for ACK or NACK byte.
 
@@ -239,7 +246,7 @@ class STM32:
         assert b in (self.ACK, self.NACK)
         return b == self.ACK
 
-    def get(self):
+    def get(self) -> bytes:
         """
         Execute the Get command of the bootloader, which returns the version
         and the supported commands.
@@ -247,7 +254,7 @@ class STM32:
         response = self.command(0x00)
         return response
 
-    def get_id(self):
+    def get_id(self) -> int:
         """
         Execute the Get ID command. The result is interpreted and the class
         will try to find information if the ID matches a known device.
@@ -260,21 +267,23 @@ class STM32:
                 self.device = dev
         return pid
 
-    def get_version_and_read_protection_status(self):
+    def get_version_and_read_protection_status(self) -> bytes:
         self.uart.transmit(b"\x01\xfe")
         response = self.uart.receive(5)
         assert response[0] == self.ACK
         assert response[-1] == self.ACK
         return response[1:-1]
 
-    def read_memory(self, address, length, trigger=0):
+    def read_memory(
+        self, address: int, length: int, trigger: bool = False
+    ) -> bytes:
         """
         Tries to read some memory from the device. If requested size is larger
         than 256 bytes, many Read Memory commands are sent.
 
         :param address: Memory address to be read.
         :param size: Number of bytes to be read.
-        :param trigger: 1 to enable trigger on command transmission.
+        :param trigger: True to enable trigger on command transmission.
         """
         result = bytearray()
         remaining = length
@@ -284,19 +293,19 @@ class STM32:
             self.wait_ack()
             buf = bytearray(address.to_bytes(4, "big", signed=False))
             buf.append(self.checksum(buf))
-            self.uart.transmit(buf)
+            self.uart.transmit(bytes(buf))
             self.wait_ack()
             buf = bytearray()
             buf.append(chunk_size - 1)
             buf.append((chunk_size - 1) ^ 0xFF)
-            self.uart.transmit(buf)
+            self.uart.transmit(bytes(buf))
             self.wait_ack()
             result += self.uart.receive(chunk_size)
             remaining -= chunk_size
             address += chunk_size
         return result
 
-    def write_memory(self, address, data, trigger=0):
+    def write_memory(self, address: int, data: bytes, trigger: bool = False):
         """
         Write data to device memory. If target address is Flash memory, this
         function DOES NOT erase Flash memory prior to writing. If data size is
@@ -304,7 +313,7 @@ class STM32:
 
         :param address: Address.
         :param data: Data to be written. bytes or bytearray.
-        :param trigger: 1 to enable trigger on each command transmission.
+        :param trigger: True to enable trigger on each command transmission.
         """
         remaining = len(data)
         offset = 0
@@ -314,13 +323,13 @@ class STM32:
             self.wait_ack(0)
             buf = bytearray((address + offset).to_bytes(4, "big", signed=False))
             buf.append(self.checksum(buf))
-            self.uart.transmit(buf)
+            self.uart.transmit(bytes(buf))
             self.wait_ack(1)
             buf = bytearray()
             buf.append(chunk_size - 1)
             buf += data[offset : offset + chunk_size]
             buf.append(self.checksum(buf))
-            self.uart.transmit(buf)
+            self.uart.transmit(bytes(buf))
             self.wait_ack(2)
             offset += chunk_size
             remaining -= chunk_size
@@ -333,7 +342,7 @@ class STM32:
                 "device attribute."
             )
 
-    def read_option_bytes(self):
+    def read_option_bytes(self) -> bytes:
         """
         Read the option bytes of the device. The method get_id must have been
         called previously for device identification.
@@ -341,6 +350,7 @@ class STM32:
         :return: Memory content of 'option_bytes' section.
         """
         self.assert_device()  # We need the memory mapping
+        assert self.device is not None
         section = self.device.memory_mapping["option_bytes"]
         return self.read_memory(section.start, section.size)
 
@@ -369,7 +379,7 @@ class STM32:
             # Restore timeout setting, even if something bad happened!
             self.scaffold.timeout = previous_timeout
 
-    def write_protect(self, sectors: List[int]):
+    def write_protect(self, sectors: list[int]):
         """
         Execute Write Protect command.
 
@@ -383,7 +393,7 @@ class STM32:
         buf.append(len(sectors) - 1)
         buf += bytes(sectors)
         buf.append(self.checksum(buf))
-        self.uart.transmit(buf)
+        self.uart.transmit(bytes(buf))
         self.wait_ack()
 
     def write_unprotect(self):
@@ -403,7 +413,7 @@ class STM32:
         self.wait_ack()
         buf = bytearray(b"\xff\xff")
         buf.append(self.checksum(buf))
-        self.uart.transmit(buf, 1)
+        self.uart.transmit(bytes(buf), trigger=True)
         previous_timeout = self.scaffold.timeout
         self.scaffold.timeout = 30
         try:
@@ -428,16 +438,16 @@ class STM32:
         self.uart.transmit(b"\x00")
         self.wait_ack()
 
-    def go(self, address, trigger=0):
+    def go(self, address: int, trigger: bool = False):
         """
         Execute the Go command.
 
         :param address: Jump address.
-        :param trigger: 1 to enable trigger on command transmission.
+        :param trigger: True to enable trigger on command transmission.
         """
         self.uart.transmit(b"\x21\xde", trigger=trigger)
         self.wait_ack()
         buf = bytearray(address.to_bytes(4, "big", signed=False))
         buf.append(self.checksum(buf))
-        self.uart.transmit(buf)
+        self.uart.transmit(bytes(buf))
         self.wait_ack()

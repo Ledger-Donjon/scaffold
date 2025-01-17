@@ -18,13 +18,13 @@
 
 
 from enum import Enum
-from scaffold import Pull
-from typing import Tuple, List, Union, Optional
+from scaffold import Pull, Scaffold, ISO7816
+from typing import Callable, Union, Optional, cast
 from packaging.version import parse as parse_version
-from . import Scaffold
 import requests
 import crcmod
 from time import sleep
+from abc import ABC, abstractmethod
 
 
 class ProtocolError(Exception):
@@ -33,11 +33,11 @@ class ProtocolError(Exception):
     smartcard occurs.
     """
 
-    def __init__(self, message):
-        super().__init__(message)
+    def __init__(self, *message: object):
+        super().__init__(*message)
 
 
-class Convention(Enum):
+class Convention(int, Enum):
     """
     Possible ISO-7816 communication convention. This is given by the first byte
     of the ATR returned by the card.
@@ -63,7 +63,7 @@ class T1RedundancyCodeError(Exception):
     pass
 
 
-def inverse_byte(byte):
+def inverse_byte(byte: int) -> int:
     """
     Inverse order and polarity of bits in a byte. Used for ISO-7816 inverse
     convention decoding.
@@ -88,15 +88,22 @@ def apply_convention(data: bytes, convention: Convention) -> bytes:
 class ATRInfo:
     def __init__(self):
         self.atr = bytearray()
-        self.convention = None
-        self.protocols = set()
-        self.t_abcd_n = []
+        self.convention = Convention.DIRECT
+        self.protocols: set[int] = set()
+        self.t_abcd_n: list[list[Optional[int]]] = []
 
 
-class ScaffoldISO7816ByteReader:
+class ByteReader(ABC):
+    """Generic class for a reader"""
+
+    @abstractmethod
+    def read(self, n: int) -> bytes: ...
+
+
+class ScaffoldISO7816ByteReader(ByteReader):
     """Used for `parse_atr` function with a Scaffold device."""
 
-    def __init__(self, iso7816):
+    def __init__(self, iso7816: ISO7816):
         """:param iso7816: Scaffold ISO7816 module."""
         self.iso7816 = iso7816
         self.convention = Convention.DIRECT
@@ -105,7 +112,7 @@ class ScaffoldISO7816ByteReader:
         return apply_convention(self.iso7816.receive(n), self.convention)
 
 
-class BasicByteReader:
+class BasicByteReader(ByteReader):
     """Used for `parse_atr` function with a test vector."""
 
     def __init__(self, data: bytes):
@@ -113,13 +120,16 @@ class BasicByteReader:
 
     def read(self, n: int) -> bytes:
         if len(self.data) < n:
-            raise EOFError()
+            raise EOFError(
+                f"Not enough data: expected {n} bytes "
+                f"but got {repr(self.data.hex())} ({len(self.data)} bytes)"
+            )
         chunk = self.data[:n]
         self.data = self.data[n:]
         return chunk
 
 
-def parse_atr(reader) -> ATRInfo:
+def parse_atr(reader: ByteReader) -> ATRInfo:
     """
     ATR parsing function used by Smartcard class when reading a card ATR. The
     reader object passed in arguments allows unit testing with a list of ATR.
@@ -136,7 +146,8 @@ def parse_atr(reader) -> ATRInfo:
         info.convention = Convention(ts)
     except ValueError as e:
         raise ProtocolError(f"Invalid TS byte in ATR: 0x{ts:02x}") from e
-    reader.convention = info.convention
+    if isinstance(reader, ScaffoldISO7816ByteReader):
+        reader.convention = info.convention
     # Receive T0
     atr += reader.read(1)
     # Parse the rest of the ATR
@@ -146,7 +157,7 @@ def parse_atr(reader) -> ATRInfo:
         has_t_abcd = list(bool(td & (1 << (j + 4))) for j in range(4))
         count = has_t_abcd.count(True)
         atr += reader.read(count)
-        t_abcd = [None, None, None, None]
+        t_abcd: list[Optional[int]] = [None, None, None, None]
         offset = 0
         for j in range(4):
             if has_t_abcd[j]:
@@ -167,7 +178,21 @@ def parse_atr(reader) -> ATRInfo:
         info.protocols.add(0)
     # Fetch historical bytes
     # Number of historical bytes is the low nibble of T0
-    atr += reader.read(atr[1] & 0x0F)
+    num_historical_bytes = atr[1] & 0x0F
+    try:
+        atr += reader.read(num_historical_bytes)
+    except EOFError as e:
+        raise EOFError(
+            f"Not enough data for historical bytes in {atr.hex()}:"
+            + f" expected {num_historical_bytes}"
+            + (
+                f", got {len(reader.data)}"
+                if isinstance(reader, BasicByteReader)
+                else ""
+            )
+            + f": {str(e)}"
+        )
+
     # Parse TCK (check byte)
     # This byte is absent if only T=0 is supported
     if info.protocols != {0}:
@@ -191,7 +216,7 @@ class NoATRDatabase(Exception):
     pass
 
 
-def load_atr_info_db(allow_web_download: bool = False) -> List[Tuple[str, List[str]]]:
+def load_atr_info_db(allow_web_download: bool = False) -> list[tuple[str, list[str]]]:
     """
     Parse the smartcard ATR list database from Ludovic Rousseau to get list of
     known ATR.
@@ -211,7 +236,7 @@ def load_atr_info_db(allow_web_download: bool = False) -> List[Tuple[str, List[s
     :raises NoATRDatabase: When database file is missing and download is not
         allowed, or when database file is missing and download failed.
     """
-    tab = []
+    tab: list[tuple[str, list[str]]] = []
     try:
         text_file = open("/usr/share/pcsc/smartcard_list.txt", "r")
         # We don't want to keep end lines such as LR or CR LF
@@ -266,7 +291,7 @@ class Smartcard:
         integers, for instance 0 if T=0 is supported, 1 if T=1 is supported...
     """
 
-    def __init__(self, scaffold: Scaffold = None):
+    def __init__(self, scaffold: Optional[Scaffold] = None):
         """
         Configure a Scaffold board for use with smartcards.
 
@@ -279,19 +304,20 @@ class Smartcard:
         self.scaffold = scaffold
         self.sig_nrst = scaffold.d1
         self.sig_sense = scaffold.d3
-        self.sig_nrst << 1
+        _ = self.sig_nrst << 1
         # D0 is connected to a bidirectionnal bus. We enable the pull-up
         # resistor if hardware version is >= 1.1. For version 1.0, the pull-up
         # resistor must be soldered on the daughterboard.
         # 1.0 hardware version boards have <= 0.3 architecture version.
+        assert scaffold.version is not None
         if scaffold.version >= parse_version("0.3"):
             scaffold.d0.pull = Pull.UP
-        scaffold.d0 << scaffold.iso7816.io_out
-        scaffold.d0 >> scaffold.iso7816.io_in
-        scaffold.d2 << scaffold.iso7816.clk
-        self.atr = None
+        _ = scaffold.d0 << scaffold.iso7816.io_out
+        _ = scaffold.d0 >> scaffold.iso7816.io_in
+        _ = scaffold.d2 << scaffold.iso7816.clk
+        self.atr = bytearray()
         self.convention = Convention.DIRECT
-        self.crc16 = None
+        self.crc16: Optional[Callable[[bytearray], int]] = None
         self.t1_ns_tx = 0  # Sequence number for I-block tranmission in T=1
         self.t1_ns_rx = 0  # Sequence number for I-block reception in T=1
 
@@ -321,10 +347,10 @@ class Smartcard:
         :return: ATR from the card.
         :raises ProtocolError: if the ATR is not valid.
         """
-        self.sig_nrst << 0
+        _ = self.sig_nrst << 0
         sleep(0.05)
         self.iso7816.flush()
-        self.sig_nrst << 1
+        _ = self.sig_nrst << 1
         info = parse_atr(ScaffoldISO7816ByteReader(self.iso7816))
         self.atr = info.atr
         self.convention = info.convention
@@ -369,8 +395,10 @@ class Smartcard:
         :raises T1RedundancyCodeError: If LRC or CRC is wrong in T=1 protocol.
         :return: Response data, with status word.
         """
-        if type(the_apdu) is str:
+        if isinstance(the_apdu, str):
             the_apdu = bytes.fromhex(the_apdu)
+        the_apdu = cast(bytes, the_apdu)
+
         apdu_len = len(the_apdu)
         if apdu_len < 5:
             raise ValueError("APDU too short")
@@ -418,16 +446,16 @@ class Smartcard:
         # Transmit the header
         if "a" in trigger:
             self.iso7816.transmit(the_apdu[:4])
-            self.iso7816.trigger_long = 1
+            self.iso7816.trigger_long = True
             self.iso7816.transmit(the_apdu[4:5])
         else:
             # Send all the header at once
-            self.iso7816.trigger_long = 0
+            self.iso7816.trigger_long = False
             self.iso7816.transmit(the_apdu[:5])
         # Receive procedure byte
         procedure_byte = self.iso7816.receive(1)[0]
         if "a" in trigger:  # Disable only if enabled previously
-            self.iso7816.trigger_long = 0
+            self.iso7816.trigger_long = False
         while procedure_byte == 0x60:
             procedure_byte = self.iso7816.receive(1)[0]
         response = bytearray()
@@ -445,7 +473,7 @@ class Smartcard:
                 if "b" in trigger:
                     # Enable trigger on last byte only
                     self.iso7816.transmit(the_apdu[5:-1])
-                    self.iso7816.trigger_long = 1
+                    self.iso7816.trigger_long = True
                     self.iso7816.transmit(the_apdu[-1:])
                 else:
                     # Send all remaining data at once
@@ -453,7 +481,7 @@ class Smartcard:
             # Receive the response data and status word
             response += self.iso7816.receive(in_data_len + 2)
             if "b" in trigger:  # Disable only if enabled previously
-                self.iso7816.trigger_long = 0
+                self.iso7816.trigger_long = False
             return response
         else:
             raise RuntimeError(
@@ -473,6 +501,9 @@ class Smartcard:
         :raises ProtocolError: If an unpexpected response is received.
         """
         edc_len_dict = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}
+        assert self.t1_redundancy_code is not None
+
+        enable_trigger = trigger
 
         apdu_remaining = the_apdu
         while len(apdu_remaining):
@@ -507,7 +538,7 @@ class Smartcard:
         while has_more:
             block = self.receive_block()
             if enable_trigger:
-                self.iso7816.trigger_long = 0
+                self.iso7816.trigger_long = False
             pcb = block[1]
             if pcb & (1 << 7) == 0:  # I-block
                 # Check that the sequence number is correct
@@ -547,7 +578,7 @@ class Smartcard:
         """
         if pps1 not in range(0x100):
             raise ValueError("Invalid PPS1 value")
-        fi = [
+        fi: Optional[int] = [
             372,
             372,
             558,
@@ -588,6 +619,7 @@ class Smartcard:
             pck ^= b
         request.append(pck)
         # Send the request
+        request = request
         self.iso7816.transmit(request)
         # Get the response
         res = self.iso7816.receive(4, timeout=1)
@@ -598,7 +630,7 @@ class Smartcard:
         else:
             raise RuntimeError("PPS request failed")
 
-    def find_info(self, allow_web_download: bool = False) -> Optional[List[str]]:
+    def find_info(self, allow_web_download: bool = False) -> Optional[list[str]]:
         """
         Parse the smartcard ATR list database available at
         http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
@@ -664,8 +696,8 @@ class Smartcard:
             # I cannot tell if this is correct as it does not seem very well
             # documented and I don't have any card to test this...
             if self.crc16 is None:
-                self.crc16 = crcmod.mkCrcFun(0x11021, 0xFFFF, rev=False)
-            return self.crc16(data).to_bytes(2, "big")
+                self.crc16 = crcmod.mkCrcFun(0x11021, 0xFFFF, rev=False)  # type: ignore
+            return self.crc16(data).to_bytes(2, "big")  # type: ignore
         else:
             raise RuntimeError("invalid t1_redundancy_code value")
 
@@ -687,10 +719,10 @@ class Smartcard:
         data += self.calculate_edc(data)
         if trigger:
             self.iso7816.transmit(data[:-1])
-            self.iso7816.trigger_long = 1
+            self.iso7816.trigger_long = True
             self.iso7816.transmit(data[-1:])
         else:
-            self.iso7816.trigger_long = 0
+            self.iso7816.trigger_long = False
             self.iso7816.transmit(data)
 
     def receive_block(self) -> bytes:
@@ -704,6 +736,9 @@ class Smartcard:
             edc_len = 1
         elif self.t1_redundancy_code == T1RedundancyCode.CRC:
             edc_len = 2
+        else:
+            # This should not happen as we are receiving a T=1 block
+            assert False
         block += self.iso7816.receive(block[2] + edc_len)
         # Verify LRC/CRC
         if self.calculate_edc(block[:-edc_len]) != block[-edc_len:]:
