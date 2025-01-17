@@ -25,8 +25,8 @@ import serial.tools.list_ports_common
 from packaging.version import parse as parse_version, Version as PackagingVersion
 from .bus import ScaffoldBus, Register, TimeoutError
 
-# Dynamically managed by Peotry
-__version__ = "0.0.0"
+# Version of the Scaffold API
+__version__ = "0.9.3"
 
 # Prevent flake8 from complaining about unused import. This class is actually
 # re-exported. This should be improved in the future.

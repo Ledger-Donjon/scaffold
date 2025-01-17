@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "donjon-scaffold"
+packages = [{ include = "scaffold", from = "api" }]
+version = "0.0.0"
+description = "Python3 API for the Scaffold board"
+authors = [
+    "Olivier Hériveaux <olivier.heriveaux@ledger.fr>",
+    "Michaël Mouchous <michael.mouchous@ledger.fr>",
+    "Léo Benito <leo.benito@ledger.fr>",
+]
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+documentation = "https://donjonscaffold.readthedocs.io"
+repository = "https://github.com/Ledger-Donjon/scaffold/"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Security",
+    "Topic :: System :: Hardware",
+]
+keywords = ["scaffold", "donjon", "ledger"]
+
+
+[tool.poetry.dependencies]
+python = "^3.7"
+pyserial = "*"
+crcmod = "*"
+requests = "*"
+packaging = "*"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^6.0.0"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "*"
+sphinx_rtd_theme = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry-dynamic-versioning.substitution]
+files = ["api/scaffold/__init__.py"]
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
