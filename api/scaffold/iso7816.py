@@ -359,13 +359,18 @@ class Smartcard:
         # If T=1 is supported, read in TC1 the correct redundancy code to be
         # used
         if 1 in self.protocols:
-            tc1 = self.atr_info.t_abcd_n[0][2]
             self.t1_ns_tx = 0
             self.t1_ns_rx = 0
-            if tc1 is not None:
-                self.t1_redundancy_code = T1RedundancyCode(tc1 & 1)
-            else:
-                self.t1_redundancy_code = T1RedundancyCode.LRC
+
+            # LRC is default value
+            self.t1_redundancy_code = T1RedundancyCode.LRC
+            for i in range(2, len(self.atr_info.t_abcd_n)):
+                tci = self.atr_info.t_abcd_n[i][2]
+                tdi = self.atr_info.t_abcd_n[i][3]
+                if tdi is not None and (tdi & 0x0F) == 1 and tci is not None:
+                    # We found a byte specific for T=1 protocol
+                    self.t1_redundancy_code = T1RedundancyCode(tci & 1)
+                    break
         else:
             self.t1_redundancy_code = None
         # Verify that there are no more bytes
