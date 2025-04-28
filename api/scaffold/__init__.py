@@ -26,7 +26,7 @@ from packaging.version import parse as parse_version, Version as PackagingVersio
 from .bus import ScaffoldBus, Register, TimeoutError
 
 # Version of the Scaffold API
-__version__ = "0.9.3"
+__version__ = "0.9.4"
 
 # Prevent flake8 from complaining about unused import. This class is actually
 # re-exported. This should be improved in the future.
