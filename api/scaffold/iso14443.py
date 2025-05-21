@@ -17,7 +17,7 @@
 # Copyright 2025 Ledger SAS, written by Olivier Hériveaux
 
 
-from . import Scaffold, Pull, ISO14443Trigger
+from . import Scaffold, Pull
 from time import sleep
 from enum import Enum
 import crcmod
@@ -79,10 +79,12 @@ class TRF7970ARegister(int, Enum):
 
 class NFC:
     """
-    NFC daughterboard driver to enable ISO 14443 communication with contactless cards.
+    NFC daughterboard driver to enable ISO 14443 communication with contactless
+    cards.
 
-    Uses a special scaffold daughterboard with the Texas Instruments TRF7970A RFID chip as
-    a RF front-end. The chip is controlled via SPI using Scaffold SPI peripheral.
+    Uses a special scaffold daughterboard with the Texas Instruments TRF7970A
+    RFID chip as a RF front-end. The chip is controlled via SPI using Scaffold
+    SPI peripheral.
 
     The daughterboard has the following pinout:
 
@@ -116,8 +118,8 @@ class NFC:
         self.pin_en << 0
         self.pin_ss << 0
 
-        # According to the datasheet IO0, IO1 and IO2 must be tied to the following values
-        # to select SPI communication with Slave Select.
+        # According to the datasheet IO0, IO1 and IO2 must be tied to the
+        # following values to select SPI communication with Slave Select.
         self.pin_io0 << 0
         self.pin_io1 << 1
         self.pin_io2 << 1
@@ -163,15 +165,18 @@ class NFC:
         self.register_write(TRF7970ARegister.MODULATOR_AND_SYS_CLK_CONTROL, 0b00010001)
         self.register_write(TRF7970ARegister.ISO_CONTROL, 0b00001000)
         # Direct mode, RF ON, full output power
-        self.register_write(TRF7970ARegister.CHIP_STATUS_CONTROL, 0b00100001) # TODO bit 0 to 0
-        self.register_write(TRF7970ARegister.CHIP_STATUS_CONTROL, 0b01100001,
-            keep_ss_low=True)
+        # TODO bit 0 to 0
+        self.register_write(TRF7970ARegister.CHIP_STATUS_CONTROL, 0b00100001)
+        self.register_write(
+            TRF7970ARegister.CHIP_STATUS_CONTROL, 0b01100001,
+            keep_ss_low=True
+        )
         self.spi.transmit(0)
 
     def register_read(self, address: int) -> int:
         """
         Read a register of the TRF7970A front-end.
-        
+
         :param address: 5-bit address.
         """
         assert address in range(32)
@@ -180,11 +185,11 @@ class NFC:
         result = self.spi.transmit(0)
         self.pin_ss << 1
         return result
-    
+
     def register_write(self, address: int, value: int, keep_ss_low: bool = False):
         """
         Write a register of the TRF7970A front-end.
-        
+
         :param address: 5-bit address.
         :param value: Byte to be written.
         """

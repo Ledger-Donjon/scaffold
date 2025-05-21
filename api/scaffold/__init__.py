@@ -1631,7 +1631,7 @@ class ISO14443(Module):
     __REG_CONFIG_BIT_TRIGGER_LONG_EN = 3
 
     def __init__(self, parent):
-        super().__init__(parent, f"/iso14443")
+        super().__init__(parent, "/iso14443")
         # Declare the signals
         self.add_signals("tx", "trigger", "rx")
         # Declare the registers
@@ -1646,7 +1646,7 @@ class ISO14443(Module):
 
     def start(self):
         self.reg_control.write(
-            (1 << __REG_CONTROL_BIT_START) | (1 << __REG_CONTROL_BIT_FLUSH))
+            (1 << self.__REG_CONTROL_BIT_START) | (1 << self.__REG_CONTROL_BIT_FLUSH))
 
     def transmit_bits(self, bits: bytes):
         """
@@ -2403,7 +2403,7 @@ class Scaffold(ArchBase):
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
         if self.iso14443 is not None:
-            self.add_mtxl_out(f"/iso14443/rx")
+            self.add_mtxl_out("/iso14443/rx")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
