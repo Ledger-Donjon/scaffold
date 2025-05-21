@@ -215,7 +215,8 @@ class NFC:
     def reqa(self, read=True):
         """Sends REQA frame. Returns ATQA response bytes."""
         self.iso14443.transmit_short(0x26)
-        result = self.iso14443.receive(2, timeout=200e-6)
+        result = self.iso14443.receive(timeout=400e-6)
+        assert len(result) == 2
         return result
 
     def transmit_with_crc(self, data: bytes):

@@ -69,7 +69,7 @@ begin
         lpm_type => "scfifo",
         intended_device_family => "Cyclone IV E",
         add_ram_output_register => "ON",
-        lpm_numwords => 4096,
+        lpm_numwords => 4095,
         -- Disable showahead for more performance
         lpm_showahead => "OFF",
         lpm_width => 1,

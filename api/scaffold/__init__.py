@@ -1620,8 +1620,9 @@ class ISO14443(Module):
     ISO 14443-A module of Scaffold.
     """
 
-    __REG_STATUS_BIT_BUSY = 0
-    __REG_STATUS_BIT_EMPTY = 1
+    __REG_STATUS_BIT_TX_BUSY = 0
+    __REG_STATUS_BIT_RX_BUSY = 1
+    __REG_STATUS_BIT_EMPTY = 2
     __REG_CONTROL_BIT_START = 0
     __REG_CONTROL_BIT_FLUSH = 1
     __REG_CONFIG_BIT_POLARITY = 7
@@ -1686,18 +1687,61 @@ class ISO14443(Module):
         self.reg_data.write(patterns)
         self.reg_control.write(3)
 
-    def receive_bits(self, n=1, timeout=10):
-        with self.parent.timeout_section(timeout):
-            return self.reg_data.read(
-                n,
-                self.reg_status.poll(
-                    mask=(1 << self.__REG_STATUS_BIT_EMPTY), value=0x00
-                ),
-            )
+    def receive_bits(self, timeout=10):
+        """
+        Reads all bits received in the reception FIFO.
+        """
+        # We don't know yet how many bits are available in the FIFO, and we
+        # want to read them all as fast as possible. Reading the data register
+        # returns one received bit and other informations that will help us to
+        # have low latency:
+        # - bit 1 is 1 if the FIFO is empty,
+        # - bits 7 to 2 hints how many bytes are still in the FIFO (value gives
+        #   a range in multiple of 64).
+        # Therefore a good strategy is:
+        # - Read a first chunk and estimate how many bytes are still in the
+        #   FIFO.
+        # - If there are other bits in the FIFO, read all the rest with a
+        #   single read command.
+        # - Discard all bits that are invalid using the fifo emptyness flag.
 
-    def receive(self, n=1, timeout=10) -> bytes:
+        # Read 64 bits from the FIFO.
+        # We wait for the reception hardware to say it has finished receiving.
+        with self.parent.timeout_section(timeout):
+            data = self.reg_data.read(
+                64,
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_RX_BUSY), value=0
+                    ),
+                )
+        # Look at last received byte to know if there are more, and how many
+        # about.
+        if (data[-1] & 2) == 0:
+            count = (data[-1] >> 2) * 64 + 63
+            # Fetch the remaining
+            data += self.reg_data.read(count)
+
+        # Strip invalid bits
+        count = 0
+        end = False
+        for (i, b) in enumerate(data):
+            if not end:
+                if b & 2 == 2:
+                    end = True
+                else:
+                    count = i + 1
+            else:
+                assert b & 2 == 2
+        data = data[:count]
+        bits = bytes(b & 1 for b in data)
+        return bits
+
+    def receive(self, timeout=10) -> bytes:
+        """
+        Reads all bytes received in the reception FIFO.
+        """
         # 1 start bit, 9 bits per byte with parity
-        bits = self.receive_bits(1 + n * 9, timeout=timeout)
+        bits = self.receive_bits(timeout=timeout)
         assert bits[0] == 1
         bits = bits[1:]
         result = bytearray()

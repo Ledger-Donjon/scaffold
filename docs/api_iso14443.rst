@@ -9,10 +9,6 @@ This API provides support for ISO7816 support with Scaffold.
     :special-members: __init__
     :members:
 
-.. autoclass:: ISO14443Trigger
-    :members:
-    :undoc-members:
-
 .. autoclass:: TRF7970ACommand
     :members:
     :undoc-members:

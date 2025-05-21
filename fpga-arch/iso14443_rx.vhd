@@ -206,12 +206,14 @@ port (
     -- Received bit valud. Valid when bit_valid is high.
     bit_out: out std_logic;
     -- High during one clock cycle when reception starts.
-    trigger_start: out std_logic );
+    trigger_start: out std_logic;
+    -- High during one clock cycle when reception ends.
+    trigger_end: out std_logic );
 end;
 
 
 architecture behavior of iso14443_rx is
-    type state_t is (st_idle, st_receiving, st_decode);
+    type state_t is (st_idle, st_receiving, st_decode, st_end);
     -- Current FSM state.
     signal state: state_t;
     -- Enables the sampler.
@@ -296,16 +298,23 @@ begin
                     if valid_encoding = '1' then
                         state <= st_receiving;
                     else
-                        state <= st_idle;
+                        state <= st_end;
                     end if;
                     samples <= "00000000000000001";
                     bit_valid <= valid_encoding;
                     bit_out <= manchester_1;
+
+                when st_end =>
+                    state <= st_idle;
+                    samples <= samples;
+                    bit_valid <= '0';
+                    bit_out <= '0';
             end case;
         end if;
     end process;
 
     sampler_enable <= '1' when state /= st_idle else '0';
+    trigger_end <= '1' when state = st_end else '0';
     
     -- At the end of one bit, for ISO-14443 type A, samples can look like this:
     -- (without MSB used for counting):

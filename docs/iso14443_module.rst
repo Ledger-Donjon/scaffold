@@ -35,14 +35,16 @@ Internal registers
 status register
 ^^^^^^^^^^^^^^^
 
-+---+---+---+---+---+---+----------+------+
-| 7 | 6 | 5 | 4 | 3 | 2 | 1        | 0    |
-+---+---+---+---+---+---+----------+------+
-| *reserved*            | rx_empty | busy |
-+-----------------------+----------+------+
++---+---+---+---+---+----------+---------+---------+
+| 7 | 6 | 5 | 4 | 3 | 2        | 1       | 0       |
++---+---+---+---+---+----------+---------+---------+
+| *reserved*        | rx_empty | rx_busy | tx_busy |
++-------------------+----------+---------+---------+
 
-busy
+tx_busy
   1 when a transmission is ongoing.
+rx_busy
+  1 when a reception is enabled, 0 when it has finished.
 rx_empty
   1 when RX FIFO is empty.
 
@@ -95,13 +97,13 @@ polarity
 data register
 ^^^^^^^^^^^^^
 
-+-------+---+---+---+---+---+---+---+-----+
-|       | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0   |
-+-------+---+---+---+---+---+---+---+-----+
-| write | *reserved*            | pattern |
-+-------+-----------------------+---+-----+
-| read  | *reserved*                | bit |
-+-------+---------------------------+-----+
++-------+---+---+---+---+---+---+---+------------+
+|       | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0          |
++-------+---+---+---+---+---+---+---+------------+
+| write | *reserved*            | pattern        |
++-------+-----------------------+----------+-----+
+| read  | size_hint             | rx_empty | bit |
++-------+-----------------------+----------+-----+
 
 Writing to this register pushes in the FIFO a pattern to be transmitted. The
 pattern field is encoded as this:
@@ -114,4 +116,19 @@ pattern field is encoded as this:
 Up to 2048 patterns can be pushed in the FIFO. When all patterns have been
 loaded, transmission can start by writting to the control register.
 
-Reading this register returns the received bits (1 bit per read, stored on LSB).
+Reading this register pops the lastest bit stored in the reception FIFO and
+returns the following information:
+
+bit:
+  Oldest received bit.
+rx_empty:
+  True if the FIFO is empty. False if it contains bits (before the actual
+  read).
+size_hint:
+  Hints how many bits are stored in the FIFO. 0 means FIFO has from 0 to 63
+  elements, 1 means FIFO has from 64 to 127 elements, etc. Maximum value is
+  63, which means FIFO has from 4032 to 4095 elements.
+
+The rx_empty and size_hint fields helps the software to read the correct amount
+of received data with minimizing the number of requests to the board and
+therefore reducing the response reading latency.
