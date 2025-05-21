@@ -84,7 +84,7 @@ control register
 | *reserved*                | flush |
 +---------------------------+-------+
 
-clear
+flush
   Write this bit to 1 to flush the reception FIFO memory.
 
 config register

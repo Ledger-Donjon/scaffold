@@ -88,10 +88,19 @@ set_location_assignment PIN_113 -to io[32]
 set_location_assignment PIN_115 -to io[33]
 set_location_assignment PIN_125 -to io[34]
 set_location_assignment PIN_120 -to io[35]
-set_global_assignment -name LAST_QUARTUS_VERSION "21.1.1 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name VHDL_FILE iso14443_rx.vhd
+set_global_assignment -name VHDL_FILE iso14443_rx_fifo.vhd
+set_global_assignment -name VHDL_FILE iso14443_tx_fifo.vhd
+set_global_assignment -name VHDL_FILE iso14443_tx.vhd -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE iso14443_module.vhd
 set_global_assignment -name VHDL_FILE buffered_uart_rx.vhd
 set_global_assignment -name VHDL_FILE buffered_uart_tx.vhd
 set_global_assignment -name VHDL_FILE spi_slave.vhd
@@ -134,8 +143,4 @@ set_global_assignment -name VHDL_FILE uart_module.vhd
 set_global_assignment -name VHDL_FILE uart_rx.vhd
 set_global_assignment -name VHDL_FILE uart_tx.vhd
 set_global_assignment -name VHDL_FILE version_module.vhd
-set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
-set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
-set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
-set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

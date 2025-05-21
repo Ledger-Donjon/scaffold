@@ -22,12 +22,13 @@ the signal `output_c` in the example above.
 
    I/Os <ios.rst>
    UART <uart_module.rst>
-   Power <power_module.rst>
-   LEDs <leds_module.rst>
-   ISO7816 <iso7816_module.rst>
    I2C <i2c_module.rst>
    SPI <spi_module.rst>
+   ISO7816 (contact smartcards) <iso7816_module.rst>
+   ISO14443 (contactless smartcards) <iso14443_module.rst>
    Pulse generator <pulse_generator_module.rst>
    Clock generator <clock_module.rst>
+   Power <power_module.rst>
    Chain triggers <chain_module.rst>
+   LEDs <leds_module.rst>
    Version <version_module.rst>

@@ -1010,7 +1010,7 @@ class ISO7816(Module):
 
     @trigger_long.setter
     def trigger_long(self, value):
-        # We want until transmission is ready to avoid triggering on a pending
+        # We wait until transmission is ready to avoid triggering on a pending
         # one.
         self.reg_config.set_bit(
             self.__REG_CONFIG_TRIGGER_LONG,
@@ -1605,6 +1605,142 @@ class Clock(Module):
         self.reg_count.set(value)
 
 
+class ISO14443Trigger(int, Enum):
+    """Triggering modes for ISO-14443 peripheral."""
+    NONE = 0,
+    START = 1,
+    END = 2,
+    RX = 4,
+    START_LONG = 9
+    END_LONG = 10
+
+
+class ISO14443(Module):
+    """
+    ISO 14443-A module of Scaffold.
+    """
+
+    __REG_STATUS_BIT_BUSY = 0
+    __REG_STATUS_BIT_EMPTY = 1
+    __REG_CONTROL_BIT_START = 0
+    __REG_CONTROL_BIT_FLUSH = 1
+    __REG_CONFIG_BIT_POLARITY = 7
+    __REG_CONFIG_BIT_TRIGGER_TX_START_EN = 0
+    __REG_CONFIG_BIT_TRIGGER_TX_END_EN = 1
+    __REG_CONFIG_BIT_TRIGGER_RX_START_EN = 2
+    __REG_CONFIG_BIT_TRIGGER_LONG_EN = 3
+
+    def __init__(self, parent):
+        super().__init__(parent, f"/iso14443")
+        # Declare the signals
+        self.add_signals("tx", "trigger", "rx")
+        # Declare the registers
+        self.__addr_base = base = 0x0b00
+        self.add_register("status", "rv", base)
+        self.add_register("control", "w", base + 1)
+        self.add_register("config", "w", base + 2, reset=0)
+        self.add_register("data", "rwv", base + 3)
+
+    def reset(self):
+        self.reg_config.set(1 << self.__REG_CONFIG_BIT_POLARITY)
+
+    def start(self):
+        self.reg_control.write(
+            (1 << __REG_CONTROL_BIT_START) | (1 << __REG_CONTROL_BIT_FLUSH))
+
+    def transmit_bits(self, bits: bytes):
+        """
+        Transmits a frame.
+
+        :param bits: Bits to be transmitted. Does not include start and stop bits. Must
+            includes parity bits. Each element of this bytes object must be 0 or 1.
+        """
+        patterns = bytearray()
+        # Symbols "X", "Y" and "Z" for type A according to ISO 14443-2
+        seq_x = 0b10
+        seq_y = 0b11
+        seq_z = 0b01
+        # Append start bit
+        patterns.append(seq_z)
+        previous_bit = 0
+        # Append symbols for all bits following the miller encoding.
+        for bit in bits:
+            assert bit in (0, 1)
+            if bit == 1:
+                seq = seq_x
+            elif previous_bit == 0:
+                seq = seq_z
+            else:
+                seq = seq_y
+            patterns.append(seq)
+            previous_bit = bit
+        # Append end of communication
+        if previous_bit == 0:
+            seq = seq_z
+        else:
+            seq = seq_y
+        patterns.append(seq)
+        patterns.append(seq_y)
+        # Send patterns to Scaffold board and trigger transmission.
+        # Flush RX fifo as well.
+        self.reg_data.write(patterns)
+        self.reg_control.write(3)
+
+    def receive_bits(self, n=1, timeout=10):
+        with self.parent.timeout_section(timeout):
+            return self.reg_data.read(
+                n,
+                self.reg_status.poll(
+                    mask=(1 << self.__REG_STATUS_BIT_EMPTY), value=0x00
+                ),
+            )
+
+    def receive(self, n=1, timeout=10) -> bytes:
+        # 1 start bit, 9 bits per byte with parity
+        bits = self.receive_bits(1 + n * 9, timeout=timeout)
+        assert bits[0] == 1
+        bits = bits[1:]
+        result = bytearray()
+        while len(bits) > 0:
+            b = 0
+            p = 1
+            for i in range(8):
+                b += bits[i] << i
+                p ^= bits[i]
+            assert p == bits[8]  # Check parity bit
+            bits = bits[9:]
+            result.append(b)
+        return bytes(result)
+
+    def transmit(self, data: bytes):
+        """
+        Transmits a frame.
+        """
+        bits = bytearray()
+        for byte in data:
+            parity_bit = 1
+            for i in range(8):
+                bit = (byte >> i & 1)
+                parity_bit ^= bit
+                bits.append(bit)
+            bits.append(parity_bit)
+        self.transmit_bits(bits)
+
+    def transmit_short(self, byte: int):
+        """Transmits a short frame (7-bits)."""
+        assert byte < 128
+        bits = bytes((byte >> i) & 1 for i in range(7))
+        self.transmit_bits(bits)
+
+    @property
+    def trigger_mode(self) -> ISO14443Trigger:
+        return ISO14443Trigger(self.reg_config.get() & 0xf)
+
+    @trigger_mode.setter
+    def trigger_mode(self, value: ISO14443Trigger):
+        self.reg_config.set_mask(value, 0xf)
+
+
 class IOMode(Enum):
     AUTO = 0
     OPEN_DRAIN = 1
@@ -2098,6 +2234,7 @@ class Scaffold(ArchBase):
                     "0.7.2",
                     "0.8",
                     "0.9",
+                    "0.10"
                 )
             ],
         )
@@ -2205,6 +2342,12 @@ class Scaffold(ArchBase):
         # Create the ISO7816 module
         self.iso7816 = ISO7816(self)
 
+        # Create the ISO 14443-A module
+        if self.version >= parse_version("0.10"):
+            self.iso14443 = ISO14443(self)
+        else:
+            self.iso14443 = None
+
         # FPGA left matrix input signals
         self.add_mtxl_in("0")
         self.add_mtxl_in("1")
@@ -2259,6 +2402,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_out(f"/chain{i}/event{j}")
         for i in range(len(self.clocks)):
             self.add_mtxl_out(f"/clock{i}/glitch")
+        if self.iso14443 is not None:
+            self.add_mtxl_out(f"/iso14443/rx")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus
@@ -2290,6 +2435,9 @@ class Scaffold(ArchBase):
             self.add_mtxr_in(f"/chain{i}/trigger")
         for i in range(len(self.clocks)):
             self.add_mtxr_in(f"/clock{i}/out")
+        if self.version >= parse_version("0.10"):
+            self.add_mtxr_in("/iso14443/tx")
+            self.add_mtxr_in("/iso14443/trigger")
 
         # FPGA right matrix output signals
         self.add_mtxr_out("/io/a0")
@@ -2355,3 +2503,5 @@ class Scaffold(ArchBase):
             i2c.reset_config()
         for spi in self.spis:
             spi.reset_registers()
+        if self.iso14443 is not None:
+            self.iso14443.reset()

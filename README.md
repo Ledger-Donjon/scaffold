@@ -17,6 +17,7 @@ The FPGA architecture runs at 100 MHz and embeds many peripherals:
 - 2 x UART,
 - I2C (master),
 - ISO7816 (master),
+- ISO14443 (NFC daughterboard)
 - SPI (master),
 - Power supply controllers for each evaluation socket,
 - 4 x Delay and pulse generators with 10 ns resolution

@@ -151,7 +151,8 @@ architecture behavior of system is
         + 1 -- I2C trigger
         + 1 -- SPI trigger
         + pulse_gen_count -- Pulse generator outputs
-        + chain_count; -- Chain trigger
+        + chain_count -- Chain trigger
+        + 1; -- ISO 14443-A trigger
     signal mtxl_in: std_logic_vector(mtxl_in_count-1 downto 0);
 
     -- Left matrix outputs. Inputs of modules.
@@ -161,7 +162,8 @@ architecture behavior of system is
         + 2 -- I2C
         + 1 -- SPI
         + 2 -- SPI slave
-        + 1; -- Clock
+        + 1 -- Clock
+        + 1; -- ISO14443
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
@@ -174,6 +176,7 @@ architecture behavior of system is
     signal mtxl_out_clock_glitch_start: std_logic;
     signal mtxl_out_chain_events:
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
+    signal mtxl_out_iso14443_rx: std_logic;
 
     -- Right matrix inputs. Output of modules.
     -- Each output wire has two signals: a value and an output enable.
@@ -184,7 +187,8 @@ architecture behavior of system is
         + 3 -- I2C module
         + 4 -- SPI module
         + 1 -- SPI slave module
-        + 1; -- Clock
+        + 1 -- Clock
+        + 2; -- ISO 14443-A
     signal mtxr_in: tristate_array_t(mtxr_in_count-1 downto 0);
     signal mtxr_in_uart_tx: std_logic_vector(uart_count-1 downto 0);
     signal mtxr_in_uart_trigger: std_logic_vector(uart_count-1 downto 0);
@@ -204,6 +208,8 @@ architecture behavior of system is
     signal mtxr_in_spi_slave_miso: std_logic;
     signal mtxr_in_clock_out: std_logic;
     signal mtxr_in_chain_out: std_logic_vector(chain_count-1 downto 0);
+    signal mtxr_in_iso14443_tx: std_logic;
+    signal mtxr_in_iso14443_trigger: std_logic;
 
     -- Output signals of the output matrix
     constant mtxr_out_count: positive := io_count;
@@ -258,6 +264,10 @@ architecture behavior of system is
     constant addr_clock_divisor_a: address_t := x"0a01";
     constant addr_clock_divisor_b: address_t := x"0a02";
     constant addr_clock_count: address_t := x"0a03";
+    constant addr_iso14443_status: address_t := x"0b00";
+    constant addr_iso14443_control: address_t := x"0b01";
+    constant addr_iso14443_config: address_t := x"0b02";
+    constant addr_iso14443_data: address_t := x"0b03";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -307,6 +317,10 @@ architecture behavior of system is
     signal en_clock_divisor_a: std_logic;
     signal en_clock_divisor_b: std_logic;
     signal en_clock_count: std_logic;
+    signal en_iso14443_status: std_logic;
+    signal en_iso14443_control: std_logic;
+    signal en_iso14443_config: std_logic;
+    signal en_iso14443_data: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -323,7 +337,8 @@ architecture behavior of system is
         + 1 -- Power control
         + 2 -- ISO7816 status and data
         + 4 -- I2C
-        + 2; -- SPI
+        + 2 -- SPI
+        + 2; -- ISO14443
     signal reg_io_value: std_logic_vector_array_t(io_count-1 downto 0)
         (7 downto 0);
     signal reg_version_data: byte_t;
@@ -335,6 +350,7 @@ architecture behavior of system is
     signal reg_power_control: byte_t;
     signal reg_i2c_status, reg_i2c_data, reg_i2c_size_h, reg_i2c_size_l: byte_t;
     signal reg_spi_status, reg_spi_data: byte_t;
+    signal reg_iso14443_status, reg_iso14443_data: byte_t;
 
     -- State of the LEDs (when override is disabled in LEDs module).
     signal leds: std_logic_vector(23 downto 0);
@@ -434,6 +450,10 @@ begin
     en_clock_divisor_a <= addr_en(bus_in, addr_clock_divisor_a);
     en_clock_divisor_b <= addr_en(bus_in, addr_clock_divisor_b);
     en_clock_count <= addr_en(bus_in, addr_clock_count);
+    en_iso14443_status <= addr_en(bus_in, addr_iso14443_status);
+    en_iso14443_control <= addr_en(bus_in, addr_iso14443_control);
+    en_iso14443_config <= addr_en(bus_in, addr_iso14443_config);
+    en_iso14443_data <= addr_en(bus_in, addr_iso14443_data);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -461,7 +481,9 @@ begin
             reg_iso7816_status &
             reg_iso7816_data &
             reg_spi_status &
-            reg_spi_data,
+            reg_spi_data &
+            reg_iso14443_status &
+            reg_iso14443_data,
         enables =>
             en_io_value &
             en_pulse_gen_status &
@@ -476,7 +498,9 @@ begin
             en_iso7816_status &
             en_iso7816_data &
             en_spi_status &
-            en_spi_data,
+            en_spi_data &
+            en_iso14443_status &
+            en_iso14443_data,
         value => bus_out.read_data );
 
     -- I/O modules
@@ -520,7 +544,7 @@ begin
 
     -- Version module
     e_version_module: entity work.version_module
-    generic map (version => "scaffold-0.9")
+    generic map (version => "scaffold-0.10")
     port map (
         clock => clock,
         reset_n => reset_n,
@@ -694,6 +718,21 @@ begin
         output => mtxr_in_clock_out,
         glitch_start => mtxl_out_clock_glitch_start );
 
+    -- ISO 14443-A module
+    e_iso14443: entity work.iso14443_module
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        bus_in => bus_in,
+        en_control => en_iso14443_control,
+        en_config => en_iso14443_config,
+        en_data => en_iso14443_data,
+        reg_status => reg_iso14443_status,
+        reg_data => reg_iso14443_data,
+        tx => mtxr_in_iso14443_tx,
+        rx => mtxl_out_iso14443_rx,
+        trigger => mtxr_in_iso14443_trigger );
+
     -- Left matrix module
     e_left_matrix_module: entity work.left_matrix_module
     generic map (
@@ -733,6 +772,8 @@ begin
         end loop;
         mtxl_out_clock_glitch_start <= mtxl_out(i);
         i := i + 1;
+        mtxl_out_iso14443_rx <= mtxl_out(i);
+        i := i + 1;
         assert i = mtxl_out_count;
     end process;
 
@@ -740,6 +781,7 @@ begin
     -- mtxr signals are feedback outputs of modules.
     -- Warning: signals order is inversed regarding Python API code.
     mtxl_in <=
+        mtxr_in_iso14443_trigger &
         mtxr_in_chain_out &
         mtxr_in_pulse_gen_out &
         mtxr_in_spi_trigger &
@@ -783,7 +825,9 @@ begin
         mtxr_in_spi_trigger,
         mtxr_in_spi_slave_miso,
         mtxr_in_chain_out,
-        mtxr_in_clock_out )
+        mtxr_in_clock_out,
+        mtxr_in_iso14443_tx,
+        mtxr_in_iso14443_trigger )
         variable i: integer;
     begin
         mtxr_in(0) <= "00"; -- Z
@@ -831,6 +875,10 @@ begin
         -- Clock module
         mtxr_in(i) <= "1" & mtxr_in_clock_out;
         i := i + 1;
+        -- ISO 14443-A module
+        mtxr_in(i) <= "1" & mtxr_in_iso14443_tx;
+        mtxr_in(i+1) <= "1" & mtxr_in_iso14443_trigger;
+        i := i + 2;
         -- If you add other signals, please dont forget to update the sensivity
         -- list for simulation support.
         assert i = mtxr_in_count;
