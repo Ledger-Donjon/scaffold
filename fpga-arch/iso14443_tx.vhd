@@ -75,13 +75,19 @@ port (
     start: in std_logic;
     -- High when ready to accept next symbol.
     ready: out std_logic;
+    -- High to resynchronize to external 13.56 MHz clock.
+    use_sync: in std_logic;
+    -- External 13.56 MHz clock.
+    clock_13_56: in std_logic;
+    -- High during one clock cycle when transmission starts.
+    trigger_start: out std_logic;
     -- Modulation output.
     tx: out std_logic );
 end;
 
 architecture behavior of iso14443_sequencer is
     -- FSM states
-    type state_t is (st_idle, st_moment_1, st_moment_2, st_moment_3, st_moment_4);
+    type state_t is (st_idle, st_sync, st_trigger_start, st_moment_1, st_moment_2, st_moment_3, st_moment_4);
     -- Current FSM state
     signal state: state_t;
     -- Counter for generating 4 ticks per ETU.
@@ -93,6 +99,8 @@ architecture behavior of iso14443_sequencer is
     signal tick: std_logic;
     -- Fetched symbol to be generated.
     signal shift_reg: std_logic_vector(3 downto 0);
+    -- Clock synchronization output.
+    signal sync_go: std_logic;
 begin
 
     p_state: process (clock, reset_n)
@@ -104,10 +112,20 @@ begin
                 -- Waiting for start request.
                 when st_idle =>
                     if start = '1' then
-                        state <= st_moment_1;
+                        state <= st_sync;
                     else
                         state <= st_idle;
                     end if;
+
+                when st_sync =>
+                    if (sync_go = '1') or (use_sync = '0') then
+                        state <= st_trigger_start;
+                    else
+                        state <= st_sync;
+                    end if;
+
+                when st_trigger_start =>
+                    state <= st_moment_1;
 
                 when st_moment_1 =>
                     if tick = '1' then
@@ -147,13 +165,20 @@ begin
         end if;
     end process;
 
-    p_ticks: process (clock, reset_n)
+    e_sync: entity work.iso14443_clock_sync
+    port map (
+        clock => clock,
+        reset_n => reset_n,
+        clock_13_56 => clock_13_56,
+        go => sync_go );
+
+    p_ticks: process (clock, reset_n) is
     begin
         if reset_n = '0' then
             tick_counter <= to_unsigned(235, tick_counter'length);
         elsif rising_edge(clock) then
             case state is
-                when st_idle =>
+                when st_idle | st_sync | st_trigger_start =>
                     tick_counter <= to_unsigned(235, tick_counter'length);
                 when st_moment_1 | st_moment_2 | st_moment_3 | st_moment_4 =>
                     if tick_counter = 0 then
@@ -192,6 +217,8 @@ begin
                     else
                         shift_reg <= shift_reg;
                     end if;
+                when st_sync | st_trigger_start =>
+                    shift_reg <= shift_reg;
                 when st_moment_1 | st_moment_2 | st_moment_3 =>
                     if tick = '1' then
                         -- Shift left, input '1' from the right.
@@ -210,6 +237,7 @@ begin
     end process;
 
     tx <= shift_reg(3);
+    trigger_start <= '1' when state = st_trigger_start else '0';
 end;
 
 
@@ -238,6 +266,10 @@ port (
     -- Polarity bit to negate the output if necessary, depending on the radio
     -- front-end.
     polarity: std_logic;
+    -- High to resynchronize to external 13.56 MHz clock.
+    use_sync: in std_logic;
+    -- External 13.56 MHz clock.
+    clock_13_56: in std_logic;
     -- When high, push pattern in the FIFO.
     push: in std_logic;
     -- When high, start transmission.
@@ -361,7 +393,10 @@ begin
         symbol => next_symbol,
         start => seq_start,
         ready => seq_ready,
-        tx => seq_tx );
+        use_sync => use_sync,
+        clock_13_56 => clock_13_56,
+        tx => seq_tx,
+        trigger_start => trigger_start );
 
     -- Register the output
     p_seq_tx_reg: process (clock, reset_n)
@@ -377,15 +412,8 @@ begin
     p_triggers: process (clock, reset_n)
     begin
         if reset_n = '0' then
-            trigger_start <= '0';
             trigger_end <= '0';
         elsif rising_edge(clock) then
-            if (state = st_idle) and (start = '1') and (fifo_empty = '0') then
-                trigger_start <= '1';
-            else
-                trigger_start <= '0';
-            end if;
-
             if (state = st_wait_last) and (seq_ready = '1') then
                 trigger_end <= '1';
             else

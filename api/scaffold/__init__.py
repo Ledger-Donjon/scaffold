@@ -1625,6 +1625,7 @@ class ISO14443(Module):
     __REG_STATUS_BIT_EMPTY = 2
     __REG_CONTROL_BIT_START = 0
     __REG_CONTROL_BIT_FLUSH = 1
+    __REG_CONFIG_BIT_USE_SYNC = 6
     __REG_CONFIG_BIT_POLARITY = 7
     __REG_CONFIG_BIT_TRIGGER_TX_START_EN = 0
     __REG_CONFIG_BIT_TRIGGER_TX_END_EN = 1
@@ -1634,7 +1635,7 @@ class ISO14443(Module):
     def __init__(self, parent):
         super().__init__(parent, "/iso14443")
         # Declare the signals
-        self.add_signals("tx", "trigger", "rx")
+        self.add_signals("tx", "trigger", "rx", "clock_13_56")
         # Declare the registers
         self.__addr_base = base = 0x0b00
         self.add_register("status", "rv", base)
@@ -1643,7 +1644,8 @@ class ISO14443(Module):
         self.add_register("data", "rwv", base + 3)
 
     def reset(self):
-        self.reg_config.set(1 << self.__REG_CONFIG_BIT_POLARITY)
+        self.reg_config.set((1 << self.__REG_CONFIG_BIT_POLARITY)
+            | (1 << self.__REG_CONFIG_BIT_USE_SYNC))
 
     def start(self):
         self.reg_control.write(
@@ -2448,6 +2450,7 @@ class Scaffold(ArchBase):
             self.add_mtxl_out(f"/clock{i}/glitch")
         if self.iso14443 is not None:
             self.add_mtxl_out("/iso14443/rx")
+            self.add_mtxl_out("/iso14443/clock_13_56")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus

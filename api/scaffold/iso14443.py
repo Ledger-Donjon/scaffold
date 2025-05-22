@@ -109,11 +109,14 @@ class NFC:
         self.pin_io0 = scaffold.d6
         self.pin_io1 = scaffold.d7
         self.pin_io2 = scaffold.d8
+        self.pin_clock_13_56 = scaffold.d15
         self.trigger = scaffold.iso14443.trigger
         self.spi = scaffold.spi0
         self.iso14443 = scaffold.iso14443
         scaffold.d0 << self.iso14443.tx
         scaffold.d1 >> self.iso14443.rx
+        self.pin_clock_13_56 >> self.iso14443.clock_13_56
+        #self.iso14443.clock_13_56 << 0
 
         self.pin_en << 0
         self.pin_ss << 0
@@ -162,7 +165,7 @@ class NFC:
                 raise RuntimeError("TRF7970A not recognized")
         # Disable 27.12 MHz crystal, our crystal is 13.56 MHz.
         # Select OOK 100% modulation depth
-        self.register_write(TRF7970ARegister.MODULATOR_AND_SYS_CLK_CONTROL, 0b00010001)
+        self.register_write(TRF7970ARegister.MODULATOR_AND_SYS_CLK_CONTROL, 0b00110001)
         self.register_write(TRF7970ARegister.ISO_CONTROL, 0b00001000)
         # Direct mode, RF ON, full output power
         # TODO bit 0 to 0

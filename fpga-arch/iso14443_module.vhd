@@ -67,6 +67,7 @@ architecture behavior of iso14443_module is
     signal trigger_rx_start_en: std_logic;
     signal trigger_long_en: std_logic;
     signal polarity: std_logic;
+    signal use_sync: std_logic;
 
     -- When high, pushes a byte in the FIFO.
     signal push: std_logic;
@@ -108,6 +109,8 @@ begin
         push => push,
         start => start,
         busy => tx_busy,
+        use_sync => use_sync,
+        clock_13_56 => clock_13_56,
         tx => tx,
         trigger_start => trigger_tx_start,
         trigger_end => trigger_tx_end );
@@ -150,6 +153,7 @@ begin
     trigger_tx_end_en <= config(1);
     trigger_rx_start_en <= config(2);
     trigger_long_en <= config(3);
+    use_sync <= config(6);
     polarity <= config(7);
 
     status <= "00000" & rx_fifo_empty & rx_busy & tx_busy;

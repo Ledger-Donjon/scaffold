@@ -163,7 +163,7 @@ architecture behavior of system is
         + 1 -- SPI
         + 2 -- SPI slave
         + 1 -- Clock
-        + 1; -- ISO14443
+        + 2; -- ISO14443
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
@@ -177,6 +177,7 @@ architecture behavior of system is
     signal mtxl_out_chain_events:
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
     signal mtxl_out_iso14443_rx: std_logic;
+    signal mtxl_out_iso14443_clock_13_56: std_logic;
 
     -- Right matrix inputs. Output of modules.
     -- Each output wire has two signals: a value and an output enable.
@@ -731,6 +732,7 @@ begin
         reg_data => reg_iso14443_data,
         tx => mtxr_in_iso14443_tx,
         rx => mtxl_out_iso14443_rx,
+        clock_13_56 => mtxl_out_iso14443_clock_13_56,
         trigger => mtxr_in_iso14443_trigger );
 
     -- Left matrix module
@@ -773,6 +775,8 @@ begin
         mtxl_out_clock_glitch_start <= mtxl_out(i);
         i := i + 1;
         mtxl_out_iso14443_rx <= mtxl_out(i);
+        i := i + 1;
+        mtxl_out_iso14443_clock_13_56 <= mtxl_out(i);
         i := i + 1;
         assert i = mtxl_out_count;
     end process;

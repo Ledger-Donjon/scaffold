@@ -69,11 +69,11 @@ register.
 config register
 ^^^^^^^^^^^^^^^
   
-+----------+---+---+----+--------------+------------+-------------+---------------+
-| 7        | 6 | 5 | 4  | 3            | 2          | 1           | 0             |
-+----------+---+---+----+--------------+------------+-------------+---------------+
-| polarity | *reserved* | trigger_long | trigger_rx | trigger_end | trigger_start |
-+----------+------------+--------------+------------+-------------+---------------+
++----------+----------+---+--------+--------------+------------+-------------+---------------+
+| 7        | 6        | 5 | 4      | 3            | 2          | 1           | 0             |
++----------+----------+------------+--------------+------------+-------------+---------------+
+| polarity | use_sync | *reserved* | trigger_long | trigger_rx | trigger_end | trigger_start |
++----------+----------+------------+--------------+------------+-------------+---------------+
 
 trigger_start
   When set to 1, trigger signal will be asserted at the beginning of
@@ -89,6 +89,9 @@ trigger_rx
 trigger_long
   When set to 1, start or end signals will raise the trigger and keep it high
   until the card starts to respond.
+use_sync
+  When set to 1, the transmitter will synchronize the transmission to the 13.56
+  MHz clock issued from the daughterboard. This option reduces the jitter.
 polarity
   Can be modified to set tx modulation signal polarity. Use value 1 for the
   reference Scaffold NFC daughterboard. May be changed if RF front-end is
