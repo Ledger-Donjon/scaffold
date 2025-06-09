@@ -16,64 +16,54 @@ Signals
 -------
 
 .. modbox::
-   :inputs: rx
+   :inputs: rx, clock_13_56, tearing
    :outputs: tx, trigger*
 
 Internal registers
 ------------------
 
-+--------+-----------+-----+
-| 0x0500 | status    | R   |
-+--------+-----------+-----+
-| 0x0501 | control   | W   |
-+--------+-----------+-----+
-| 0x0502 | config    | W   |
-+--------+-----------+-----+
-| 0x0503 | data      | R/W |
-+--------+-----------+-----+
++--------+----------------+-----+
+| 0x0500 | status/control | R/W |
++--------+----------------+-----+
+| 0x0501 | config         | W   |
++--------+----------------+-----+
+| 0x0502 | data           | R/W |
++--------+----------------+-----+
+| 0x0503 | timeout        | W   |
++--------+----------------+-----+
 
-status register
-^^^^^^^^^^^^^^^
+status and control register
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-+---+---+---+---+---+----------+---------+---------+
-| 7 | 6 | 5 | 4 | 3 | 2        | 1       | 0       |
-+---+---+---+---+---+----------+---------+---------+
-| *reserved*        | rx_empty | rx_busy | tx_busy |
-+-------------------+----------+---------+---------+
++-------+---+---+---+---+---+-----------+----------+-------+
+|       | 7 | 6 | 5 | 4 | 3 | 2         | 1        | 0     |
++-------+---+---+---+---+---+-----------+----------+-------+
+| read  | *reserved*                               | busy  |
++-------+-------------------+-----------+----------+-------+
+| write | *reserved*        | power_off | power_on | start |
++-------+-------------------+-----------+----------+-------+
 
-tx_busy
-  1 when a transmission is ongoing.
-rx_busy
-  1 when a reception is enabled, 0 when it has finished.
-rx_empty
-  1 when RX FIFO is empty.
-
-control register
-^^^^^^^^^^^^^^^^
-
-+---+---+---+---+---+---+----------+-------+
-| 7 | 6 | 5 | 4 | 3 | 2 | 1        | 0     |
-+---+---+---+---+---+---+----------+-------+
-| *reserved*            | rx_flush | start |
-+-----------------------+----------+-------+
-
+busy
+  Reading this bit returns 1 when a transmission is ongoing.
 start
-  Writing 1 to this bit starts transmission of the bytes stored in the FIFO.
-rx_flush
-  Writing to 1 flushes the reception FIFO.
+  Writing 1 to this bit will start the transmission of patterns pushed in the
+  FIFO.
+power_on
+  Writing to 1 enables RF power.
+power_off
+  Writing to 1 disables RF power by constant modulation.
+  Works only for ISO-14443 type A.
 
-When starting a transmission, it is recommended to also flush the reception FIFO
-at the same time. This can be done by writting once the value 3 to the control
-register.
+Note: Starting a transmission automatically flushes the reception FIFO.
 
 config register
 ^^^^^^^^^^^^^^^
   
-+----------+----------+---+--------+--------------+------------+-------------+---------------+
-| 7        | 6        | 5 | 4      | 3            | 2          | 1           | 0             |
-+----------+----------+------------+--------------+------------+-------------+---------------+
-| polarity | use_sync | *reserved* | trigger_long | trigger_rx | trigger_end | trigger_start |
-+----------+----------+------------+--------------+------------+-------------+---------------+
++----------+----------+---+--------+--------------+------------+----------------+------------------+
+| 7        | 6        | 5 | 4      | 3            | 2          | 1              | 0                |
++----------+----------+------------+--------------+------------+----------------+------------------+
+| polarity | use_sync | *reserved* | trigger_long | trigger_rx | trigger_tx_end | trigger_tx_start |
++----------+----------+------------+--------------+------------+----------------+------------------+
 
 trigger_start
   When set to 1, trigger signal will be asserted at the beginning of
@@ -88,7 +78,7 @@ trigger_rx
   trigger_long is set.
 trigger_long
   When set to 1, start or end signals will raise the trigger and keep it high
-  until the card starts to respond.
+  until the card starts to respond, or the response timeout expires.
 use_sync
   When set to 1, the transmitter will synchronize the transmission to the 13.56
   MHz clock issued from the daughterboard. This option reduces the jitter.
@@ -102,11 +92,11 @@ data register
 
 +-------+---+---+---+---+---+---+---+------------+
 |       | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0          |
-+-------+---+---+---+---+---+---+---+------------+
-| write | *reserved*            | pattern        |
-+-------+-----------------------+----------+-----+
++-------+---+---+---+---+---+---+---+------+-----+
 | read  | size_hint             | rx_empty | bit |
 +-------+-----------------------+----------+-----+
+| write | *reserved*            | pattern        |
++-------+-----------------------+----------------+
 
 Writing to this register pushes in the FIFO a pattern to be transmitted. The
 pattern field is encoded as this:
@@ -135,3 +125,13 @@ size_hint:
 The rx_empty and size_hint fields helps the software to read the correct amount
 of received data with minimizing the number of requests to the board and
 therefore reducing the response reading latency.
+
+timeout register
+^^^^^^^^^^^^^^^^
+
+This 24-bit register defines how long the reader can awaits for a response from
+the contactless card. After transmission and once the timeout expires, the
+ISO-14443 peripheral returns to idle state.
+
+Write three bytes, MSB first, to set the timeout. Each unit corresponds to
+9.44 µs. The default setting is 2 seconds.

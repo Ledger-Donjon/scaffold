@@ -27,13 +27,13 @@ entity iso14443_rx_fifo is
 port (
     clock: in std_logic;
     aclr: in std_logic;
-    data: in std_logic_vector(0 downto 0);
+    data: in std_logic;
     rdreq: in std_logic;
     sclr: in std_logic;
     wrreq: in std_logic;
     empty: out std_logic;
     full: out std_logic;
-    q: out std_logic_vector(0 downto 0);
+    q: out std_logic;
     usedw: out std_logic_vector(11 downto 0) );
 end;
 
@@ -63,6 +63,9 @@ architecture behavior of iso14443_rx_fifo is
         q: out std_logic_vector(0 downto 0);
         usedw: out std_logic_vector(11 downto 0) );
     end component;
+
+    signal data_vec: std_logic_vector(0 downto 0);
+    signal q_vec: std_logic_vector(0 downto 0);
 begin
     s_fifo: scfifo
     generic map (
@@ -80,12 +83,15 @@ begin
     port map (
         clock => clock,
         aclr => aclr,
-        data => data,
+        data => data_vec,
         rdreq => rdreq,
         sclr => sclr,
         wrreq => wrreq,
         empty => empty,
         full => full,
-        q => q,
+        q => q_vec,
         usedw => usedw );
+
+    q <= q_vec(0);
+    data_vec(0) <= data;
 end;

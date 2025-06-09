@@ -100,6 +100,7 @@ class NFC:
     - D12: SPI SCK
     - D13: ASK/OOK
     - D14: EN
+    - D15: SYS_CLK
     """
     def __init__(self, scaffold: Scaffold):
         self.scaffold = scaffold
@@ -116,7 +117,6 @@ class NFC:
         scaffold.d0 << self.iso14443.tx
         scaffold.d1 >> self.iso14443.rx
         self.pin_clock_13_56 >> self.iso14443.clock_13_56
-        #self.iso14443.clock_13_56 << 0
 
         self.pin_en << 0
         self.pin_ss << 0
@@ -175,6 +175,7 @@ class NFC:
             keep_ss_low=True
         )
         self.spi.transmit(0)
+        self.iso14443.power_on()
 
     def register_read(self, address: int) -> int:
         """

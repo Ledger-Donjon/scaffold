@@ -1620,11 +1620,10 @@ class ISO14443(Module):
     ISO 14443-A module of Scaffold.
     """
 
-    __REG_STATUS_BIT_TX_BUSY = 0
-    __REG_STATUS_BIT_RX_BUSY = 1
-    __REG_STATUS_BIT_EMPTY = 2
-    __REG_CONTROL_BIT_START = 0
-    __REG_CONTROL_BIT_FLUSH = 1
+    __REG_STATUS_CONTROL_BIT_BUSY = 0
+    __REG_STATUS_CONTROL_BIT_START = 0
+    __REG_STATUS_CONTROL_BIT_POWER_ON = 1
+    __REG_STATUS_CONTROL_BIT_POWER_OFF = 2
     __REG_CONFIG_BIT_USE_SYNC = 6
     __REG_CONFIG_BIT_POLARITY = 7
     __REG_CONFIG_BIT_TRIGGER_TX_START_EN = 0
@@ -1635,21 +1634,27 @@ class ISO14443(Module):
     def __init__(self, parent):
         super().__init__(parent, "/iso14443")
         # Declare the signals
-        self.add_signals("tx", "trigger", "rx", "clock_13_56")
+        self.add_signals("tx", "trigger", "rx", "clock_13_56", "tearing")
         # Declare the registers
         self.__addr_base = base = 0x0b00
-        self.add_register("status", "rv", base)
-        self.add_register("control", "w", base + 1)
-        self.add_register("config", "w", base + 2, reset=0)
-        self.add_register("data", "rwv", base + 3)
+        self.add_register("status_control", "rwv", base)
+        self.add_register("config", "w", base + 1, reset=0)
+        self.add_register("data", "rwv", base + 2)
+        self.add_register("timeout", "w", base + 3, wideness=3)
 
     def reset(self):
-        self.reg_config.set((1 << self.__REG_CONFIG_BIT_POLARITY)
+        self.reg_config.set(
+            (1 << self.__REG_CONFIG_BIT_POLARITY)
             | (1 << self.__REG_CONFIG_BIT_USE_SYNC))
 
+    def power_on(self):
+        self.reg_status_control.write(1 << self.__REG_STATUS_CONTROL_BIT_POWER_ON)
+
+    def power_off(self):
+        self.reg_status_control.write(1 << self.__REG_STATUS_CONTROL_BIT_POWER_OFF)
+
     def start(self):
-        self.reg_control.write(
-            (1 << self.__REG_CONTROL_BIT_START) | (1 << self.__REG_CONTROL_BIT_FLUSH))
+        self.reg_status_control.write(1 << self.__REG_STATUS_CONTROL_BIT_START)
 
     def transmit_bits(self, bits: bytes):
         """
@@ -1687,7 +1692,7 @@ class ISO14443(Module):
         # Send patterns to Scaffold board and trigger transmission.
         # Flush RX fifo as well.
         self.reg_data.write(patterns)
-        self.reg_control.write(3)
+        self.start()
 
     def receive_bits(self, timeout=10):
         """
@@ -1709,13 +1714,12 @@ class ISO14443(Module):
 
         # Read 64 bits from the FIFO.
         # We wait for the reception hardware to say it has finished receiving.
-        with self.parent.timeout_section(timeout):
-            data = self.reg_data.read(
-                64,
-                self.reg_status.poll(
-                    mask=(1 << self.__REG_STATUS_BIT_RX_BUSY), value=0
-                    ),
-                )
+        data = self.reg_data.read(
+            64,
+            self.reg_status_control.poll(
+                mask=(1 << self.__REG_STATUS_CONTROL_BIT_BUSY), value=0
+                ),
+            )
         # Look at last received byte to know if there are more, and how many
         # about.
         if (data[-1] & 2) == 0:
@@ -1744,6 +1748,9 @@ class ISO14443(Module):
         """
         # 1 start bit, 9 bits per byte with parity
         bits = self.receive_bits(timeout=timeout)
+        if len(bits) == 0:
+            # No response
+            return b''
         assert bits[0] == 1
         bits = bits[1:]
         result = bytearray()
@@ -2451,6 +2458,7 @@ class Scaffold(ArchBase):
         if self.iso14443 is not None:
             self.add_mtxl_out("/iso14443/rx")
             self.add_mtxl_out("/iso14443/clock_13_56")
+            self.add_mtxl_out("/iso14443/tearing")
 
         # FPGA right matrix input signals
         # Update this section when adding new modules with outpus

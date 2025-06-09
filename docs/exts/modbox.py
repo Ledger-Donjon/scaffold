@@ -50,7 +50,7 @@ def make_fig(path, inputs, outputs):
     # Head length and head width for arrows
     hl = 0.25
     hw = hl * 0.75
-    box_w = 6
+    box_w = 8
     box_left = -box_w//2
     box_right = -box_left
     top = 1

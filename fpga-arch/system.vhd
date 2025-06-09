@@ -163,7 +163,7 @@ architecture behavior of system is
         + 1 -- SPI
         + 2 -- SPI slave
         + 1 -- Clock
-        + 2; -- ISO14443
+        + 3; -- ISO14443
     signal mtxl_out: std_logic_vector(mtxl_out_count-1 downto 0);
     signal mtxl_out_uart_rx: std_logic_vector(uart_count-1 downto 0);
     signal mtxl_out_pulse_gen_start: std_logic_vector(pulse_gen_count-1 downto 0);
@@ -178,6 +178,7 @@ architecture behavior of system is
         std_logic_vector_array_t(chain_count-1 downto 0)(chain_size-1 downto 0);
     signal mtxl_out_iso14443_rx: std_logic;
     signal mtxl_out_iso14443_clock_13_56: std_logic;
+    signal mtxl_out_iso14443_tearing: std_logic;
 
     -- Right matrix inputs. Output of modules.
     -- Each output wire has two signals: a value and an output enable.
@@ -265,10 +266,10 @@ architecture behavior of system is
     constant addr_clock_divisor_a: address_t := x"0a01";
     constant addr_clock_divisor_b: address_t := x"0a02";
     constant addr_clock_count: address_t := x"0a03";
-    constant addr_iso14443_status: address_t := x"0b00";
-    constant addr_iso14443_control: address_t := x"0b01";
-    constant addr_iso14443_config: address_t := x"0b02";
-    constant addr_iso14443_data: address_t := x"0b03";
+    constant addr_iso14443_status_control: address_t := x"0b00";
+    constant addr_iso14443_config: address_t := x"0b01";
+    constant addr_iso14443_data: address_t := x"0b02";
+    constant addr_iso14443_timeout: address_t := x"0b03";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -318,10 +319,10 @@ architecture behavior of system is
     signal en_clock_divisor_a: std_logic;
     signal en_clock_divisor_b: std_logic;
     signal en_clock_count: std_logic;
-    signal en_iso14443_status: std_logic;
-    signal en_iso14443_control: std_logic;
+    signal en_iso14443_status_control: std_logic;
     signal en_iso14443_config: std_logic;
     signal en_iso14443_data: std_logic;
+    signal en_iso14443_timeout: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -451,10 +452,10 @@ begin
     en_clock_divisor_a <= addr_en(bus_in, addr_clock_divisor_a);
     en_clock_divisor_b <= addr_en(bus_in, addr_clock_divisor_b);
     en_clock_count <= addr_en(bus_in, addr_clock_count);
-    en_iso14443_status <= addr_en(bus_in, addr_iso14443_status);
-    en_iso14443_control <= addr_en(bus_in, addr_iso14443_control);
+    en_iso14443_status_control <= addr_en(bus_in, addr_iso14443_status_control);
     en_iso14443_config <= addr_en(bus_in, addr_iso14443_config);
     en_iso14443_data <= addr_en(bus_in, addr_iso14443_data);
+    en_iso14443_timeout <= addr_en(bus_in, addr_iso14443_timeout);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -500,7 +501,7 @@ begin
             en_iso7816_data &
             en_spi_status &
             en_spi_data &
-            en_iso14443_status &
+            en_iso14443_status_control &
             en_iso14443_data,
         value => bus_out.read_data );
 
@@ -725,14 +726,16 @@ begin
         clock => clock,
         reset_n => reset_n,
         bus_in => bus_in,
-        en_control => en_iso14443_control,
+        en_status_control => en_iso14443_status_control,
         en_config => en_iso14443_config,
         en_data => en_iso14443_data,
+        en_timeout => en_iso14443_timeout,
         reg_status => reg_iso14443_status,
         reg_data => reg_iso14443_data,
         tx => mtxr_in_iso14443_tx,
         rx => mtxl_out_iso14443_rx,
         clock_13_56 => mtxl_out_iso14443_clock_13_56,
+        tearing => mtxl_out_iso14443_tearing,
         trigger => mtxr_in_iso14443_trigger );
 
     -- Left matrix module
@@ -777,6 +780,8 @@ begin
         mtxl_out_iso14443_rx <= mtxl_out(i);
         i := i + 1;
         mtxl_out_iso14443_clock_13_56 <= mtxl_out(i);
+        i := i + 1;
+        mtxl_out_iso14443_tearing <= mtxl_out(i);
         i := i + 1;
         assert i = mtxl_out_count;
     end process;

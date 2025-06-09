@@ -44,8 +44,8 @@ architecture behavior of sim_iso14443_tx is
     -- Output signals
     signal busy: std_logic;
     signal tx: std_logic;
-    signal trigger_start: std_logic;
-    signal trigger_end: std_logic;
+    signal trigger_tx_start: std_logic;
+    signal trigger_tx_end: std_logic;
 
 begin
 
@@ -53,14 +53,17 @@ begin
     port map (
         clock => clock,
         reset_n => reset_n,
-        pattern => pattern,
         polarity => polarity,
+        use_sync => '0',
+        clock_13_56 => '0',
+        pattern => pattern,
         push => push,
         start => start,
-        busy => busy,
+        --busy => busy,
         tx => tx,
-        trigger_start => trigger_start,
-        trigger_end => trigger_end );
+        rx => '0',
+        trigger_tx_start => trigger_tx_start,
+        trigger_tx_end => trigger_tx_end );
 
     -- External clock generation
     p_clock: process
