@@ -22,77 +22,6 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 
--- Takes response sampled input and tries to decode the bit according to
--- ISO-14443 Manchester encoding.
---
--- At the end of one bit, for ISO-14443 type A, samples can look like this:
--- - "1010101000000000" for bit 1
--- - "0101010100000000" for bit 1
--- - "1010101011111111" for bit 1
--- - "0101010111111111" for bit 1
--- - "0000000010101010" for bit 0
--- - "0000000001010101" for bit 0
--- - "1111111110101010" for bit 0
--- - "1111111101010101" for bit 0
-entity iso14443_rx_decoder is
-port (
-    -- Sampled response.
-    samples: in std_logic_vector(15 downto 0);
-    -- High when samples represent a valid 0 or 1 symbol.
-    valid: out std_logic;
-    -- Decoded bit value. Valid only if valid output is 1.
-    value: out std_logic );
-end;
-
-
-architecture behavior of iso14443_rx_decoder is
-    -- Left half of samples.
-    signal samples_a: std_logic_vector(5 downto 0);
-    -- Right half of samples.
-    signal samples_b: std_logic_vector(5 downto 0);
-    -- High when left half of samples are modulated with 0 degrees phase.
-    signal a_mod_0: std_logic;
-    -- High when left half of samples are modulated with 180 degrees phase.
-    signal a_mod_180: std_logic;
-    -- High when left half of samples have no modulation.
-    signal a_nomod: std_logic;
-    -- High when right half of samples are modulated with 0 degrees phase.
-    signal b_mod_0: std_logic;
-    -- High when right half of samples are modulated with 180 degrees phase.
-    signal b_mod_180: std_logic;
-    -- High when right half of samples have no modulation.
-    signal b_nomod: std_logic;
-    -- High when samples is decoded as logic 1 in Manchester encoding.
-    signal manchester_0: std_logic;
-    -- High when samples is decoded as logic 0 in Manchester encoding.
-    signal manchester_1: std_logic;
-begin
-    -- The signal coming from the TRF7970A is not 100% precise/synchronized.
-    -- To make reception more robust and tolerant, we strip left and right bits
-    -- in 'a' and 'b' parts.
-    samples_a <= samples(14 downto 9);
-    samples_b <= samples(6 downto 1);
-
-    a_mod_0 <= '1' when samples_a = "101010" else '0';
-    a_mod_180 <= '1' when samples_a = "010101" else '0';
-    a_nomod <= '1' when (samples_a = "000000") or (samples_a = "111111") else '0';
-    b_mod_0 <= '1' when samples_b = "101010" else '0';
-    b_mod_180 <= '1' when samples_b = "010101" else '0';
-    b_nomod <= '1' when (samples_b = "000000") or (samples_b = "111111") else '0';
-
-    manchester_0 <= a_nomod and (b_mod_0 or b_mod_180);
-    manchester_1 <= b_nomod and (a_mod_0 or a_mod_180);
-
-    valid <= manchester_0 or manchester_1;
-    value <= manchester_1;
-end;
-
-
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
-
 entity iso14443_tx is
 port (
     -- System clock.
@@ -151,9 +80,12 @@ architecture behavior of iso14443_tx is
         st_tx_copy,
         st_tx,
         st_trigger_tx_end,
-        st_fdt_align,
-        st_rx,
-        st_rx_sample,
+        st_rx_wait,
+        st_rx_a,
+        st_rx_a_sample,
+        st_rx_dummy,
+        st_rx_b,
+        st_rx_b_sample,
         st_rx_decode,
         st_end );
     -- Current FSM state
@@ -162,12 +94,14 @@ architecture behavior of iso14443_tx is
     signal clock_sync_go: std_logic;
     -- Symbol being transmitted.
     signal tx_buffer: std_logic_vector(3 downto 0);
-    -- Counter for the transmission, to generate 1/4 symbol period.
+    -- Counter used for the transmission, to generate 1/4 symbol period.
     -- One ETU is 128/fc, which is approximatively 1/944 clock cycles.
     -- One period is then 944 / 4 = 236, which corresponds the pause time of
     -- 2.5 µs.
-    -- Maximum counter value will therefore be 235.
-    signal tx_time_counter: unsigned(8 downto 0);
+    -- Maximum counter value will therefore be 235 for transmission.
+    -- This counter is also used for reception, with a maximum value of 469
+    -- (about half bit period).
+    signal time_counter: unsigned(8 downto 0);
     -- Counts the number of moments during transmission of symbol.
     signal tx_symbol_counter: unsigned(1 downto 0);
     -- Transmission FIFO signals
@@ -175,24 +109,22 @@ architecture behavior of iso14443_tx is
     signal tx_fifo_empty: std_logic;
     signal tx_fifo_full: std_logic;
     signal tx_fifo_rdreq: std_logic;
-    -- All 16 collected samples.
-    -- This string is initialized to zero with LSB at 1. It is shifted
-    -- everytime a new sample is acquired. When the MSB becomes 1 it means the
-    -- sample will be the last one. This way we have a counter for free.
-    signal samples: std_logic_vector(15 downto 0);
-    -- High when a valid encoding is detected in the sample string.
-    signal decoder_valid: std_logic;
-    -- Decoded bit value.
-    signal decoder_value: std_logic;
+    -- Samples come from the output of the demoulator.
+    -- Two samples per bit are taken.
+    signal samples: std_logic_vector(1 downto 0);
+    -- High when samples is "01" or "10", corresponding to a valid Manchester
+    -- symbol.
+    signal samples_valid: std_logic;
     -- Reception FIFO signals
-    --signal rx_fifo_q: std_logic;
-    --signal rx_fifo_empty: std_logic;
     signal rx_fifo_full: std_logic;
     signal rx_fifo_wreq: std_logic;
-    --signal rx_fifo_rdreq: std_logic;
-    --signal rx_fifo_usedw: std_logic_vector(11 downto 0);
     -- Timeout counter.
-    signal timeout_counter: unsigned(23 downto 0);
+    signal timeout_counter: unsigned(29 downto 0);
+    -- Demodulator output.
+    signal demod_result: std_logic;
+    -- High to enable demodulator block. This help reducing power consumption
+    -- and noise: we don't need to always have it running.
+    signal demod_enable: std_logic;
 begin
     p_state: process (clock, reset_n) is
     begin
@@ -236,11 +168,11 @@ begin
                     if tx_symbol_counter = 0 then
                         -- We are transmitting the last moment of the current
                         -- symbol.
-                        if (tx_time_counter = 2) and (tx_fifo_empty = '0') then
+                        if (time_counter = 2) and (tx_fifo_empty = '0') then
                             -- We still have symbols to transmit, fetch it from
                             -- the FIFO.
                             state <= st_tx_fetch;
-                        elsif tx_time_counter = 0 then
+                        elsif time_counter = 0 then
                             -- Done transmitting all symbols.
                             state <= st_trigger_tx_end;
                         else
@@ -252,35 +184,62 @@ begin
 
                 -- One clock cycle used to generate end of transmission trigger.
                 when st_trigger_tx_end =>
-                    state <= st_fdt_align;
+                    state <= st_rx_wait;
 
-                when st_fdt_align =>
-                    if tx_time_counter = 0 then
-                        state <= st_rx;
-                    else
-                        state <= st_fdt_align;
-                    end if;
-
-                when st_rx =>
-                    if tx_time_counter = 0 then
-                        state <= st_rx_sample;
-                    else
-                        state <= st_rx;
-                    end if;
-
-                when st_rx_sample =>
-                    if samples(15) = '1' then
-                        state <= st_rx_decode;
-                    else
-                        state <= st_rx;
-                    end if;
-
-                when st_rx_decode =>
-                    if ((rx_fifo_empty = '0') and (decoder_valid = '0'))
-                        or (timeout_counter = 0) then
+                -- Waiting for the beginning of the response.
+                -- Goes to reception when modulation is detected, or end
+                -- reception if timeout occurs.
+                when st_rx_wait =>
+                    if timeout_counter = 0 then
                         state <= st_end;
                     else
-                        state <= st_rx;
+                        if demod_result = '1' then
+                            state <= st_rx_a;
+                        else
+                            state <= st_rx_wait;
+                        end if;
+                    end if;
+
+                -- Waiting to be at the middle of first bit half.
+                when st_rx_a =>
+                    if time_counter = 0 then
+                        state <= st_rx_a_sample;
+                    else
+                        state <= st_rx_a;
+                    end if;
+
+                -- One clock cycle to sample first bit half.
+                when st_rx_a_sample =>
+                    state <= st_rx_dummy;
+
+                -- One clock dummy cycle to have same timing as second bit half
+                -- where there is a cycle for decoding. This way the time
+                -- counter is reloaded to the same value for both bit halves.
+                when st_rx_dummy =>
+                    state <= st_rx_b;
+
+                -- Waiting to be at the middle of second bit half.
+                when st_rx_b =>
+                    if time_counter = 0 then
+                        state <= st_rx_b_sample;
+                    else
+                        state <= st_rx_b;
+                    end if;
+
+                -- One clock cycle to sample second bit half.
+                when st_rx_b_sample =>
+                    state <= st_rx_decode;
+
+                -- We took two samples for the current bit, we now have one
+                -- clock cycle to decode bit and push it in the RX FIFO. If bit
+                -- has no valid encoding, end reception.
+                when st_rx_decode =>
+                    if samples_valid = '1' then
+                        -- Bit has valid Manchester encoding, continue reception.
+                        state <= st_rx_a;
+                    else
+                        -- Bit is not valid, end of transmission
+                        state <= st_end;
                     end if;
 
                 when st_end =>
@@ -292,11 +251,12 @@ begin
 
     busy <= '1' when state /= st_idle else '0';
 
-    -- Time counter to generate the correct baudrate.
-    p_tx_time_counter: process (clock, reset_n) is
+    -- Time counter to generate the correct baudrates for transmission and
+    -- reception.
+    p_time_counter: process (clock, reset_n) is
     begin
         if reset_n = '0' then
-            tx_time_counter <= (others => '0');
+            time_counter <= (others => '0');
         elsif rising_edge(clock) then
             case state is
                 -- Decrement the counter during all transmission, which includes
@@ -305,27 +265,33 @@ begin
                 -- symbol is fetched from the FIFO the counter will be
                 -- decremented once. This is not a problem, no need to add logic
                 -- to avoid that.
-                when st_tx | st_tx_fetch =>
-                    if tx_time_counter = 0 then
-                        tx_time_counter <= to_unsigned(235, tx_time_counter'length);
+                when st_tx | st_tx_fetch | st_tx_copy =>
+                    if time_counter = 0 then
+                        time_counter <= to_unsigned(235, time_counter'length);
                     else
-                        tx_time_counter <= tx_time_counter - 1;
+                        time_counter <= time_counter - 1;
                     end if;
-                when st_trigger_tx_end =>
-                    tx_time_counter <= to_unsigned(413, tx_time_counter'length);
-                when st_fdt_align | st_rx | st_rx_decode | st_rx_sample =>
-                    if tx_time_counter = 0 then
-                        tx_time_counter <= to_unsigned(58, tx_time_counter'length);
-                    else
-                        tx_time_counter <= tx_time_counter - 1;
-                    end if;
+                when st_rx_wait =>
+                    -- 235 = 944 / 4 - 1 - 2
+                    -- Quarter bit duration, minus one because 0 is included,
+                    -- minus 2 to take into account the dummy cycle and sampling
+                    -- cycle.
+                    time_counter <= to_unsigned(235, time_counter'length);
+                when st_rx_a | st_rx_b =>
+                    time_counter <= time_counter - 1;
+                when st_rx_a_sample | st_rx_dummy | st_rx_b_sample | st_rx_decode =>
+                    -- 469 = 944 / 2 - 1 - 2
+                    -- Half bit duration, minus one because 0 is included,
+                    -- minus 2 to take into account the sampling cycle and
+                    -- decoding cycle.
+                    time_counter <= to_unsigned(469, time_counter'length);
                 when others =>
-                    tx_time_counter <= to_unsigned(235, tx_time_counter'length);
+                    time_counter <= time_counter;
             end case;
         end if;
     end process;
 
-    -- Symbol counting.
+    -- Symbol counting for transmission.
     -- Counts the number of moments to be transmitted. Loaded to value 3
     -- (4 moments) for each symbol to be transmitted.
     p_tx_symbol_counter: process (clock, reset_n) is
@@ -335,7 +301,7 @@ begin
         elsif rising_edge(clock) then
             case state is
                 when st_tx =>
-                    if tx_time_counter = 0 then
+                    if time_counter = 0 then
                         tx_symbol_counter <= tx_symbol_counter - 1;
                     else
                         tx_symbol_counter <= tx_symbol_counter;
@@ -354,8 +320,8 @@ begin
         elsif rising_edge(clock) then
             case state is
                 when st_idle =>
-                    timeout_counter <= unsigned(timeout);
-                when st_rx_decode =>
+                    timeout_counter <= unsigned(timeout & "000000");
+                when st_rx_wait =>
                     timeout_counter <= timeout_counter - 1;
                 when others =>
                     timeout_counter <= timeout_counter;
@@ -382,7 +348,7 @@ begin
                         when others => tx_buffer <= "1111";
                     end case;
                 when st_tx =>
-                    if tx_time_counter = 0 then
+                    if time_counter = 0 then
                         tx_buffer <= tx_buffer(2 downto 0) & "1";
                     else
                         tx_buffer <= tx_buffer;
@@ -421,25 +387,38 @@ begin
     p_samples: process (clock, reset_n) is
     begin
         if reset_n = '0' then
-            samples <= (others => '0');
+            samples <= "00";
         elsif rising_edge(clock) then
             case state is
-                when st_rx_sample =>
-                    samples <= samples(14 downto 0) & rx;
-                when st_rx =>
-                    samples <= samples;
+                when st_rx_a_sample | st_rx_b_sample =>
+                    samples <= samples(0) & demod_result;
                 when others =>
-                    samples <= "0000000000000001";
+                    samples <= samples;
             end case;
         end if;
     end process;
-   
-    e_decoder: entity work.iso14443_rx_decoder
+
+    samples_valid <= samples(0) xor samples(1);
+
+    e_demod: entity work.iso14443_demod
     port map (
-        samples => samples,
-        valid => decoder_valid,
-        value => decoder_value );
-    
+        clock => clock,
+        reset_n => reset_n,
+        enable => demod_enable,
+        rx => rx,
+        result => demod_result );
+
+    p_demo_enable: process (state) is
+    begin
+        case state is
+            when st_rx_wait | st_rx_a | st_rx_a_sample | st_rx_dummy | st_rx_b
+                | st_rx_b_sample | st_rx_decode =>
+                demod_enable <= '1';
+            when others =>
+                demod_enable <= '0';
+        end case;
+    end process;
+
     -- Received bits are stored in the following FIFO.
     -- FIFO is automatically flushed when a new transmission is requested.
     e_rx_fifo: entity work.iso14443_rx_fifo
@@ -447,7 +426,7 @@ begin
         clock => clock,
         aclr => not reset_n,
         sclr => start,
-        data => decoder_value,
+        data => samples(1),
         wrreq => rx_fifo_wreq,
         q => rx_fifo_q,
         full => rx_fifo_full,
@@ -455,7 +434,8 @@ begin
         rdreq => rx_fifo_rdreq,
         usedw => rx_fifo_usedw );
 
-    rx_fifo_wreq <= '1' when (state = st_rx_decode) and (decoder_valid = '1') else '0';
+    rx_fifo_wreq <= '1' when ((state = st_rx_decode) and (samples_valid = '1'))
+        else '0';
 
     p_triggers: process (clock, reset_n) is
     begin
@@ -474,7 +454,7 @@ begin
             else
                 trigger_tx_end <= '0';
             end if;
-            if (state = st_rx_decode) and (rx_fifo_empty = '1') and (decoder_valid = '1') then
+            if (state = st_rx_wait) and (demod_result = '1') then
                 trigger_rx_start <= '1';
             else
                 trigger_rx_start <= '0';

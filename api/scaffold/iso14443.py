@@ -23,6 +23,17 @@ from enum import Enum
 import crcmod
 
 
+class CRCError(Exception):
+    """Thrown when CRC of response is invalid"""
+
+    def __init__(self, got: bytes, expected: bytes):
+        self.got = got
+        self.expected = expected
+
+    def __str__(self):
+        return f"Bad CRC: expected {self.expected.hex()}, got {self.got.hex()}."
+
+
 class TRF7970ACommand(int, Enum):
     """TRF7970A command code, as defined in the datasheet."""
     IDLE = 0x00
@@ -216,13 +227,24 @@ class NFC:
         self.spi.transmit(0x80 | value, read=False)
         self.pin_ss << 1
 
-    def reqa(self, read=True):
+    def reqa(self, read=True) -> bytes:
         """Sends REQA frame. Returns ATQA response bytes."""
         self.iso14443.transmit_short(0x26)
-        result = self.iso14443.receive(timeout=400e-6)
+        result = self.iso14443.receive()
         assert len(result) == 2
         return result
+
+    def transmit(self, data: bytes):
+        self.iso14443.transmit(data)
+        return self.iso14443.receive()
 
     def transmit_with_crc(self, data: bytes):
         frame = data + self.crc_a(data).to_bytes(2, "little")
         self.iso14443.transmit(frame)
+        response = self.iso14443.receive()
+        assert len(response) >= 2
+        got_crc = response[-2:]
+        expected_crc = self.crc_a(response[:-2]).to_bytes(2, "little")
+        if got_crc != expected_crc:
+            raise CRCError(got_crc, expected_crc)
+        return response[:-2]

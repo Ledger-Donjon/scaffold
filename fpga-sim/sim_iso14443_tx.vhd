@@ -29,6 +29,8 @@ entity sim_iso14443_tx is end;
 architecture behavior of sim_iso14443_tx is
     constant clock_frequency: integer := 100000000;
     constant clock_period: time := (1 sec) / clock_frequency;
+    constant bit_period: time := 9.4395 us;
+    constant mod_half_period: time := bit_period / 16;
 
     -- External clock
     signal clock: std_logic;
@@ -40,6 +42,7 @@ architecture behavior of sim_iso14443_tx is
     signal push: std_logic;
     signal start: std_logic;
     signal pattern: std_logic_vector(1 downto 0);
+    signal rx: std_logic;
 
     -- Output signals
     signal busy: std_logic;
@@ -56,14 +59,17 @@ begin
         polarity => polarity,
         use_sync => '0',
         clock_13_56 => '0',
+        power_enable => '1',
         pattern => pattern,
         push => push,
         start => start,
         --busy => busy,
         tx => tx,
-        rx => '0',
+        rx => rx,
+        timeout => x"ffffff",
         trigger_tx_start => trigger_tx_start,
-        trigger_tx_end => trigger_tx_end );
+        trigger_tx_end => trigger_tx_end,
+        rx_fifo_rdreq => '0' );
 
     -- External clock generation
     p_clock: process
@@ -89,6 +95,7 @@ begin
         push <= '0';
         start <= '0';
         pattern <= "11";
+        rx <= '0';
         wait for clock_period * 100;
 
         pattern <= "01";
@@ -108,6 +115,65 @@ begin
         start <= '1';
         wait for clock_period;
         start <= '0';
+
+        wait for bit_period * 5;
+
+        rx <= '1';
+        wait for mod_half_period;
+
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        wait for mod_half_period * 8;
+
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        wait for mod_half_period * 8;
+
+        wait for mod_half_period * 8;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
+        rx <= '0';
+        wait for mod_half_period;
+        rx <= '1';
+        wait for mod_half_period;
 
         wait;
     end process;

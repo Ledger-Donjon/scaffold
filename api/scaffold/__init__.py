@@ -1640,7 +1640,7 @@ class ISO14443(Module):
         self.add_register("status_control", "rwv", base)
         self.add_register("config", "w", base + 1, reset=0)
         self.add_register("data", "rwv", base + 2)
-        self.add_register("timeout", "w", base + 3, wideness=3)
+        self.add_register("timeout", "w", base + 3, wideness=3, reset=0x2faf08)
 
     def reset(self):
         self.reg_config.set(
@@ -1742,15 +1742,18 @@ class ISO14443(Module):
         bits = bytes(b & 1 for b in data)
         return bits
 
-    def receive(self, timeout=10) -> bytes:
+    def receive(self) -> bytes:
         """
         Reads all bytes received in the reception FIFO.
         """
         # 1 start bit, 9 bits per byte with parity
-        bits = self.receive_bits(timeout=timeout)
+        bits = self.receive_bits()
         if len(bits) == 0:
             # No response
             return b''
+        # Response always starts with a 1. The Scaffold hardware peripheral is
+        # not able to receive something else anyways, so if we have a 0 here we
+        # have a bug.
         assert bits[0] == 1
         bits = bits[1:]
         result = bytearray()
@@ -1792,6 +1795,22 @@ class ISO14443(Module):
     @trigger_mode.setter
     def trigger_mode(self, value: ISO14443Trigger):
         self.reg_config.set_mask(value, 0xf)
+
+    @property
+    def timeout(self) -> float:
+        ticks = self.reg_timeout.get()
+        return ticks * (2**6) / self.parent.sys_freq
+
+    @timeout.setter
+    def timeout(self, t: float):
+        if t < 0:
+            raise ValueError("Timeout cannot be negative")
+        ticks = round((t * self.parent.sys_freq) / 2**6)
+        if ticks > 0xffffff:
+            raise ValueError("Timeout is too long")
+        if ticks < 1:
+            raise ValueError("Timeout is too short")
+        self.reg_timeout.set(ticks)
 
 
 class IOMode(Enum):

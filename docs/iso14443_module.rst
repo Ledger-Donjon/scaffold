@@ -7,10 +7,39 @@ ISO-14443 contactless card.
 This peripheral only handles frames transmission and decoding, and it must be
 used with the dedicated NFC daughterboard which is responsible for the radio
 modulation and demodulation. More precisely, this daughterboard embeds a
-TRF7960A integrated circuit which acts as the RF front-end.
+TRF7970A integrated circuit which acts as the RF front-end.
 
 .. warning::
    Only ISO-14443 type A is supported at the moment.
+
+Python API example
+------------------
+
+The following example shows how to select a card and send an APDU.
+
+.. code-block:: python
+
+    from scaffold import Scaffold, ISO14443Trigger
+    from scaffold.iso14443 import NFC
+
+    s = Scaffold()
+    nfc = NFC(s)
+    nfc.startup()
+    s.d5 << nfc.trigger
+    nfc.iso14443.trigger_mode = ISO14443Trigger.START
+
+    print(nfc.reqa().hex())
+
+    uid = nfc.transmit(b"\x93\x20")
+    print(uid.hex())
+
+    result = nfc.transmit_with_crc(b"\x93\x70" + uid)
+    print(result.hex())
+
+    # Send RATS
+    result = nfc.transmit_with_crc(b"\xe0\x80")
+    print(result.hex())
+
 
 Signals
 -------

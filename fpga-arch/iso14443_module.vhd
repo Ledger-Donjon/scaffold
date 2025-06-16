@@ -106,8 +106,9 @@ architecture behavior of iso14443_module is
     signal trigger_reg: std_logic;
 begin
     -- Timeout register
+    -- Default value to 2 seconds.
     e_timeout_reg: entity work.module_wide_reg
-    generic map (wideness => 3, reset => x"033b98")
+    generic map (wideness => 3, reset => x"2faf08")
     port map (clock => clock, reset_n => reset_n, en => en_timeout,
         bus_in => bus_in, value => reg_timeout);
 
@@ -160,7 +161,7 @@ begin
             -- Trigger long is also reset if push is asserted. This is usefull
             -- when no response is received from the card.
             -- We also need to reset the trigger when there is no response: we
-            AND with busy for that purpose.
+            -- AND with busy for that purpose.
             trigger_long <= (trigger_long and busy and (not push)
                     and (not trigger_rx_start))
                 or (trigger_tx_start and trigger_tx_start_en)
