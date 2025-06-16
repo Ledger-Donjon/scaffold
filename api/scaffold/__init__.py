@@ -2453,6 +2453,8 @@ class Scaffold(ArchBase):
                 self.add_mtxl_in(f"/pgen{i}/out")
             for i in range(len(self.chains)):
                 self.add_mtxl_in(f"/chain{i}/trigger")
+        if self.iso14443 is not None:
+            self.add_mtxl_in("/iso14443/trigger")
 
         # FPGA left matrix output signals
         # Update this section when adding new modules with inputs
