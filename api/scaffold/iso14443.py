@@ -271,7 +271,8 @@ class NFC:
             self.log_t_start = t
         dt = t - self.log_t_start
         print(
-            f"{dt * 1000.0:>9.3f} ms {sep} Scaffold {rw_str} Card {sep} {what:<4} {sep} {desc_lines[0]}"
+            f"{dt * 1000.0:>9.3f} ms {sep} Scaffold {rw_str} Card {sep} {what:<4} "
+            "{sep} {desc_lines[0]}"
         )
         for line in desc_lines[1:]:
             print(" " * 13 + sep + " " * 17 + sep + " " * 6 + sep + f" {line}")
@@ -300,8 +301,8 @@ class NFC:
         self, data: bytes, what_tx: str = "", what_rx: str = ""
     ) -> bytes:
         """
-        Transmits data, with CRC appended, reads the response and checks the received CRC
-        validity.
+        Transmits data, with CRC appended, reads the response and checks the received
+        CRC validity.
 
         :param data: Bytes to be transmitted.
         :param what_tx: Transmitted frame type indication ("SEL" for instance).
@@ -322,7 +323,8 @@ class NFC:
     def sel(self, level: int) -> bytes:
         """
         Performs selection. This sends a SEL frame, reads the returned UID by the card
-        and selects it with another SEL frame. Returns the UID returned during selection.
+        and selects it with another SEL frame. Returns the UID returned during
+        selection.
         Note: the returned UID can be partial, only the bytes corresponding to the
         selected cascade level are returned.
 
