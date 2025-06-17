@@ -152,6 +152,9 @@ class NFC:
         scaffold.d1.pull = Pull.UP
         self.crc_a = crcmod.mkCrcFun(0x11021, 0x6363, rev=True)
 
+        # Used for I-block encapsulation
+        self.block_number = 0
+
         self.verbose = False
         self.log_t_start = None
 
@@ -344,3 +347,18 @@ class NFC:
         supported by Scaffold. CID is set to 0.
         """
         return self.transmit_with_crc(b"\xe0\x80", what_tx="RATS", what_rx="ATS")
+
+    def apdu(self, apdu: bytes) -> bytes:
+        """
+        Sends an APDU and returns the response. Exchange is performed using I-blocks,
+        and waiting time extension requests are handled transparently.
+
+        :param apdu: APDU to be transmitted. Does not include I-block header or CRC.
+        """
+        iblock = bytes((0x02 + self.block_number,)) + apdu
+        self.block_number = (self.block_number + 1) % 2
+        response = self.transmit_with_crc(iblock)
+        while response[0] & 0xc0 == 0xc0:
+            # S-block with waiting time extension request
+            response = self.transmit_with_crc(b"\xf2" + bytes((response[1],)))
+        return response[1:]

@@ -39,6 +39,4 @@ for i in range(uid_size):
 # Send Request Answer To Select
 result = nfc.rats()
 # Send APDU
-response = nfc.transmit_with_crc(
-    bytes.fromhex("0200a404000e315041592e5359532e4444463031")
-)
+response = nfc.apdu(bytes.fromhex("00a404000e315041592e5359532e4444463031"))
