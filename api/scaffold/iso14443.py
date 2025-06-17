@@ -272,7 +272,7 @@ class NFC:
         dt = t - self.log_t_start
         print(
             f"{dt * 1000.0:>9.3f} ms {sep} Scaffold {rw_str} Card {sep} {what:<4} "
-            "{sep} {desc_lines[0]}"
+            f"{sep} {desc_lines[0]}"
         )
         for line in desc_lines[1:]:
             print(" " * 13 + sep + " " * 17 + sep + " " * 6 + sep + f" {line}")
