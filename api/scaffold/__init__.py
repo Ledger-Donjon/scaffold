@@ -1694,9 +1694,14 @@ class ISO14443(Module):
         self.reg_data.write(patterns)
         self.start()
 
-    def receive_bits(self, timeout=10):
+    def receive_bits(self, bit_size_hint: Optional[int] = None):
         """
         Reads all bits received in the reception FIFO.
+
+        :param bit_size_hint: If the number of expected bits in the response is known,
+            it can be indicated as a hint to improve response readout performance. This
+            number includes start and parity bits. If response has more bits than
+            expected, it will still be read completely.
         """
         # We don't know yet how many bits are available in the FIFO, and we
         # want to read them all as fast as possible. Reading the data register
@@ -1712,10 +1717,15 @@ class ISO14443(Module):
         #   single read command.
         # - Discard all bits that are invalid using the fifo emptyness flag.
 
-        # Read 64 bits from the FIFO.
+        # Read 255 bits from the FIFO.
         # We wait for the reception hardware to say it has finished receiving.
+        if bit_size_hint is None:
+            # 255 is the max possible with a single Scaffold bus request.
+            size = 255
+        else:
+            size = bit_size_hint + 1
         data = self.reg_data.read(
-            64,
+            size,
             self.reg_status_control.poll(
                 mask=(1 << self.__REG_STATUS_CONTROL_BIT_BUSY), value=0
                 ),
@@ -1742,12 +1752,17 @@ class ISO14443(Module):
         bits = bytes(b & 1 for b in data)
         return bits
 
-    def receive(self) -> bytes:
+    def receive(self, bit_size_hint: Optional[int] = None) -> bytes:
         """
         Reads all bytes received in the reception FIFO.
+
+        :param bit_size_hint: If the number of expected bits in the response is known,
+            it can be indicated as a hint to improve response readout performance. This
+            number includes start and parity bits. If response has more bits than
+            expected, it will still be read completely.
         """
         # 1 start bit, 9 bits per byte with parity
-        bits = self.receive_bits()
+        bits = self.receive_bits(bit_size_hint = bit_size_hint)
         if len(bits) == 0:
             # No response
             return b''

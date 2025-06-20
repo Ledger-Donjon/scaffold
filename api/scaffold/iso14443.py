@@ -20,6 +20,7 @@
 from . import Scaffold, Pull
 from time import sleep
 from enum import Enum
+from typing import Optional
 import crcmod
 import colorama
 import time
@@ -243,9 +244,9 @@ class NFC:
         if self.verbose:
             self.log(True, "REQA", bytes((data,)))
         self.iso14443.transmit_short(data)
-        result = self.iso14443.receive()
+        result = self.iso14443.receive(bit_size_hint=19)
         if self.verbose:
-            self.log(True, "ATQA", result)
+            self.log(False, "ATQA", result)
         assert len(result) == 2
         return result
 
@@ -281,7 +282,13 @@ class NFC:
             print(" " * 13 + sep + " " * 17 + sep + " " * 6 + sep + f" {line}")
         print(colorama.Fore.RESET, end="")
 
-    def transmit(self, data: bytes, what_tx: str = "", what_rx: str = "") -> bytes:
+    def transmit(
+        self,
+        data: bytes,
+        what_tx: str = "",
+        what_rx: str = "",
+        bit_size_hint: Optional[int] = None,
+    ) -> bytes:
         """
         Transmits data to the card and reads the response. If card does not respond an
         empty byte string is returned.
@@ -291,17 +298,25 @@ class NFC:
             used when verbose is True.
         :param what_rx: Received frame type indication ("ATQA" for instance).
             used when verbose is True.
+        :param bit_size_hint: If the number of expected bits in the response is known,
+            it can be indicated as a hint to improve response readout performance. This
+            number includes start and parity bits. If response has more bits than
+            expected, it will still be read completely.
         """
         if self.verbose:
             self.log(True, what_tx, data)
         self.iso14443.transmit(data)
-        response = self.iso14443.receive()
+        response = self.iso14443.receive(bit_size_hint=bit_size_hint)
         if self.verbose:
             self.log(False, what_rx, response)
         return response
 
     def transmit_with_crc(
-        self, data: bytes, what_tx: str = "", what_rx: str = ""
+        self,
+        data: bytes,
+        what_tx: str = "",
+        what_rx: str = "",
+        bit_size_hint: int = None,
     ) -> bytes:
         """
         Transmits data, with CRC appended, reads the response and checks the received
@@ -312,10 +327,16 @@ class NFC:
             used when verbose is True.
         :param what_rx: Received frame type indication ("SAK" for instance).
             used when verbose is True.
+        :param bit_size_hint: If the number of expected bits in the response is known,
+            it can be indicated as a hint to improve response readout performance. This
+            number includes start and parity bits. If response has more bits than
+            expected, it will still be read completely.
         :raises CRCError: If received CRC is invalid.
         """
         frame = data + self.crc_a(data).to_bytes(2, "little")
-        response = self.transmit(frame, what_tx=what_tx, what_rx=what_rx)
+        response = self.transmit(
+            frame, what_tx=what_tx, what_rx=what_rx, bit_size_hint=bit_size_hint
+        )
         assert len(response) >= 2
         got_crc = response[-2:]
         expected_crc = self.crc_a(response[:-2]).to_bytes(2, "little")
@@ -334,8 +355,12 @@ class NFC:
         :param level: Cascade level. Must be 1, 2 or 3.
         """
         sel = 0x93 + 2 * (level - 1)
-        uid = self.transmit(bytes((sel, 0x20)), what_tx="SEL", what_rx="UID")
-        self.transmit_with_crc(bytes((sel, 0x70)) + uid, what_tx="SEL", what_rx="SAK")
+        uid = self.transmit(
+            bytes((sel, 0x20)), what_tx="SEL", what_rx="UID", bit_size_hint=46
+        )
+        self.transmit_with_crc(
+            bytes((sel, 0x70)) + uid, what_tx="SEL", what_rx="SAK", bit_size_hint=28
+        )
         return uid
 
     def rats(self) -> bytes:
@@ -358,7 +383,7 @@ class NFC:
         iblock = bytes((0x02 + self.block_number,)) + apdu
         self.block_number = (self.block_number + 1) % 2
         response = self.transmit_with_crc(iblock)
-        while response[0] & 0xc0 == 0xc0:
+        while response[0] & 0xC0 == 0xC0:
             # S-block with waiting time extension request
             response = self.transmit_with_crc(b"\xf2" + bytes((response[1],)))
         return response[1:]
