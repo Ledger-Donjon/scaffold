@@ -508,6 +508,10 @@ class Smartcard:
         edc_len_dict = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}
         assert self.t1_redundancy_code is not None
 
+        # Constants for S-block WTX request detection
+        S_BLOCK_MASK = 0b111111
+        S_BLOCK_WTX_REQUEST = 0b000011
+
         enable_trigger = trigger
 
         apdu_remaining = the_apdu
@@ -541,8 +545,8 @@ class Smartcard:
         response = bytearray()
         has_more = True
         while has_more:
-            # Note that we have asserted trigger on first block reception,
-            # whatever it is an I-block or R-block or S-Block.
+            # Note that we have asserted the trigger on first block reception,
+            # whether it is an I-block, R-block, or S-block.
             block = self.receive_block()
             if enable_trigger:
                 self.iso7816.trigger_long = False
@@ -561,7 +565,7 @@ class Smartcard:
                 raise ProtocolError("Expected I-block, received R-block")
             else:  # S-block
                 # We handle the S-blocks with WTX requests
-                if (pcb & 0b111111) == 0b000011:
+                if (pcb & S_BLOCK_MASK) == S_BLOCK_WTX_REQUEST:
                     # WTX Request received, sending response with same info.
                     if len(block) < 3:
                         raise ProtocolError(
