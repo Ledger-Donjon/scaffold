@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "donjon-scaffold"
 packages = [{ include = "scaffold", from = "api" }]
-version = "0.0.0"
+version = "0.9.5"
 description = "Python3 API for the Scaffold board"
 authors = [
     "Olivier Hériveaux <olivier.heriveaux@ledger.fr>",
