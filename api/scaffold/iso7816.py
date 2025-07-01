@@ -508,6 +508,10 @@ class Smartcard:
         edc_len_dict = {T1RedundancyCode.LRC: 1, T1RedundancyCode.CRC: 2}
         assert self.t1_redundancy_code is not None
 
+        # Constants for S-block WTX request detection
+        S_BLOCK_MASK = 0b111111
+        S_BLOCK_WTX_REQUEST = 0b000011
+
         enable_trigger = trigger
 
         apdu_remaining = the_apdu
@@ -536,14 +540,17 @@ class Smartcard:
                     else:
                         raise ProtocolError("Unspecified error reported by card")
                 else:  # S-block
-                    raise ProtocolError("Expected R-block, received I-block")
+                    raise ProtocolError("Expected R-block, received S-block")
 
         response = bytearray()
         has_more = True
         while has_more:
+            # Note that we have asserted the trigger on first block reception,
+            # whether it is an I-block, R-block, or S-block.
             block = self.receive_block()
             if enable_trigger:
                 self.iso7816.trigger_long = False
+
             pcb = block[1]
             if pcb & (1 << 7) == 0:  # I-block
                 # Check that the sequence number is correct
@@ -557,6 +564,16 @@ class Smartcard:
             elif pcb & (1 << 6) == 0:  # R-block
                 raise ProtocolError("Expected I-block, received R-block")
             else:  # S-block
+                # We handle the S-blocks with WTX requests
+                if (pcb & S_BLOCK_MASK) == S_BLOCK_WTX_REQUEST:
+                    # WTX Request received, sending response with same info.
+                    if len(block) < 3:
+                        raise ProtocolError(
+                            "Received WTX request with no info field: " + block.hex()
+                        )
+                    info = block[2:3]
+                    self.transmit_block(0, 0b11100011, info)
+                    continue
                 raise ProtocolError("Expected I-block, received S-block")
 
             self.t1_ns_rx = (self.t1_ns_rx + 1) % 2
