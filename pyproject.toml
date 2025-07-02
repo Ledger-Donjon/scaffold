@@ -28,6 +28,7 @@ pyserial = "*"
 crcmod = "*"
 requests = "*"
 packaging = "*"
+rich = "*"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^6.0.0"
