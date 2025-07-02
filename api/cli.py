@@ -149,10 +149,17 @@ class CLI:
             setattr(self.scaffold.power, args.target, value)
         elif args.target == "all":
             self.scaffold.power.all = 0b11 if value else 0b00
+
+        trigger_msg = ""
+        if args.trigger:
+            trigger_msg += "[green] with trigger on [/green]"
+            trigger_msg += f"[bold yellow]{args.trigger}[/bold yellow]"
         console.print(
-            f"[green]Power [/green][bold yellow]{args.target}[/bold yellow][green] set to [/green]"
+            "[green]Power [/green]"
+            f"[bold yellow]{args.target}[/bold yellow]"
+            "[green] set to [/green]"
             f"[bold yellow]{args.state}[/bold yellow]"
-            f"{f'[green] with trigger on [/green][bold yellow]{args.trigger}[/bold yellow]' if args.trigger else ''}"
+            f"{trigger_msg}"
         )
 
     def handle_io(self, args: argparse.Namespace) -> None:
@@ -165,7 +172,9 @@ class CLI:
         value = 1 if args.state == "on" else 0
         getattr(self.scaffold, args.line) << value
         console.print(
-            f"[bold yellow]{args.line}[/bold yellow][green] set to [/green][bold yellow]{args.state}[/bold yellow]"
+            f"[bold yellow]{args.line}[/bold yellow]"
+            "[green] set to [/green]"
+            f"[bold yellow]{args.state}[/bold yellow]"
         )
 
     def handle_version(self) -> None:
@@ -173,7 +182,8 @@ class CLI:
         Handle the 'version' command to display the Scaffold version.
         """
         console.print(
-            f"[green]Scaffold version: [/green][bold yellow]{self.scaffold.version}[/bold yellow]"
+            "[green]Scaffold version: [/green]"
+            f"[bold yellow]{self.scaffold.version}[/bold yellow]"
         )
 
     def handle_list(self) -> None:
@@ -184,7 +194,8 @@ class CLI:
         for port in serial.tools.list_ports.comports():
             if port.product is not None and port.product.lower() == "scaffold":
                 console.print(
-                    f"[green]Found device: [/green][bold yellow]{port.device}[/bold yellow]"
+                    "[green]Found device: [/green]"
+                    f"[bold yellow]{port.device}[/bold yellow]"
                     f"[green] - {port.description} ({port.hwid})[/green]"
                 )
                 found = True
@@ -193,7 +204,8 @@ class CLI:
 
     def handle_uart(self, args: argparse.Namespace) -> None:
         """
-        Handle the 'uart' command to start an interactive UART shell or retrieve UART logs.
+        Handle the 'uart' command to start an interactive UART shell
+        or retrieve UART logs.
 
         :param args: Parsed command-line arguments.
         :type args: argparse.Namespace
@@ -203,10 +215,14 @@ class CLI:
             return
 
         console.print(
-            f"[green]Initializing UART on RX: [/green][bold yellow]{args.rx}[/bold yellow]"
-            f"[green], TX: [/green][bold yellow]{args.tx}[/bold yellow]"
-            f"[green], Baudrate: [/green][bold yellow]{args.baudrate}[/bold yellow]"
-            f"[green], Timeout: [/green][bold yellow]{args.timeout}[/bold yellow]"
+            "[green]Initializing UART with RX: [/green]"
+            f"[bold yellow]{args.rx}[/bold yellow]"
+            "[green], TX: [/green]"
+            f"[bold yellow]{args.tx}[/bold yellow]"
+            "[green], Baudrate: [/green]"
+            f"[bold yellow]{args.baudrate}[/bold yellow]"
+            "[green], Timeout: [/green]"
+            f"[bold yellow]{args.timeout}[/bold yellow]"
         )
         self.scaffold.timeout = args.timeout
 
@@ -238,7 +254,8 @@ class CLI:
                 console.print("[blue]UART log mode exited (reason: user).[/blue]")
         elif args.mode == "repl":
             console.print(
-                "[blue]Entering UART REPL mode. Press Ctrl+C to leave the UART shell.[/blue]"
+                "[blue]Entering UART REPL mode. "
+                "Press Ctrl+C to leave the UART shell.[/blue]"
             )
             try:
                 while True:
@@ -266,19 +283,29 @@ class CLI:
         """
         sm = Smartcard(self.scaffold)
 
-        # Always reset the card interface before sending commands (so reset command does nothing more)
+        # Always reset the card interface before sending
+        # commands (so reset command does nothing more)
         console.print("[green]Resetting card interface and retrieving ATR...[/green]")
         atr = sm.reset()
         console.print(
-            f"[green]ATR: [/green][bold yellow]{atr.hex() if atr else 'No ATR received'}[/bold yellow]"
+            "[green]ATR: [/green]"
+            f"[bold yellow]{atr.hex() if atr else 'No ATR received'}[/bold yellow]"
         )
 
         if args.iso7816_command == "apdu":
             if args.trigger:
                 getattr(self.scaffold, args.trigger) << sm.iso7816.trigger
+
+            trigger_msg = ""
+            if args.trigger:
+                trigger_msg = "[green] with [/green]"
+                trigger_msg += "[bold yellow]ab[/bold yellow]"
+                trigger_msg += "[green] trigger on [/green]"
+                trigger_msg += f"[bold yellow]{args.trigger}[/bold yellow]"
             console.print(
-                f"[green]Sending APDU [/green][bold yellow]{args.hexstr}[/bold yellow]"
-                f"{f'[green] with [/green][bold yellow]ab[/bold yellow][green] trigger on [/green][bold yellow]{args.trigger}[/bold yellow]' if args.trigger else ''}"
+                "[green]Sending APDU [/green]"
+                f"[bold yellow]{args.hexstr}[/bold yellow]"
+                f"{trigger_msg}"
             )
             response = sm.apdu(args.hexstr, trigger="ab" if args.trigger else "")
             console.print(
@@ -287,7 +314,8 @@ class CLI:
 
     def run(self) -> None:
         """
-        Parse command-line arguments, instantiate a scaffold object if needed and dispatch to the appropriate handler.
+        Parse command-line arguments, instantiate a scaffold object if needed
+        and dispatch to the appropriate handler.
         """
         args = self.parser.parse_args()
 
@@ -298,12 +326,14 @@ class CLI:
         try:
             if args.dev is None:
                 console.print(
-                    "[yellow]No device specified, using default Scaffold device.[/yellow]"
+                    "[yellow]No device specified, "
+                    "using default Scaffold device.[/yellow]"
                 )
                 self.scaffold = Scaffold()
             else:
                 console.print(
-                    f"[yellow]Using Scaffold device: [/yellow][bold yellow]{args.dev}[/bold yellow]"
+                    "[yellow]Using Scaffold device: [/yellow]"
+                    f"[bold yellow]{args.dev}[/bold yellow]"
                 )
                 self.scaffold = Scaffold(dev=args.dev)
         except (RuntimeError, serial.serialutil.SerialException):
