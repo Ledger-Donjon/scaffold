@@ -68,5 +68,4 @@ See :ref:`Using external power supplies <external_power_supplies>` for more info
 Manufacturer
 ------------
 
-**Ledger**, 1 rue du Mail, 75002 Paris, France
-
+**Ledger**, 106 rue du Temple, 75003 Paris, France
