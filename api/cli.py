@@ -4,6 +4,7 @@ import signal
 import serial.tools.list_ports
 from rich.console import Console
 from rich.prompt import Prompt
+from rich_argparse import RichHelpFormatter
 
 from scaffold import Scaffold
 from scaffold.iso7816 import Smartcard
@@ -44,11 +45,14 @@ class CLI:
 
     def __init__(self):
         self.scaffold = None
-        self.parser = self.create_parser()
+        self.parser = CLI.create_parser()
 
-    def create_parser(self):
+    @staticmethod
+    def create_parser():
         """Create the argument parser for the CLI."""
-        parser = argparse.ArgumentParser(prog="scaffold")
+        parser = argparse.ArgumentParser(
+            prog="scaffold", formatter_class=RichHelpFormatter
+        )
         parser.add_argument(
             "--dev",
             help="Select scaffold device (optional)",
@@ -58,13 +62,21 @@ class CLI:
         subparsers = parser.add_subparsers(dest="command", required=True)
 
         # scaffold list
-        subparsers.add_parser("list", help="List available board")
+        subparsers.add_parser(
+            "list", help="List available board", formatter_class=RichHelpFormatter
+        )
 
         # scaffold version
-        subparsers.add_parser("version", help="Show version information")
+        subparsers.add_parser(
+            "version",
+            help="Show version information",
+            formatter_class=RichHelpFormatter,
+        )
 
         # scaffold power dut/platform/all on/off
-        power_parser = subparsers.add_parser("power", help="Control power")
+        power_parser = subparsers.add_parser(
+            "power", help="Control power", formatter_class=RichHelpFormatter
+        )
         power_parser.add_argument(
             "target", choices=["dut", "platform", "all"], help="Power target"
         )
@@ -72,23 +84,27 @@ class CLI:
         power_parser.add_argument(
             "--trigger",
             help="Optional trigger for power control",
-            choices=self.DIGITAL_IO,
+            choices=CLI.DIGITAL_IO,
             default=None,
             required=False,
         )
 
         # scaffold d0/d1/d2/d3/d4/d5 on/off
-        d_parser = subparsers.add_parser("io", help="Control I/Os")
-        d_parser.add_argument("line", choices=self.DIGITAL_IO, help="I/O line")
+        d_parser = subparsers.add_parser(
+            "io", help="Control I/Os", formatter_class=RichHelpFormatter
+        )
+        d_parser.add_argument("line", choices=CLI.DIGITAL_IO, help="I/O line")
         d_parser.add_argument("state", choices=["on", "off"], help="Line state")
 
         # scaffold uart
-        uart_parser = subparsers.add_parser("uart", help="UART interactive shell")
-        uart_parser.add_argument(
-            "rx", choices=self.DIGITAL_IO, help="RX I/O line (required)"
+        uart_parser = subparsers.add_parser(
+            "uart", help="UART interactive shell", formatter_class=RichHelpFormatter
         )
         uart_parser.add_argument(
-            "tx", choices=self.DIGITAL_IO, help="TX I/O line (required)"
+            "rx", choices=CLI.DIGITAL_IO, help="RX I/O line (required)"
+        )
+        uart_parser.add_argument(
+            "tx", choices=CLI.DIGITAL_IO, help="TX I/O line (required)"
         )
         uart_parser.add_argument(
             "--baudrate", type=int, default=9600, help="UART baudrate (default: 9600)"
@@ -113,13 +129,17 @@ class CLI:
         )
 
         # scaffold iso7816
-        iso7816_parser = subparsers.add_parser("iso7816", help="ISO 7816 interface")
+        iso7816_parser = subparsers.add_parser(
+            "iso7816", help="ISO 7816 interface", formatter_class=RichHelpFormatter
+        )
         iso7816_subparsers = iso7816_parser.add_subparsers(
             dest="iso7816_command", required=True
         )
 
         # iso7816 apdu <hexstr>
-        apdu_parser = iso7816_subparsers.add_parser("apdu", help="Send APDU command")
+        apdu_parser = iso7816_subparsers.add_parser(
+            "apdu", help="Send APDU command", formatter_class=RichHelpFormatter
+        )
         apdu_parser.add_argument("hexstr", help="APDU command as hex string")
         apdu_parser.add_argument(
             "--trigger",
@@ -130,7 +150,9 @@ class CLI:
         )
 
         # iso7816 reset
-        iso7816_subparsers.add_parser("reset", help="Reset ISO 7816 interface")
+        iso7816_subparsers.add_parser(
+            "reset", help="Reset ISO 7816 interface", formatter_class=RichHelpFormatter
+        )
 
         return parser
 
