@@ -73,6 +73,13 @@ class CLI:
             formatter_class=RichHelpFormatter,
         )
 
+        # scaffold reset
+        subparsers.add_parser(
+            "reset",
+            help="Reset the scaffold (including I/Os)",
+            formatter_class=RichHelpFormatter,
+        )
+
         # scaffold power dut/platform/all on/off
         power_parser = subparsers.add_parser(
             "power", help="Control power", formatter_class=RichHelpFormatter
@@ -208,6 +215,14 @@ class CLI:
             "[green]Scaffold version: [/green]"
             f"[bold yellow]{self.scaffold.version}[/bold yellow]"
         )
+
+    def handle_reset(self) -> None:
+        """
+        Handle the 'reset' command to reset the Scaffold board.
+        This includes resetting all I/O lines.
+        """
+        self.scaffold.reset_config(init_ios=True)
+        console.print("[green]Scaffold board reset successfully.[/green]")
 
     def handle_list(self) -> None:
         """
@@ -375,6 +390,8 @@ class CLI:
             self.handle_uart(args)
         elif args.command == "iso7816":
             self.handle_iso7816(args)
+        elif args.command == "reset":
+            self.handle_reset()
 
 
 def main() -> None:
