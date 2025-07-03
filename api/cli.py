@@ -94,7 +94,7 @@ class CLI:
             "io", help="Control I/Os", formatter_class=RichHelpFormatter
         )
         d_parser.add_argument("line", choices=CLI.DIGITAL_IO, help="I/O line")
-        d_parser.add_argument("state", choices=["on", "off"], help="Line state")
+        d_parser.add_argument("state", choices=["high", "low"], help="Line state")
 
         # scaffold uart
         uart_parser = subparsers.add_parser(
@@ -191,9 +191,10 @@ class CLI:
         :param args: Parsed command-line arguments.
         :type args: argparse.Namespace
         """
-        value = 1 if args.state == "on" else 0
+        value = 1 if args.state == "high" else 0
         getattr(self.scaffold, args.line) << value
         console.print(
+            "[green]I/O [/green]"
             f"[bold yellow]{args.line}[/bold yellow]"
             "[green] set to [/green]"
             f"[bold yellow]{args.state}[/bold yellow]"

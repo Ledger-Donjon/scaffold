@@ -162,7 +162,7 @@ Typical usage examples:
 
   .. code-block:: bash
 
-  scaffold io d0 on
+  scaffold io d0 high
 
 - get an interactive UART shell (rx and tx connected to d1 and d0) with a baudrate of 115200:
 
