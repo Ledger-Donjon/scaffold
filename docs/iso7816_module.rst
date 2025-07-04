@@ -115,6 +115,11 @@ trigger_long
   transmission, and cleared at the beginning of next byte reception or
   transmission.
 
+.. note:: 
+  The assertion of the signal will be done for any byte reception,
+  including when a `S-block` is received, in the T1 protocol, for instance
+  when the card  sends a `WTX` request.
+
 divisor register
 ^^^^^^^^^^^^^^^^
 

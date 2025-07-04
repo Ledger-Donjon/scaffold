@@ -117,3 +117,63 @@ Scaffold.
     # UART is now ready to use
     uart.transmit('Hello world !'.encode(), trigger=True)
 
+Using the Command-Line-Interface
+--------------------------------
+
+The Python3 API also provides a command-line interface (CLI) for quick Scaffold
+interaction and scripting without writing Python code.
+
+To get global help and see available modules, run:
+
+.. code-block:: bash
+
+  scaffold -h
+
+To get help on a specific module, use:
+
+.. code-block:: bash
+
+  scaffold <module> -h
+
+Available modules are:
+
+- power: manage power state of the DUT and platform (and setup triggers)
+- io: manage I/O pins power state
+- uart: receive and transmit UART messages
+- iso7816: send APDUs to smartcards 
+- version: display the scaffold version
+- list: list connected Scaffold boards
+
+Typical usage examples:
+
+- list connected Scaffold boards:
+
+  .. code-block:: bash
+
+  scaffold list
+
+- power on the DUT with a trigger on d4:
+
+  .. code-block:: bash
+
+  scaffold power dut on --trigger d4
+
+- change state of the platform I/O d0 to high:
+
+  .. code-block:: bash
+
+  scaffold io d0 high
+
+- get an interactive UART shell (rx and tx connected to d1 and d0) with a baudrate of 115200:
+
+  .. code-block:: bash
+
+  scaffold --dev /dev/ttyUSB0 uart d1 d0 --baudrate 115200 --mode repl
+
+- send an APDU command to a smartcard:
+
+  .. code-block:: bash
+
+  scaffold iso7816 apdu 00b2000000
+
+Refer to the CLI help for more options and details on each command.

@@ -23,11 +23,13 @@ keywords = ["scaffold", "donjon", "ledger"]
 
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 pyserial = "*"
 crcmod = "*"
 requests = "*"
 packaging = "*"
+rich = "*"
+rich-argparse = "*"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^6.0.0"
@@ -38,6 +40,9 @@ optional = true
 [tool.poetry.group.docs.dependencies]
 sphinx = "*"
 sphinx_rtd_theme = "*"
+
+[tool.poetry.scripts]
+scaffold = "scaffold.cli:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
