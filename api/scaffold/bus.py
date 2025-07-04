@@ -456,19 +456,37 @@ class ScaffoldBus:
         """
         Read data from a register.
 
+        If size is greater than 255, multiple read requests are sent to the board.
+        If size is large and polling is `None`, multiple read requests can be sent ahead
+        before receiving the content (bus pipelining mechanism) to reduce latency and
+        increase bandwidth.
+
         :param addr: Register address.
         :param poll: Register polling parameters, or None if polling is not required.
         """
         result = bytearray()
         remaining = size
         offset = 0
+        ops = []  # Pending read operations (if requests sent ahead)
         while remaining:
             chunk_size = min(self.MAX_CHUNK, remaining)
             op = ReadOperation(addr, chunk_size, poll)
             self.operation(op)
-            result += op.result
+            if poll is None:
+                # Read request sent, keep the operation and don't read the response yet
+                # so we can run faster.
+                ops.append(op)
+            else:
+                # Polling is enabled, so the board may timeout and we can't sent next
+                # requests ahead. Wait and read the response immediately. This is
+                # slower.
+                result += op.result
             remaining -= chunk_size
             offset += chunk_size
+        # Construct response after all read requests have been sent ahead.
+        # If polling is enabled response is already built and ops list is empty.
+        for op in ops:
+            result += op.result
         return result
 
     @property
