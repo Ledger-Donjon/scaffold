@@ -150,30 +150,30 @@ Typical usage examples:
 
   .. code-block:: bash
 
-  scaffold list
+    scaffold list
 
 - power on the DUT with a trigger on d4:
 
   .. code-block:: bash
 
-  scaffold power dut on --trigger d4
+    scaffold power dut on --trigger d4
 
 - change state of the platform I/O d0 to high:
 
   .. code-block:: bash
 
-  scaffold io d0 high
+    scaffold io d0 high
 
 - get an interactive UART shell (rx and tx connected to d1 and d0) with a baudrate of 115200:
 
   .. code-block:: bash
 
-  scaffold --dev /dev/ttyUSB0 uart d1 d0 --baudrate 115200 --mode repl
+    scaffold --dev /dev/ttyUSB0 uart d1 d0 --baudrate 115200 --mode repl
 
 - send an APDU command to a smartcard:
 
   .. code-block:: bash
 
-  scaffold iso7816 apdu 00b2000000
+    scaffold iso7816 apdu 00b2000000
 
 Refer to the CLI help for more options and details on each command.
