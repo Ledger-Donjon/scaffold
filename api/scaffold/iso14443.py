@@ -197,6 +197,8 @@ class NFC:
             TRF7970ARegister.CHIP_STATUS_CONTROL, 0b01100001, keep_ss_low=True
         )
         self.spi.transmit(0)
+        # Reset the block number
+        self.block_number = 0
         self.iso14443.power_on()
 
     def register_read(self, address: int) -> int:
