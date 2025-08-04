@@ -175,6 +175,29 @@ begin
         rx <= '1';
         wait for mod_half_period;
 
+        wait for bit_period * 5;
+
+        pattern <= "01";
+        push <= '1';
+        wait for clock_period;
+        push <= '0';
+        pattern <= "01";
+        push <= '1';
+        wait for clock_period;
+        push <= '0';
+        pattern <= "01";
+        push <= '1';
+        wait for clock_period;
+        push <= '0';
+
+        wait for clock_period;
+        start <= '1';
+        wait for clock_period;
+        start <= '0';
+
+        wait for bit_period * 5;
+
+
         wait;
     end process;
 

@@ -265,13 +265,13 @@ begin
                 -- symbol is fetched from the FIFO the counter will be
                 -- decremented once. This is not a problem, no need to add logic
                 -- to avoid that.
-                when st_tx | st_tx_fetch | st_tx_copy =>
+                when st_tx | st_tx_fetch =>
                     if time_counter = 0 then
                         time_counter <= to_unsigned(235, time_counter'length);
                     else
                         time_counter <= time_counter - 1;
                     end if;
-                when st_rx_wait =>
+                when st_rx_wait | st_tx_copy =>
                     -- 235 = 944 / 4 - 1 - 2
                     -- Quarter bit duration, minus one because 0 is included,
                     -- minus 2 to take into account the dummy cycle and sampling
