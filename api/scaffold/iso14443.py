@@ -119,20 +119,40 @@ class NFC:
     - D15: SYS_CLK
     """
 
-    def __init__(self, scaffold: Scaffold):
+    def __init__(self, scaffold: Scaffold, platform_socket: bool = False):
         self.scaffold = scaffold
-        scaffold.power.dut = 0
-        self.pin_ss = scaffold.d10
-        self.pin_en = scaffold.d14
-        self.pin_io0 = scaffold.d6
-        self.pin_io1 = scaffold.d7
-        self.pin_io2 = scaffold.d8
-        self.pin_clock_13_56 = scaffold.d15
+        if not platform_socket:
+            scaffold.power.dut = 0
+        else:
+            scaffold.power.platform = 0
         self.trigger = scaffold.iso14443.trigger
         self.spi = scaffold.spi0
         self.iso14443 = scaffold.iso14443
-        scaffold.d0 << self.iso14443.tx
-        scaffold.d1 >> self.iso14443.rx
+        self.platform_socket = platform_socket
+        if not platform_socket:
+            self.pin_mosi = scaffold.d11
+            self.pin_miso = scaffold.d1
+            self.pin_sck = scaffold.d12
+            self.pin_ss = scaffold.d10
+            self.pin_en = scaffold.d14
+            self.pin_io0 = scaffold.d6
+            self.pin_io1 = scaffold.d7
+            self.pin_io2 = scaffold.d8
+            self.pin_clock_13_56 = scaffold.d15
+            scaffold.d0 << self.iso14443.tx
+            scaffold.d1 >> self.iso14443.rx
+        else:
+            self.pin_mosi = scaffold.p11
+            self.pin_miso = scaffold.p1
+            self.pin_sck = scaffold.p12
+            self.pin_ss = scaffold.p10
+            self.pin_en = scaffold.p14
+            self.pin_io0 = scaffold.p6
+            self.pin_io1 = scaffold.p7
+            self.pin_io2 = scaffold.p8
+            self.pin_clock_13_56 = scaffold.p15
+            scaffold.p0 << self.iso14443.tx
+            scaffold.p1 >> self.iso14443.rx
         self.pin_clock_13_56 >> self.iso14443.clock_13_56
 
         self.pin_en << 0
@@ -144,13 +164,13 @@ class NFC:
         self.pin_io1 << 1
         self.pin_io2 << 1
 
-        self.spi.mosi >> scaffold.d11
-        self.spi.miso << scaffold.d1
-        self.spi.sck >> scaffold.d12
+        self.spi.mosi >> self.pin_mosi
+        self.spi.miso << self.pin_miso
+        self.spi.sck >> self.pin_sck
         self.spi.phase = 1
         self.spi.frequency = 1000000
 
-        scaffold.d1.pull = Pull.UP
+        #self.pin_miso.pull = Pull.UP
         self.crc_a = crcmod.mkCrcFun(0x11021, 0x6363, rev=True)
 
         # Used for I-block encapsulation
@@ -161,7 +181,10 @@ class NFC:
 
     def startup(self):
         """Power-on the NFC daughterboard and initialize the TRF7970A front-end."""
-        self.scaffold.power.dut = 1
+        if not self.platform_socket:
+            self.scaffold.power.dut = 1
+        else:
+            self.scaffold.power.platform = 1
         sleep(2e-3)
         self.pin_ss << 1
         sleep(4e-3)
