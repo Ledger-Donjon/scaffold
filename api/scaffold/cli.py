@@ -161,6 +161,17 @@ class CLI:
             "reset", help="Reset ISO 7816 interface", formatter_class=RichHelpFormatter
         )
 
+        # iso7816 select
+        select_parser = iso7816_subparsers.add_parser(
+            "select", help="Select application", formatter_class=RichHelpFormatter
+        )
+        select_parser.add_argument(
+            "--aid",
+            help="AID of the application to select",
+            default=None,
+            required=True,
+        )
+
         return parser
 
     def handle_power(self, args: argparse.Namespace) -> None:
@@ -346,6 +357,17 @@ class CLI:
                 f"{trigger_msg}"
             )
             response = sm.apdu(args.hexstr, trigger="ab" if args.trigger else "")
+            console.print(
+                f"[green]Response: [/green][bold yellow]{response.hex()}[/bold yellow]"
+            )
+        elif args.iso7816_command == "select":
+            console.print(
+                "[green]Selecting application [/green]"
+                f"[bold yellow]{args.aid}[/bold yellow]"
+            )
+            response = sm.apdu(
+                bytes.fromhex(f"00A40400{len(args.aid) // 2:02x}{args.aid}")
+            )
             console.print(
                 f"[green]Response: [/green][bold yellow]{response.hex()}[/bold yellow]"
             )
