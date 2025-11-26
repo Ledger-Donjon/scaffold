@@ -45,6 +45,7 @@ port (
     en_config: in std_logic;
     en_data: in std_logic;
     en_timeout: in std_logic;
+    en_demod_delay: in std_logic;
 
     -- Output registers
     reg_status: out byte_t;
@@ -77,6 +78,8 @@ architecture behavior of iso14443_module is
     signal use_sync: std_logic;
     -- Timeout register
     signal reg_timeout: std_logic_vector(23 downto 0);
+    -- Demodulation delay register.
+    signal reg_demod_delay: std_logic_vector(23 downto 0);
 
     -- When high, pushes a byte in the FIFO.
     signal push: std_logic;
@@ -112,6 +115,12 @@ begin
     port map (clock => clock, reset_n => reset_n, en => en_timeout,
         bus_in => bus_in, value => reg_timeout);
 
+    -- Demodulation delay counter.
+    e_reg_demod_delay: entity work.module_wide_reg
+    generic map (wideness => 3, reset => x"000000")
+    port map (clock => clock, reset_n => reset_n, en => en_demod_delay,
+        bus_in => bus_in, value => reg_demod_delay);
+
     e_iso14443_tx: entity work.iso14443_tx
     port map (
         clock => clock,
@@ -125,6 +134,7 @@ begin
         use_sync => use_sync,
         clock_13_56 => clock_13_56,
         timeout => reg_timeout,
+        demod_delay => reg_demod_delay,
         rx_fifo_q => rx_fifo_q,
         rx_fifo_empty => rx_fifo_empty,
         rx_fifo_rdreq => rx_fifo_rdreq,

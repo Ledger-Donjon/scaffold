@@ -41,6 +41,9 @@ port (
     power_enable: in std_logic;
     -- Maximum timeout value.
     timeout: in std_logic_vector(23 downto 0);
+    -- Time to wait before starting RX decoding after transmission.
+    -- This can help to avoid demodulator noise.
+    demod_delay: in std_logic_vector(23 downto 0);
     -- Input pattern to be pushed.
     pattern: in std_logic_vector(1 downto 0);
     -- When high, push pattern in the FIFO.
@@ -80,6 +83,7 @@ architecture behavior of iso14443_tx is
         st_tx_copy,
         st_tx,
         st_trigger_tx_end,
+        st_rx_delay,
         st_rx_wait,
         st_rx_a,
         st_rx_a_sample,
@@ -120,6 +124,8 @@ architecture behavior of iso14443_tx is
     signal rx_fifo_wreq: std_logic;
     -- Timeout counter.
     signal timeout_counter: unsigned(29 downto 0);
+    -- Demodulation start delay counter.
+    signal demod_delay_counter: unsigned(23 downto 0);
     -- Demodulator output.
     signal demod_result: std_logic;
     -- High to enable demodulator block. This help reducing power consumption
@@ -184,7 +190,14 @@ begin
 
                 -- One clock cycle used to generate end of transmission trigger.
                 when st_trigger_tx_end =>
-                    state <= st_rx_wait;
+                    state <= st_rx_delay;
+
+                when st_rx_delay =>
+                    if demod_delay_counter = 0 then
+                        state <= st_rx_wait;
+                    else
+                        state <= st_rx_delay;
+                    end if;
 
                 -- Waiting for the beginning of the response.
                 -- Goes to reception when modulation is detected, or end
@@ -399,6 +412,26 @@ begin
     end process;
 
     samples_valid <= samples(0) xor samples(1);
+
+    p_demod_delay_counter: process (clock, reset_n) is
+    begin
+        if reset_n = '0' then
+            demod_delay_counter <= to_unsigned(0, demod_delay_counter'length);
+        elsif rising_edge(clock) then
+            case state is
+                when st_idle =>
+                    if start = '1' then
+                        demod_delay_counter <= unsigned(demod_delay);
+                    else
+                        demod_delay_counter <= demod_delay_counter;
+                    end if;
+                when st_rx_delay =>
+                    demod_delay_counter <= demod_delay_counter - 1;
+                when others =>
+                    demod_delay_counter <= demod_delay_counter;
+            end case; 
+        end if;
+    end process;
 
     e_demod: entity work.iso14443_demod
     port map (

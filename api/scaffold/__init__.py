@@ -1641,6 +1641,7 @@ class ISO14443(Module):
         self.add_register("config", "w", base + 1, reset=0)
         self.add_register("data", "rwv", base + 2)
         self.add_register("timeout", "w", base + 3, wideness=3, reset=0x2faf08)
+        self.add_register("demod_delay", "w", base + 4, wideness=3, reset=0)
 
     def reset(self):
         self.reg_config.set(
@@ -1826,6 +1827,20 @@ class ISO14443(Module):
         if ticks < 1:
             raise ValueError("Timeout is too short")
         self.reg_timeout.set(ticks)
+
+    @property
+    def demod_delay(self) -> float:
+        ticks = self.reg_demod_delay.get()
+        return ticks / self.parent.sys_freq
+
+    @demod_delay.setter
+    def demod_delay(self, t: float):
+        if t < 0:
+            raise ValueError("Demodulation delay cannot be negative")
+        ticks = round(t * self.parent.sys_freq)
+        if ticks > 0xffffff:
+            raise ValueError("Demodulation delay is too long")
+        self.reg_demod_delay.set(ticks)
 
 
 class IOMode(Enum):

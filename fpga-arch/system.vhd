@@ -270,6 +270,7 @@ architecture behavior of system is
     constant addr_iso14443_config: address_t := x"0b01";
     constant addr_iso14443_data: address_t := x"0b02";
     constant addr_iso14443_timeout: address_t := x"0b03";
+    constant addr_iso14443_demod_delay: address_t := x"0b04";
     constant addr_io_value_base: address_t := x"e000";
     constant addr_io_config_base: address_t := x"e001";
     constant addr_mtxl_base: address_t := x"f000";
@@ -323,6 +324,7 @@ architecture behavior of system is
     signal en_iso14443_config: std_logic;
     signal en_iso14443_data: std_logic;
     signal en_iso14443_timeout: std_logic;
+    signal en_iso14443_demod_delay: std_logic;
     signal en_io_value: std_logic_vector(io_count-1 downto 0);
     signal en_io_config: std_logic_vector(io_count-1 downto 0);
     signal en_mtxl_sel: std_logic_vector(mtxl_out_count-1 downto 0);
@@ -456,6 +458,7 @@ begin
     en_iso14443_config <= addr_en(bus_in, addr_iso14443_config);
     en_iso14443_data <= addr_en(bus_in, addr_iso14443_data);
     en_iso14443_timeout <= addr_en(bus_in, addr_iso14443_timeout);
+    en_iso14443_demod_delay <= addr_en(bus_in, addr_iso14443_demod_delay);
     en_io_value <= addr_en_loop(bus_in, addr_io_value_base, x"0010", io_count);
     en_io_config <=
         addr_en_loop(bus_in, addr_io_config_base, x"0010", io_count);
@@ -730,6 +733,7 @@ begin
         en_config => en_iso14443_config,
         en_data => en_iso14443_data,
         en_timeout => en_iso14443_timeout,
+        en_demod_delay => en_iso14443_demod_delay,
         reg_status => reg_iso14443_status,
         reg_data => reg_iso14443_data,
         tx => mtxr_in_iso14443_tx,
