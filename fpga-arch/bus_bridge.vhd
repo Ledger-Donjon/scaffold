@@ -109,7 +109,7 @@ architecture behavior of bus_bridge is
     -- cycle.
     signal fifo_rdreq: std_logic;
     -- Size of the FIFO
-    signal fifo_use: std_logic_vector(8 downto 0);
+    signal fifo_use: std_logic_vector(10 downto 0);
     -- When high, the FSM is waiting from a byte to be available from the FIFO.
     -- This signal is used to perform read requests.
     signal need_byte: std_logic;
@@ -170,7 +170,7 @@ architecture behavior of bus_bridge is
     signal delay_counter: std_logic_vector(23 downto 0);
     -- Expected size of the command buffer when a wait buffer operation is
     -- performed. This is configured during st_buf_wait_conf_x states.
-    signal buf_wait_size: std_logic_vector(8 downto 0);
+    signal buf_wait_size: std_logic_vector(10 downto 0);
     -- Register for pipelining the incoming data from the bus.
     signal bus_read_data_pipelined: byte_t;
 
@@ -836,7 +836,7 @@ begin
                 when st_buf_wait_conf_1 | st_buf_wait_conf_2 =>
                     if byte_available = '1' then
                         -- Shift-load from the right
-                        buf_wait_size <= buf_wait_size(0) & uart_data_rx;
+                        buf_wait_size <= buf_wait_size(2 downto 0) & uart_data_rx;
                     else
                         buf_wait_size <= buf_wait_size;
                     end if;

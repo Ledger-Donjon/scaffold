@@ -49,7 +49,7 @@ port (
     -- read_request has been asserted.
     data: out std_logic_vector(7 downto 0);
     -- Number of bytes in the FIFO.
-    size: out std_logic_vector(8 downto 0) );
+    size: out std_logic_vector(10 downto 0) );
 end;
 
 
@@ -62,7 +62,7 @@ architecture behavior of buffered_uart_rx is
     signal light_uart_has_data: std_logic;
 begin
     -- Reading a byte from the FIFO takes one clock cycle (no read-ahead).
-    e_fifo512: entity work.fifo512
+    e_fifo2048: entity work.fifo2048
     port map (
         aclr => not reset_n,
         sclr => '0',

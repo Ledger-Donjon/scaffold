@@ -67,6 +67,7 @@ begin
         tx => tx,
         rx => rx,
         timeout => x"ffffff",
+        demod_delay => x"000050",
         trigger_tx_start => trigger_tx_start,
         trigger_tx_end => trigger_tx_end,
         rx_fifo_rdreq => '0' );

@@ -318,7 +318,7 @@ class ScaffoldBus:
     """
 
     MAX_CHUNK = 255
-    FIFO_SIZE = 512
+    FIFO_SIZE = 2048
 
     def __init__(self, sys_freq, baudrate):
         """
