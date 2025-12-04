@@ -43,7 +43,7 @@ port (
     timeout: in std_logic_vector(23 downto 0);
     -- Time to wait before starting RX decoding after transmission.
     -- This can help to avoid demodulator noise.
-    demod_delay: in std_logic_vector(23 downto 0);
+    demod_delay: in std_logic_vector(28 downto 0);
     -- Input pattern to be pushed.
     pattern: in std_logic_vector(1 downto 0);
     -- When high, push pattern in the FIFO.
@@ -125,7 +125,7 @@ architecture behavior of iso14443_tx is
     -- Timeout counter.
     signal timeout_counter: unsigned(29 downto 0);
     -- Demodulation start delay counter.
-    signal demod_delay_counter: unsigned(23 downto 0);
+    signal demod_delay_counter: unsigned(28 downto 0);
     -- Demodulator output.
     signal demod_result: std_logic;
     -- High to enable demodulator block. This help reducing power consumption

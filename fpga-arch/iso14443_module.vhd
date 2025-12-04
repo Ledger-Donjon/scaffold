@@ -79,7 +79,8 @@ architecture behavior of iso14443_module is
     -- Timeout register
     signal reg_timeout: std_logic_vector(23 downto 0);
     -- Demodulation delay register.
-    signal reg_demod_delay: std_logic_vector(23 downto 0);
+    -- Only 29 bits are used, MSB will be ignored.
+    signal reg_demod_delay: std_logic_vector(31 downto 0);
 
     -- When high, pushes a byte in the FIFO.
     signal push: std_logic;
@@ -117,7 +118,7 @@ begin
 
     -- Demodulation delay counter.
     e_reg_demod_delay: entity work.module_wide_reg
-    generic map (wideness => 3, reset => x"000000")
+    generic map (wideness => 4, reset => x"00000000")
     port map (clock => clock, reset_n => reset_n, en => en_demod_delay,
         bus_in => bus_in, value => reg_demod_delay);
 
@@ -134,7 +135,7 @@ begin
         use_sync => use_sync,
         clock_13_56 => clock_13_56,
         timeout => reg_timeout,
-        demod_delay => reg_demod_delay,
+        demod_delay => reg_demod_delay(28 downto 0),
         rx_fifo_q => rx_fifo_q,
         rx_fifo_empty => rx_fifo_empty,
         rx_fifo_rdreq => rx_fifo_rdreq,
