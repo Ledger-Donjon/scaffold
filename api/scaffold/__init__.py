@@ -1326,7 +1326,7 @@ class I2C(Module):
             raise ValueError("Target frequency is too low.")
         if d < 1:
             raise ValueError("Target frequency is too high.")
-        real = self.parent.sys_freq / (d + 1)
+        real = self.parent.sys_freq / (4 * (d + 1))
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
@@ -1428,13 +1428,13 @@ class SPI(Module):
 
     @frequency.setter
     def frequency(self, value: float):
-        d = round((self.parent.sys_freq / (4 * value)) - 1)
+        d = round((self.parent.sys_freq / (2 * value)) - 1)
         # Check that the divisor can be stored on 16 bits.
         if d > 0xFFFF:
             raise ValueError("Target frequency is too low.")
         if d < 1:
             raise ValueError("Target frequency is too high.")
-        real = self.parent.sys_freq / (d + 1)
+        real = self.parent.sys_freq / (2 * (d + 1))
         self.reg_divisor.set(d)
         self.__cache_frequency = real
 
