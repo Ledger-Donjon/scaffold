@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "donjon-scaffold"
 packages = [{ include = "scaffold", from = "api" }]
-version = "0.9.5"
+version = "0.9.6b"
 description = "Python3 API for the Scaffold board"
 authors = [
     "Olivier Hériveaux <olivier.heriveaux@ledger.fr>",
@@ -30,6 +30,7 @@ requests = "*"
 packaging = "*"
 rich = "*"
 rich-argparse = "*"
+pycryptodome = "*"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^6.0.0"

@@ -9,6 +9,7 @@ from rich_argparse import RichHelpFormatter
 from scaffold import Scaffold
 from scaffold.iso7816 import Smartcard
 from scaffold.bus import TimeoutError
+from scaffold.atecc import ATECC, ATECCInterface
 
 console = Console()
 
@@ -159,6 +160,60 @@ class CLI:
         # iso7816 reset
         iso7816_subparsers.add_parser(
             "reset", help="Reset ISO 7816 interface", formatter_class=RichHelpFormatter
+        )
+
+        # atecc
+        atecc_parser = subparsers.add_parser(
+            "atecc", help="ATECC Wizard", formatter_class=RichHelpFormatter
+        )
+        atecc_subparsers = atecc_parser.add_subparsers(
+            dest="atecc_command", required=True
+        )
+
+        atecc_parser.add_argument(
+            "--interface",
+            choices=ATECCInterface,
+            default=ATECCInterface.I2C,
+            help="Interface to use for the ATECC (default: i2c)",
+        )
+        atecc_parser.add_argument(
+            "--address",
+            type=int,
+            default=ATECC.DEFAULT_ADDRESS,
+            help="I2C address of the ATECC (default: 0xC0)",
+        )
+
+        # atecc key
+        atecc_parser.add_argument(
+            "--slot",
+            type=int,
+            help="Slot index",
+            choices=range(16),
+            required=False,
+        )
+        atecc_parser.add_argument(
+            "--key",
+            type=int,
+            help="Key index",
+            choices=range(16),
+            required=False,
+        )
+
+        # atecc config
+        atecc_config_parser = atecc_subparsers.add_parser(
+            "config",
+            help="Configuration of the ATECC",
+            formatter_class=RichHelpFormatter,
+        )
+        atecc_config_parser.add_argument(
+            "--read",
+            action="store_true",
+            help="Read the configuration of the ATECC",
+        )
+        atecc_config_parser.add_argument(
+            "--write",
+            action="store_true",
+            help="Write the configuration of the ATECC",
         )
 
         return parser
@@ -350,6 +405,38 @@ class CLI:
                 f"[green]Response: [/green][bold yellow]{response.hex()}[/bold yellow]"
             )
 
+    def handle_atecc(self, args: argparse.Namespace) -> None:
+        """
+        Handle the 'atecc' command to interact with the ATECC chip.
+        """
+        atecc = ATECC(self.scaffold, interface=args.interface)
+        atecc.address = args.address
+        atecc.scaffold.power.dut = True
+        atecc.wake_up()
+        if args.atecc_command == "config":
+            if args.read:
+                config = atecc.read_config()
+                console.print(
+                    "[green]Interface: [/green]"
+                    f"[bold yellow]{args.interface}[/bold yellow]"
+                    "[green], Address: [/green]"
+                    f"[bold yellow]0x{args.address:02X}[/bold yellow]"
+                )
+                if args.slot is not None:
+                    config.print_slot_config(
+                        slot_config=config.slot_config[args.slot],
+                        slot_index=args.slot,
+                        print=console.print,
+                    )
+                elif args.key is not None:
+                    config.print_key_config(
+                        key_config=config.key_config[args.key],
+                        key_index=args.key,
+                        print=console.print,
+                    )
+                else:
+                    config.print_config(print=console.print)
+
     def run(self) -> None:
         """
         Parse command-line arguments, instantiate a scaffold object if needed
@@ -390,6 +477,8 @@ class CLI:
             self.handle_uart(args)
         elif args.command == "iso7816":
             self.handle_iso7816(args)
+        elif args.command == "atecc":
+            self.handle_atecc(args)
         elif args.command == "reset":
             self.handle_reset()
 

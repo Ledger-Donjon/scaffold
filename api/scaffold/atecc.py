@@ -732,7 +732,57 @@ class Config:
         for c in self.key_config:
             assert isinstance(c, KeyConfig)
 
-    def print_config(self):
+    def print_slot_config(self, slot_config: SlotConfig, slot_index: int, print=print):
+        print(f"  Slot {slot_index}:")
+        print("    Raw: 0x" + hexlify(slot_config.raw).decode())
+        x = slot_config.write_config
+        print(f"    Write config: 0b{x:04b}")
+        if x == 0:
+            s = "always"
+        elif x == 1:
+            s = "pub invalid"
+        elif (x & 0b1110) == 0b0010:
+            s = "never"
+        elif (x & 0b1100) == 0b1000:
+            s = "never"
+        elif (x & 0b0100) == 0b0100:
+            s = "encrypt"
+        else:
+            s = "?"
+        print(f"      write: {s}")
+        print(f"    Write key: {slot_config.write_key}")
+        print(f"    Read key: {slot_config.read_key}")
+        print("    Is secret: " + ["no", "yes"][int(slot_config.is_secret)])
+        print("    Encrypt read: " + ["no", "yes"][int(slot_config.encrypt_read)])
+        print("    Limited use: " + ["no", "yes"][int(slot_config.limited_use)])
+        print("    No MAC: " + ["no", "yes"][int(slot_config.no_mac)])
+
+    def print_key_config(self, key_config: KeyConfig, key_index: int, print=print):
+        def yes_no(x) -> str:
+            return "yes" if x else "no"
+
+        print(f"  Key {key_index}:")
+        if key_config.raw is not None:
+            print("    Raw: 0x" + hexlify(key_config.raw).decode())
+        print(f"    X509 ID: {key_config.x509_id}")
+        print("    Intrusion disable: " + yes_no(key_config.intrusion_disable))
+        print(f"    Auth key: {key_config.auth_key}")
+        print("    Req auth: " + yes_no(key_config.req_auth))
+        print("    Req random: " + yes_no(key_config.req_random))
+        print("    Lockable: " + yes_no(key_config.lockable))
+        if self.revision[2] > 0x05:
+            d = {
+                4: "P256 NIST ECC key",
+                6: "AES key",
+                7: "SHA key or other data",
+            }
+        else:
+            d = {4: "P256 NIST ECC key", 7: "Not an ECC key"}
+        print("    Key type: " + d.get(key_config.key_type, f"0x{key_config.key_type}"))
+        print("    Pub info: " + yes_no(key_config.pub_info))
+        print("    Private: " + yes_no(key_config.private))
+
+    def print_config(self, print=print):
         def yes_no(x) -> str:
             return "yes" if x else "no"
 
@@ -769,31 +819,9 @@ class Config:
         print(f"Selector mode: {self.selector_mode}")
         if self.atecc_revision.is_ATECC608:
             print(f"Clock divider: {self.clock_divider}")
-        print("Slot config:")
-        for i, sc in enumerate(self.slot_config):
-            print(f"  Slot {i}:")
-            print("    Raw: 0x" + hexlify(sc.raw).decode())
-            x = sc.write_config
-            print(f"    Write config: 0b{x:04b}")
-            if x == 0:
-                s = "always"
-            elif x == 1:
-                s = "pub invalid"
-            elif (x & 0b1110) == 0b0010:
-                s = "never"
-            elif (x & 0b1100) == 0b1000:
-                s = "never"
-            elif (x & 0b0100) == 0b0100:
-                s = "encrypt"
-            else:
-                s = "?"
-            print(f"      write: {s}")
-            print(f"    Write key: {sc.write_key}")
-            print(f"    Read key: {sc.read_key}")
-            print("    Is secret: " + ["no", "yes"][int(sc.is_secret)])
-            print("    Encrypt read: " + ["no", "yes"][int(sc.encrypt_read)])
-            print("    Limited use: " + ["no", "yes"][int(sc.limited_use)])
-            print("    No MAC: " + ["no", "yes"][int(sc.no_mac)])
+        print("Slots config:")
+        for i, slot_config in enumerate(self.slot_config):
+            self.print_slot_config(slot_config, i, print=print)
         print("Counters:")
         for i, c in enumerate(self.counters):
             print(f"  {i}: 0x" + hexlify(c).decode())
@@ -839,26 +867,7 @@ class Config:
         print(f"X509 format: 0x{self.x509_format.hex()}")
         print("Key config:")
         for i, kc in enumerate(self.key_config):
-            print(f"  Key {i}:")
-            if kc.raw is not None:
-                print("    Raw: 0x" + hexlify(kc.raw).decode())
-            print(f"    X509 ID: {kc.x509_id}")
-            print("    Intrusion disable: " + yes_no(kc.intrusion_disable))
-            print(f"    Auth key: {kc.auth_key}")
-            print("    Req auth: " + yes_no(kc.req_auth))
-            print("    Req random: " + yes_no(kc.req_random))
-            print("    Lockable: " + yes_no(kc.lockable))
-            if self.revision[2] > 0x05:
-                d = {
-                    4: "P256 NIST ECC key",
-                    6: "AES key",
-                    7: "SHA key or other data",
-                }
-            else:
-                d = {4: "P256 NIST ECC key", 7: "Not an ECC key"}
-            print("    Key type: " + d.get(kc.key_type, f"0x{kc.key_type}"))
-            print("    Pub info: " + yes_no(kc.pub_info))
-            print("    Private: " + yes_no(kc.private))
+            self.print_key_config(kc, i, print=print)
 
 
 class ATECCIOFlag(Enum):
