@@ -935,15 +935,15 @@ class ATECC:
         The Wake condition requires that the system processor manually drives
         the SDA pin low for tWLO (60μs).
         """
-        self.sda << 0
+        _ = self.sda << 0
         sleep(2e-4)
-        self.sda << 1
+        _ = self.sda << 1
         sleep(2e-3)
         # Restore the SDA line
         if self.interface == ATECCInterface.I2C:
-            self.sda << self.i2c.sda_out
+            _ = self.sda << self.i2c.sda_out
         elif self.interface == ATECCInterface.SWI:
-            self.sda << self.uart.tx
+            _ = self.sda << self.uart.tx
         self._state = ATECCState.AWAKE
 
     def __swi_receive(self, n: int) -> bytes:
@@ -1331,7 +1331,7 @@ class ATECC:
         self.command(ATECCOpCode.LOCK, mode, 0)
 
     def gen_priv_key(
-        self, slot: int, trigger: Optional[Union[bool, int, I2CTrigger]] = None
+        self, slot: Optional[int], trigger: Optional[Union[bool, int, I2CTrigger]] = None
     ):
         """
         Call the GenKey command to generate a private key in a slot.
@@ -1340,11 +1340,11 @@ class ATECC:
         :param trigger: permits to generate a trigger on the command.
         """
         # Command execution is long. We must wait before querying the response.
-        self.command(ATECCOpCode.GEN_KEY, 1 << 2, slot, trigger=trigger, wait=0.2)
+        return self.command(ATECCOpCode.GEN_KEY, 1 << 2, 0xFFFF if slot is None else slot, trigger=trigger, wait=0.2)
 
     def gen_pub_key(
         self,
-        slot: int,
+        slot: Optional[int],
         trigger: Optional[Union[bool, int, I2CTrigger]] = None,
     ):
         """
@@ -1354,7 +1354,7 @@ class ATECC:
         :param slot: Slot number.
         """
         # Command execution is long. We must wait before querying the response.
-        return self.command(ATECCOpCode.GEN_KEY, 0, slot, trigger=trigger, wait=0.2)
+        return self.command(ATECCOpCode.GEN_KEY, 0, 0xFFFF if slot is None else slot, trigger=trigger, wait=0.2)
 
     def nonce(self, update_seed=False) -> bytes:
         """
