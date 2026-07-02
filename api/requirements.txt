@@ -3,4 +3,7 @@ crcmod
 requests
 packaging
 pytest
-pycrypto
+rich
+rich-argparse
+pycryptodome
+yaml
