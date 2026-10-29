@@ -20,20 +20,15 @@
 
 
 from scaffold import Scaffold
-import sys
-import argparse
+import serial.tools.list_ports
 
 
-# Arguments parsing
-parser = argparse.ArgumentParser(
-    description='Connects to a Scaffold board and prints FPGA architecture '
-    'version.')
-default_com = {'win32': 'COM0'}.get(sys.platform, '/dev/ttyUSB0')
-parser.add_argument(
-    '-d', '--dev', help='Scaffold serial device path. '
-    f'If not specified, {default_com} is used.', default=default_com)
-args = parser.parse_args()
+scaffold = Scaffold()
+print("Scaffold arch version:", scaffold.version)
 
-# Connect to Scaffold board
-scaffold = Scaffold(args.dev)
-print('Scaffold arch version:', scaffold.version)
+dev = scaffold.bus.ser.port
+sn = next(
+    (p.serial_number for p in serial.tools.list_ports.comports() if p.device == dev),
+    None,
+)
+print("Serial number:", sn)
